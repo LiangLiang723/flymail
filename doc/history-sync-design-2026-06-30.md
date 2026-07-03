@@ -19,10 +19,26 @@
 ## 存储策略
 
 - 邮件摘要与正文缓存：MySQL `cached_messages`
+- 正文检查标识：MySQL `cached_messages.body_checked`，用于区分“尚未拉取详情”和“官方详情已检查但正文确实为空”
 - 历史任务进度：MySQL `history_sync_jobs`
 - 邮件正文与结构化详情：MySQL `cached_messages`
 - 非图片附件缓存：`data/document/<account>/<year>/<month>/<uid>/`
 - 图片与内嵌图片缓存：`data/picture/<account>/<year>/<month>/<uid>/`
+
+## 刷新同步流程
+
+同步管理页有两个不同动作：
+
+- 右上角“刷新进度”：只读取本地 `history_sync_jobs`、`cached_messages`、`folder_stats` 和 `account_folder_counts`，刷新页面显示，不连接 IMAP。
+- 邮箱卡片里的“刷新同步”：启动后台历史同步任务，连接 IMAP 并按文件夹同步。
+
+“刷新同步”每个文件夹按以下顺序执行：
+
+1. 最近补新：从第 1 页开始按每页 50 封拉取远端摘要。每页和本地 UID 集合比较，遇到本地已缓存 UID 就停止这一阶段；如果 50 封都未命中本地缓存，则继续下一页，直到命中已缓存 UID、远端总数边界或返回不足一页。
+2. 正文补全：查询本地 `body_text`、`body_html` 为空且 `body_checked = 0` 的邮件，再按 UID 拉取官方详情。拉取成功后写入正文、附件、内嵌图片缓存，并把 `body_checked` 置为 1。即使官方正文确实为空，也会标记已检查，避免后续重复拉取。
+3. 已读校正：获取官方未读 UID 集合，用它批量更新本地缓存的 `is_read`。
+
+邮件管理页右上角的刷新不走上述历史同步流程；它只刷新当前邮箱、当前文件夹、当前页，并把当前页摘要和已读状态写回本地缓存。
 
 ## 离线查看
 
