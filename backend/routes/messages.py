@@ -834,6 +834,8 @@ async def refresh_messages(
 
         result, remote_folder = await _with_outlook_retry(account, _refresh_remote)
         await _cache_remote_page(account, remote_folder, result)
+        from services.mail_cache import sync_missing_messages
+        await sync_missing_messages(account, remote_folder)
         await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
     except Exception as exc:
         logger.warning("refresh messages failed: account=%s folder=%s error=%s", account.email, folder, exc)

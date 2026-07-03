@@ -3,6 +3,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -114,6 +115,9 @@ def _load_messages_route_module():
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = object()
 
+    mail_cache_stub = types.ModuleType("services.mail_cache")
+    mail_cache_stub.sync_missing_messages = AsyncMock(return_value=1)
+
     token_stub = types.ModuleType("services.token")
     token_stub.ensure_token = object()
 
@@ -139,6 +143,7 @@ def _load_messages_route_module():
         "routes._helpers",
         "schemas",
         "services.sync",
+        "services.mail_cache",
         "services.token",
         "utils.logger",
         "utils.tasks",
@@ -157,6 +162,7 @@ def _load_messages_route_module():
             "routes._helpers": helpers_stub,
             "schemas": schemas_stub,
             "services.sync": sync_stub,
+            "services.mail_cache": mail_cache_stub,
             "services.token": token_stub,
             "utils.logger": logger_stub,
             "utils.tasks": tasks_stub,
@@ -177,6 +183,62 @@ def _load_messages_route_module():
 
 
 class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
+    async def test_manual_refresh_runs_missing_uid_backfill(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="qq",
+            status="connected",
+        )
+        result = types.SimpleNamespace(
+            messages=[],
+            total=599,
+            unread_total=0,
+        )
+
+        receiver = AsyncMock()
+        receiver.fetch_messages.return_value = result
+        receiver.fetch_unseen_uids.return_value = []
+        receiver.disconnect = AsyncMock()
+
+        messages._get_account = AsyncMock(return_value=("user-1", account))
+        messages.ensure_account_token = AsyncMock(return_value=object())
+        messages.ProviderFactory = types.SimpleNamespace(get_receiver=lambda _provider: receiver)
+        messages._resolve_remote_folder = AsyncMock(return_value="Sent Messages")
+        messages._safe_disconnect = AsyncMock()
+        async def run_operation(_account, operation):
+            return await operation()
+
+        messages._with_outlook_retry = AsyncMock(side_effect=run_operation)
+        messages._cache_remote_page = AsyncMock()
+        messages._load_local_messages = AsyncMock(return_value={"messages": [], "total": 598})
+        messages.sync_service = types.SimpleNamespace(
+            is_account_suspended=lambda _account_id: False,
+            refresh_clients=AsyncMock(),
+        )
+        mail_cache_stub = types.ModuleType("services.mail_cache")
+        mail_cache_stub.sync_missing_messages = AsyncMock(return_value=1)
+        previous_mail_cache = sys.modules.get("services.mail_cache")
+        sys.modules["services.mail_cache"] = mail_cache_stub
+
+        try:
+            await messages.refresh_messages(
+                request=object(),
+                folder="Sent",
+                page_size=50,
+                account_id="account-1",
+            )
+        finally:
+            if previous_mail_cache is None:
+                sys.modules.pop("services.mail_cache", None)
+            else:
+                sys.modules["services.mail_cache"] = previous_mail_cache
+
+        mail_cache_stub.sync_missing_messages.assert_awaited_once_with(account, "Sent Messages")
+        messages.sync_service.refresh_clients.assert_awaited_once_with("account-1", "Sent", user_uid="user-1")
+
     async def test_resolves_netease_sent_folder_by_display_name(self):
         messages = _load_messages_route_module()
 

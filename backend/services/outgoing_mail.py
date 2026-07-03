@@ -9,7 +9,7 @@ from email.utils import formatdate
 
 from models import Account
 from models import CachedMessage
-from db import get_folder_stats, search_cached_messages_by_folder, upsert_cached_messages, upsert_folder_stats
+from db import get_folder_stats, upsert_cached_messages, upsert_folder_stats
 from providers.factory import ProviderFactory
 from services.mail_cache import sync_folder_to_cache
 from services.message_body import html_to_text, prepare_outgoing_body_html
@@ -156,53 +156,31 @@ async def ensure_sent_message_cached(
 
     await sync_folder_to_cache(account, sent_folder)
 
-    should_append = True
     try:
-        cached = await search_cached_messages_by_folder(
-            account.user_uid,
-            account.id,
-            sent_folder,
-            subject or "",
-            page=1,
-            page_size=20,
-        )
-        expected_to = set((to or []) + (cc or []) + (bcc or []))
-        for item in cached.get("messages", []):
-            if (item.get("subject") or "") != (subject or ""):
-                continue
-            to_addr = item.get("to_addr") or ""
-            if not expected_to or any(addr in to_addr for addr in expected_to):
-                should_append = False
-                break
-    except Exception as exc:
-        logger.debug("sent cache duplicate check failed: %s", exc)
-
-    if should_append:
+        receiver = ProviderFactory.get_receiver(account.provider)
+        credentials = await ensure_token(account)
+        await receiver.connect(credentials)
         try:
-            receiver = ProviderFactory.get_receiver(account.provider)
-            credentials = await ensure_token(account)
-            await receiver.connect(credentials)
+            await receiver.save_draft(message_bytes, sent_folder)
+            logger.info("appended outgoing message to sent folder: %s %s", account.email, sent_folder)
+        finally:
             try:
-                await receiver.save_draft(message_bytes, sent_folder)
-                logger.info("appended outgoing message to sent folder: %s %s", account.email, sent_folder)
-            finally:
-                try:
-                    await receiver.disconnect()
-                except Exception:
-                    pass
-        except Exception as exc:
-            logger.warning("append sent message fallback failed: %s", exc)
-            await _cache_outgoing_message_locally(
-                account=account,
-                user_uid=user_uid,
-                sent_folder=sent_folder,
-                to=to or [],
-                cc=cc or [],
-                bcc=bcc or [],
-                subject=subject or "",
-                body_html=body_html or "",
-                attachments=attachments or [],
-            )
+                await receiver.disconnect()
+            except Exception:
+                pass
+    except Exception as exc:
+        logger.warning("append sent message fallback failed: %s", exc)
+        await _cache_outgoing_message_locally(
+            account=account,
+            user_uid=user_uid,
+            sent_folder=sent_folder,
+            to=to or [],
+            cc=cc or [],
+            bcc=bcc or [],
+            subject=subject or "",
+            body_html=body_html or "",
+            attachments=attachments or [],
+        )
 
     try:
         receiver = ProviderFactory.get_receiver(account.provider)

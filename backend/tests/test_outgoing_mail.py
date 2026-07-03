@@ -12,7 +12,6 @@ from models import Account
 def _load_outgoing_mail_module():
     db_stub = types.ModuleType("db")
     db_stub.get_folder_stats = AsyncMock(return_value={"total_count": 0, "unread_count": 0, "updated_at": 0})
-    db_stub.search_cached_messages_by_folder = AsyncMock(return_value={"messages": []})
     db_stub.upsert_cached_messages = AsyncMock(return_value=1)
     db_stub.upsert_folder_stats = AsyncMock()
 
@@ -151,6 +150,39 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
             "Sent",
             user_uid="user-1",
         )
+
+    async def test_sent_cache_always_appends_even_when_same_subject_exists(self):
+        outgoing_mail, db_stub, mail_cache_stub, sync_stub = _load_outgoing_mail_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="sender@example.com",
+            provider="qq",
+        )
+
+        receiver = AsyncMock()
+        receiver.fetch_folders.return_value = [
+            types.SimpleNamespace(name="已发送", path="Sent Messages"),
+        ]
+        receiver.disconnect = AsyncMock()
+        outgoing_mail.ProviderFactory.get_receiver = staticmethod(lambda provider: receiver)
+
+        sent_folder = await outgoing_mail.ensure_sent_message_cached(
+            account=account,
+            user_uid="user-1",
+            to=["to@example.com"],
+            cc=[],
+            bcc=[],
+            subject="same subject",
+            body_html="<p>same body</p>",
+            attachments=[],
+        )
+
+        self.assertEqual(sent_folder, "Sent Messages")
+        receiver.save_draft.assert_awaited_once()
+        db_stub.upsert_cached_messages.assert_not_awaited()
+        self.assertEqual(mail_cache_stub.sync_folder_to_cache.await_count, 2)
+        self.assertEqual(sync_stub.sync_service.refresh_clients.await_count, 2)
 
 
 if __name__ == "__main__":
