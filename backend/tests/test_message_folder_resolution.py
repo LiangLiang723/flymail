@@ -44,6 +44,8 @@ def _load_messages_route_module():
         "batch_delete_cached_messages",
         "batch_update_is_read",
         "batch_update_cached_messages_read",
+        "delete_pending_read_sync",
+        "enqueue_pending_read_sync",
         "get_accounts",
         "get_cached_attachment",
         "get_cached_is_read",
@@ -61,7 +63,7 @@ def _load_messages_route_module():
         "upsert_folder_stats",
         "delete_cached_message",
     ):
-        setattr(db_stub, name, object())
+        setattr(db_stub, name, AsyncMock())
 
     data_paths_stub = types.ModuleType("data_paths")
     for name in (
@@ -384,6 +386,48 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result)
         self.assertIn("超时", error)
 
+
+    async def test_cached_detail_with_body_is_complete_without_cached_attachments(self):
+        messages = _load_messages_route_module()
+        cached = {"body_html": "<p>ok</p>", "body_text": "", "has_attachments": True}
+
+        complete = await messages._cached_detail_assets_complete("account-1", 1, "INBOX", cached)
+
+        self.assertTrue(complete)
+
+    async def test_mark_read_queues_remote_failure_and_updates_local(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="gmail",
+            status="connected",
+        )
+        body = types.SimpleNamespace(
+            account_id="account-1",
+            message_id="account-1_INBOX_hash_42",
+            folder="INBOX",
+        )
+
+        messages._get_account = AsyncMock(return_value=("user-1", account))
+        messages.get_cached_is_read = AsyncMock(return_value=False)
+        messages._mark_remote_message_read = AsyncMock(side_effect=TimeoutError("timed out"))
+        messages._notify_if_permanent_token_error = AsyncMock()
+        messages._is_outlook_connection_error = lambda *_args, **_kwargs: False
+        messages.enqueue_pending_read_sync = AsyncMock()
+        messages.update_cached_message_read = AsyncMock(return_value=True)
+        messages.adjust_account_folder_unread = AsyncMock()
+        messages._adjust_folder_unread_stats = AsyncMock()
+        messages.sync_service = types.SimpleNamespace(notify_message_state_changed=AsyncMock())
+
+        result = await messages.mark_message_as_read(request=object(), body=body)
+
+        self.assertTrue(result["success"])
+        messages.enqueue_pending_read_sync.assert_awaited_once_with(
+            "account-1", "user-1", 42, "INBOX", True, "timed out"
+        )
+        messages.update_cached_message_read.assert_awaited_once_with("account-1", 42, "INBOX", True)
 
 if __name__ == "__main__":
     unittest.main()

@@ -534,6 +534,22 @@ async def init_db():
             )
         """)
 
+    await db.execute("""
+            CREATE TABLE IF NOT EXISTS pending_read_sync (
+                account_id VARCHAR(191) NOT NULL,
+                user_uid VARCHAR(191) NOT NULL,
+                uid INTEGER NOT NULL,
+                folder VARCHAR(255) NOT NULL,
+                desired_read INTEGER DEFAULT 1,
+                attempts INTEGER DEFAULT 0,
+                last_error VARCHAR(1024) DEFAULT '',
+                created_at REAL DEFAULT 0,
+                updated_at REAL DEFAULT 0,
+                PRIMARY KEY (account_id, folder, uid)
+            )
+        """)
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_pending_read_sync_updated ON pending_read_sync(updated_at)")
+
     try:
         await db.execute("ALTER TABLE accounts ADD COLUMN hide_email INTEGER DEFAULT 0")
     except Exception as e:
@@ -1318,6 +1334,7 @@ async def update_account_info(
 async def delete_cached_messages_by_account(account_id: str) -> int:
     db = await get_db()
     cursor = await db.execute('DELETE FROM cached_messages WHERE account_id = ?', (account_id,))
+    await db.execute('DELETE FROM pending_read_sync WHERE account_id = ?', (account_id,))
     await db.commit()
     return cursor.rowcount
 
@@ -1546,6 +1563,83 @@ async def update_cached_message_read(account_id: str, uid: int, folder: str, is_
     )
     await db.commit()
     return cursor.rowcount > 0
+
+
+async def enqueue_pending_read_sync(
+    account_id: str,
+    user_uid: str,
+    uid: int,
+    folder: str,
+    desired_read: bool = True,
+    error: str = "",
+) -> None:
+    now = time.time()
+    db = await get_db()
+    await db.execute(
+        '''INSERT INTO pending_read_sync
+           (account_id, user_uid, uid, folder, desired_read, attempts, last_error, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             desired_read = VALUES(desired_read),
+             last_error = VALUES(last_error),
+             updated_at = VALUES(updated_at)''',
+        (account_id, user_uid, uid, folder, 1 if desired_read else 0, str(error)[:1024], now, now),
+    )
+    await db.commit()
+
+
+async def list_pending_read_sync(limit: int = 100) -> list[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        '''SELECT account_id, user_uid, uid, folder, desired_read, attempts, last_error, created_at, updated_at
+           FROM pending_read_sync
+           ORDER BY updated_at ASC
+           LIMIT ?''',
+        (limit,),
+    )
+    rows = await cursor.fetchall()
+    return [
+        {
+            "account_id": row[0],
+            "user_uid": row[1],
+            "uid": int(row[2] or 0),
+            "folder": row[3] or "INBOX",
+            "desired_read": bool(row[4]),
+            "attempts": int(row[5] or 0),
+            "last_error": row[6] or "",
+            "created_at": float(row[7] or 0),
+            "updated_at": float(row[8] or 0),
+        }
+        for row in rows
+    ]
+
+
+async def delete_pending_read_sync(account_id: str, uid: int, folder: str) -> bool:
+    db = await get_db()
+    cursor = await db.execute(
+        "DELETE FROM pending_read_sync WHERE account_id = ? AND uid = ? AND folder = ?",
+        (account_id, uid, folder),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def delete_pending_read_sync_by_account(account_id: str) -> int:
+    db = await get_db()
+    cursor = await db.execute("DELETE FROM pending_read_sync WHERE account_id = ?", (account_id,))
+    await db.commit()
+    return cursor.rowcount
+
+
+async def mark_pending_read_sync_failed(account_id: str, uid: int, folder: str, error: str) -> None:
+    db = await get_db()
+    await db.execute(
+        '''UPDATE pending_read_sync
+           SET attempts = attempts + 1, last_error = ?, updated_at = ?
+           WHERE account_id = ? AND uid = ? AND folder = ?''',
+        (str(error)[:1024], time.time(), account_id, uid, folder),
+    )
+    await db.commit()
 
 
 async def batch_update_cached_messages_read(account_id: str, uids: list[int], folder: str, is_read: bool) -> int:

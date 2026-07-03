@@ -14,6 +14,8 @@ from db import (
     batch_delete_cached_messages,
     batch_update_is_read,
     batch_update_cached_messages_read,
+    delete_pending_read_sync,
+    enqueue_pending_read_sync,
     get_accounts,
     get_cached_attachment,
     get_cached_is_read,
@@ -305,15 +307,6 @@ async def _cache_detail_assets_in_background(account: Account, folder: str, uid_
 async def _cached_detail_assets_complete(account_id: str, uid: int, folder: str, cached: dict | None) -> bool:
     if not cached or not (cached.get("body_text") or cached.get("body_html")):
         return False
-    if not cached.get("has_attachments"):
-        return True
-    attachments = await list_cached_attachments(account_id, uid, folder)
-    if not attachments:
-        return False
-    for attachment in attachments:
-        local_path = attachment.get("local_path") or ""
-        if not local_path or not Path(local_path).exists():
-            return False
     return True
 
 
@@ -408,6 +401,22 @@ async def _adjust_folder_unread_stats(account_id: str, folder: str, delta: int) 
 async def _remote_message_is_read(receiver, folder: str, uid_num: int) -> bool:
     unseen_uids = set(await receiver.fetch_unseen_uids(folder))
     return uid_num not in unseen_uids
+
+
+async def _mark_remote_message_read(account: Account, uid_num: int, folder: str) -> None:
+    credentials = await ensure_account_token(account)
+    receiver = ProviderFactory.get_receiver(account.provider)
+    await receiver.connect(credentials)
+    try:
+        remote_folder = await _resolve_remote_folder(receiver, folder)
+        uid_str = str(uid_num)
+        try:
+            await receiver.mark_as_read(uid_str, folder=remote_folder)
+        except Exception:
+            if not await _remote_message_is_read(receiver, remote_folder, uid_num):
+                raise
+    finally:
+        await _safe_disconnect(receiver)
 
 
 async def _fetch_remote_folder_counts(
@@ -1176,24 +1185,14 @@ async def mark_message_as_read(
 
     if account.status != "offline":
         try:
-            credentials = await ensure_account_token(account)
-            receiver = ProviderFactory.get_receiver(account.provider)
-            await receiver.connect(credentials)
-            try:
-                remote_folder = await _resolve_remote_folder(receiver, body.folder)
-                try:
-                    await receiver.mark_as_read(uid_str, folder=remote_folder)
-                except Exception:
-                    if not await _remote_message_is_read(receiver, remote_folder, uid_num):
-                        raise
-            finally:
-                await _safe_disconnect(receiver)
+            await _mark_remote_message_read(account, uid_num, body.folder)
+            await delete_pending_read_sync(account.id, uid_num, body.folder)
         except Exception as exc:
-            logger.error("mark read failed: account=%s uid=%s folder=%s error=%s", account.email, uid_num, body.folder, exc)
+            logger.warning("mark read queued: account=%s uid=%s folder=%s error=%s", account.email, uid_num, body.folder, exc)
             await _notify_if_permanent_token_error(exc, account, user_uid)
             if _is_outlook_connection_error(account, str(exc)):
                 raise AppError(503, _OUTLOOK_RECONNECTING_MSG)
-            raise AppError(500, "标记已读失败")
+            await enqueue_pending_read_sync(account.id, user_uid, uid_num, body.folder, True, str(exc))
 
     updated = await update_cached_message_read(account.id, uid_num, body.folder, True)
     if updated and was_read is False:
@@ -1231,14 +1230,17 @@ async def batch_mark_read(
                     for uid_str in uid_strs:
                         await receiver.mark_as_read(uid_str, folder=remote_folder)
                         marked += 1
+                for uid_num in uid_nums:
+                    await delete_pending_read_sync(account.id, uid_num, body.folder)
             finally:
                 await _safe_disconnect(receiver)
         except Exception as exc:
-            logger.error("batch mark read failed: account=%s folder=%s error=%s", account.email, body.folder, exc)
+            logger.warning("batch mark read queued: account=%s folder=%s error=%s", account.email, body.folder, exc)
             await _notify_if_permanent_token_error(exc, account, user_uid)
             if _is_outlook_connection_error(account, str(exc)):
                 raise AppError(503, _OUTLOOK_RECONNECTING_MSG)
-            raise AppError(500, "批量标记已读失败")
+            for uid_num in uid_nums:
+                await enqueue_pending_read_sync(account.id, user_uid, uid_num, body.folder, True, str(exc))
 
     updated = await batch_update_cached_messages_read(account.id, uid_nums, body.folder, True)
     delta = -min(updated, unread_before)
