@@ -160,6 +160,35 @@ class HistorySyncProgressTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sent["total_count"], 1)
         self.assertTrue(sent["is_synced"])
 
+    async def test_folder_progress_prefers_live_cache_when_summary_is_stale(self):
+        settings = _load_settings_route_module()
+
+        async def fake_get_folder_stats(account_id, folder_key):
+            return {"total_count": 12, "unread_count": 2, "updated_at": 1}
+
+        async def fake_get_cached_count(account_id, folder_key):
+            return 12 if folder_key == "INBOX" else 0
+
+        async def fake_get_history_sync_job(account_id, job_type="history_sync"):
+            return None
+
+        with (
+            patch.object(
+                settings,
+                "list_account_folder_counts",
+                AsyncMock(return_value=[{"folder_key": "inbox", "cached_count": 10}]),
+            ),
+            patch.object(settings, "get_folder_stats", fake_get_folder_stats),
+            patch.object(settings, "get_cached_count", fake_get_cached_count),
+            patch.object(settings, "get_history_sync_job", fake_get_history_sync_job),
+        ):
+            progress = await settings._build_folder_progress("account-1")
+
+        inbox = next(item for item in progress if item["folder"] == "INBOX")
+        self.assertEqual(inbox["cached_count"], 12)
+        self.assertEqual(inbox["summary_count"], 12)
+        self.assertTrue(inbox["is_synced"])
+
     async def test_start_history_sync_rejects_disabled_account(self):
         settings = _load_settings_route_module()
         account = types.SimpleNamespace(id="account-1", status="offline")

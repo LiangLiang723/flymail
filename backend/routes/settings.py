@@ -99,8 +99,7 @@ async def _build_folder_progress(account_id: str) -> list[dict]:
         folder_stats = await get_folder_stats(account_id, folder_key)
         cached_count = await get_cached_count(account_id, folder_key)
         synced_count = int((count_by_key.get(folder_key.lower()) or {}).get("cached_count", 0) or 0)
-        if not synced_count:
-            synced_count = cached_count
+        synced_count = max(synced_count, cached_count)
         sync_job = await get_history_sync_job(account_id, job_type=f"folder_sync:{folder_key}")
         clear_job = await get_history_sync_job(account_id, job_type=f"folder_clear:{folder_key}")
         total_count = max(int(folder_stats.get("total_count", 0) or 0), synced_count, cached_count)
