@@ -263,14 +263,10 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 attachment_paths=body.attachments,
                 in_reply_to=body.in_reply_to,
                 run_time=run_time,
+                draft_message_id=body.draft_message_id,
+                draft_folder=body.draft_folder,
                 provider=account.provider,
                 email=account.email,
-            )
-            await _delete_source_draft_after_success(
-                account,
-                user_uid,
-                body.draft_message_id,
-                body.draft_folder,
             )
             return {"success": True, "message": "定时发送已设置", "job_id": job_id}
         except Exception as e:

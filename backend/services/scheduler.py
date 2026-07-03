@@ -63,6 +63,8 @@ async def _send_scheduled_email(
     body_html: str,
     attachment_paths: list,
     in_reply_to: str | None,
+    draft_message_id: str | None = None,
+    draft_folder: str | None = None,
     provider: str = "",
     email: str = "",
 ):
@@ -70,6 +72,9 @@ async def _send_scheduled_email(
     try:
         from db import get_accounts
         from providers.factory import ProviderFactory
+        from services.draft import delete_draft_from_imap
+        from services.mail_cache import sync_folder_to_cache
+        from services.sync import sync_service
         from services.token import ensure_token
 
         accounts = await get_accounts(user_uid)
@@ -116,6 +121,23 @@ async def _send_scheduled_email(
                 )
             except Exception as cache_err:
                 logger.warning("定时邮件发送成功后缓存已发送邮件失败: %s", cache_err)
+            if draft_message_id:
+                folder = draft_folder or "Drafts"
+                try:
+                    receiver = ProviderFactory.get_receiver(account.provider)
+                    await receiver.connect(credentials)
+                    try:
+                        await delete_draft_from_imap(
+                            receiver,
+                            int(str(draft_message_id).rsplit("_", 1)[-1]),
+                            folder=folder,
+                        )
+                    finally:
+                        await receiver.disconnect()
+                    await sync_folder_to_cache(account, folder)
+                    await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
+                except Exception as draft_err:
+                    logger.warning("scheduled email sent but source draft cleanup failed: %s", draft_err)
         finally:
             await sender.disconnect()
     except Exception as e:
@@ -160,6 +182,8 @@ def schedule_email(
     attachment_paths: list,
     in_reply_to: str | None,
     run_time,
+    draft_message_id: str | None = None,
+    draft_folder: str | None = None,
     provider: str = "",
     email: str = "",
 ):
@@ -180,6 +204,8 @@ def schedule_email(
             "body_html": body_html,
             "attachment_paths": attachment_paths,
             "in_reply_to": in_reply_to,
+            "draft_message_id": draft_message_id,
+            "draft_folder": draft_folder,
             "provider": provider,
             "email": email,
         },
