@@ -43,6 +43,7 @@ class CachedMessage(BaseModel):
     has_attachments: bool = False
     body_text: str = ""
     body_html: str = ""
+    body_checked: bool = False
     storage_path: str = ""
     cached_at: float = 0.0
 

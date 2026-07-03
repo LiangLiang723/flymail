@@ -3,6 +3,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 
 def _load_history_sync_module():
@@ -21,6 +22,8 @@ def _load_history_sync_module():
         "get_history_sync_job",
         "get_history_sync_job_by_id",
         "list_cached_attachments",
+        "list_cached_messages_needing_body_check",
+        "mark_cached_messages_body_checked",
         "update_history_sync_job",
         "upsert_cached_attachments",
         "upsert_cached_messages",
@@ -33,17 +36,14 @@ def _load_history_sync_module():
         setattr(db_stub, name, object())
 
     data_paths_stub = types.ModuleType("data_paths")
-    for name in (
-        "DOWNLOADS_DIR",
-        "build_message_file_path",
-        "coalesce_message_date",
-        "clear_account_storage",
-        "ensure_message_file_location",
-        "ensure_data_dirs",
-        "normalize_message_date",
-        "UNKNOWN_MESSAGE_DATE",
-    ):
-        setattr(data_paths_stub, name, object())
+    data_paths_stub.DOWNLOADS_DIR = Path(".")
+    data_paths_stub.build_message_file_path = lambda *args, **kwargs: ("", Path("."), False)
+    data_paths_stub.coalesce_message_date = lambda *values: next((value for value in values if value), "")
+    data_paths_stub.clear_account_storage = lambda *args, **kwargs: None
+    data_paths_stub.ensure_message_file_location = lambda *args, **kwargs: ("", Path("."), False)
+    data_paths_stub.ensure_data_dirs = lambda: None
+    data_paths_stub.normalize_message_date = lambda value, fallback="": value or fallback
+    data_paths_stub.UNKNOWN_MESSAGE_DATE = "1970-01-01T00:00:00Z"
 
     factory_stub = types.ModuleType("providers.factory")
     factory_stub.ProviderFactory = object()
@@ -113,6 +113,73 @@ class HistorySyncFolderResolutionTest(unittest.TestCase):
         resolved = history_sync._resolve_history_folders(remote_folders, ["Sent"])
 
         self.assertEqual(resolved[0].path, "&XfJT0ZAB-")
+
+
+class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
+    async def test_recent_stage_stops_after_cached_message(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        receiver.fetch_messages.return_value = types.SimpleNamespace(
+            messages=[
+                types.SimpleNamespace(uid=105, date="2026-07-03", is_read=False),
+                types.SimpleNamespace(uid=104, date="2026-07-03", is_read=False),
+                types.SimpleNamespace(uid=103, date="2026-07-03", is_read=False),
+            ],
+            total=6,
+            unread_total=0,
+            page_size=50,
+        )
+
+        with (
+            patch.object(history_sync, "get_cached_uids", AsyncMock(return_value={103, 102})),
+            patch.object(history_sync, "upsert_folder_stats", AsyncMock()),
+            patch.object(history_sync, "_cache_message_detail", AsyncMock(return_value=(1, 0, 0))) as cache_detail,
+        ):
+            fetched, _att, _inline = await history_sync._sync_recent_uncached_messages(
+                receiver, account, "INBOX", set()
+            )
+
+        self.assertEqual(fetched, 2)
+        self.assertEqual(receiver.fetch_messages.await_count, 1)
+        self.assertEqual([call.args[3].uid for call in cache_detail.await_args_list], [105, 104])
+
+    async def test_unchecked_empty_body_is_marked_checked(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        receiver.fetch_message_detail.return_value = types.SimpleNamespace(
+            uid=101,
+            subject="empty",
+            from_addr="from@example.com",
+            to_addr="to@example.com",
+            date="2026-07-03",
+            is_read=True,
+            is_starred=False,
+            attachments=[],
+            body_text="",
+            body_html="",
+        )
+
+        rows = [
+            [{"uid": 101, "date": "2026-07-03"}],
+            [],
+        ]
+
+        with (
+            patch.object(history_sync, "list_cached_messages_needing_body_check", AsyncMock(side_effect=rows)),
+            patch.object(history_sync, "get_cached_message_detail", AsyncMock(return_value=None)),
+            patch.object(history_sync, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
+            patch.object(history_sync, "upsert_cached_messages", AsyncMock()) as upsert,
+            patch.object(history_sync, "upsert_cached_attachments", AsyncMock()),
+            patch.object(history_sync, "mark_cached_messages_body_checked", AsyncMock()) as mark_checked,
+        ):
+            await history_sync._fill_unchecked_message_bodies(receiver, account, "INBOX", set())
+
+        cached_message = upsert.await_args.args[0][0]
+        self.assertTrue(cached_message.body_checked)
+        self.assertEqual(cached_message.body_text, "")
+        mark_checked.assert_awaited_with("account-1", "INBOX", [101])
 
 
 if __name__ == "__main__":

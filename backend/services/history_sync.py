@@ -12,7 +12,6 @@ from data_paths import (
     ensure_message_file_location,
     ensure_data_dirs,
     normalize_message_date,
-    UNKNOWN_MESSAGE_DATE,
 )
 from db import (
     batch_update_is_read,
@@ -27,7 +26,8 @@ from db import (
     get_cached_uids,
     get_history_sync_job,
     get_history_sync_job_by_id,
-    list_cached_attachments,
+    list_cached_messages_needing_body_check,
+    mark_cached_messages_body_checked,
     update_history_sync_job,
     upsert_cached_attachments,
     upsert_cached_messages,
@@ -45,6 +45,8 @@ from utils.logger import get_logger
 from utils.tasks import create_background_task
 
 logger = get_logger("history_sync")
+RECENT_SYNC_PAGE_SIZE = 50
+BODY_CHECK_BATCH_SIZE = 100
 
 
 def _strip_cid(content_id: str) -> str:
@@ -686,6 +688,131 @@ async def _cache_message_assets(receiver, account, folder_name: str, detail) -> 
     return body_html, storage_path, downloaded_attachments, downloaded_inline_images, attachment_records
 
 
+def _select_uncached_recent_messages(messages: list, cached_uids: set[int]) -> tuple[list, bool]:
+    selected = []
+    for message in messages:
+        uid = int(getattr(message, "uid", 0) or 0)
+        if uid <= 0:
+            continue
+        if uid in cached_uids:
+            return selected, True
+        selected.append(message)
+        cached_uids.add(uid)
+    return selected, False
+
+
+async def _cache_message_detail(receiver, account, folder_name: str, message, unseen_uids: set[int] | None) -> tuple[int, int, int]:
+    detail = await receiver.fetch_message_detail(str(message.uid), folder=folder_name)
+    if unseen_uids is not None:
+        detail.is_read = detail.uid not in unseen_uids
+    cached_detail = await get_cached_message_detail(account.id, detail.uid, folder_name)
+    effective_message_date = coalesce_message_date(detail.date, getattr(message, "date", ""), (cached_detail or {}).get("date", ""))
+    body_html, storage_path, att_count, inline_count, attachment_records = await _cache_message_assets(receiver, account, folder_name, detail)
+    detail.body_html = body_html
+    await upsert_cached_messages([
+        CachedMessage(
+            id=f"{account.id}_{detail.uid}",
+            account_id=account.id,
+            user_uid=account.user_uid,
+            uid=detail.uid,
+            folder=folder_name,
+            subject=detail.subject,
+            from_addr=detail.from_addr,
+            to_addr=detail.to_addr,
+            date=normalize_message_date(detail.date, fallback=effective_message_date),
+            is_read=detail.is_read,
+            is_starred=detail.is_starred,
+            has_attachments=bool(detail.attachments),
+            body_text=detail.body_text,
+            body_html=detail.body_html,
+            body_checked=True,
+            storage_path=storage_path,
+            cached_at=time.time(),
+        )
+    ])
+    if attachment_records:
+        await upsert_cached_attachments(attachment_records)
+    return 1, att_count, inline_count
+
+
+async def _sync_recent_uncached_messages(receiver, account, folder_name: str, unseen_uids: set[int] | None) -> tuple[int, int, int]:
+    cached_uids = await get_cached_uids(account.id, folder_name)
+    page = 1
+    fetched = 0
+    downloaded_attachments = 0
+    downloaded_inline_images = 0
+    while True:
+        result = await receiver.fetch_messages(folder_name, page=page, page_size=RECENT_SYNC_PAGE_SIZE)
+        if page == 1:
+            unread_count = len(unseen_uids) if unseen_uids is not None else (result.unread_total or 0)
+            await upsert_folder_stats(account.id, folder_name, result.total or 0, unread_count)
+        if not result.messages:
+            break
+
+        new_messages, reached_cached = _select_uncached_recent_messages(result.messages, cached_uids)
+        for message in new_messages:
+            count, att_count, inline_count = await _cache_message_detail(receiver, account, folder_name, message, unseen_uids)
+            fetched += count
+            downloaded_attachments += att_count
+            downloaded_inline_images += inline_count
+
+        if reached_cached:
+            break
+        if result.total and page * result.page_size >= result.total:
+            break
+        if len(result.messages) < result.page_size:
+            break
+        page += 1
+    return fetched, downloaded_attachments, downloaded_inline_images
+
+
+async def _fill_unchecked_message_bodies(receiver, account, folder_name: str, unseen_uids: set[int] | None) -> tuple[int, int]:
+    downloaded_attachments = 0
+    downloaded_inline_images = 0
+    while True:
+        rows = await list_cached_messages_needing_body_check(account.id, folder_name, BODY_CHECK_BATCH_SIZE)
+        if not rows:
+            break
+        checked_uids = []
+        for row in rows:
+            uid = int(row.get("uid", 0) or 0)
+            if uid <= 0:
+                continue
+            try:
+                message = type("MessageRef", (), {"uid": uid, "date": row.get("date", "")})()
+                _count, att_count, inline_count = await _cache_message_detail(receiver, account, folder_name, message, unseen_uids)
+                downloaded_attachments += att_count
+                downloaded_inline_images += inline_count
+                checked_uids.append(uid)
+            except Exception as exc:
+                logger.debug("history sync body fill failed: account=%s folder=%s uid=%s error=%s", account.email, folder_name, uid, exc)
+        await mark_cached_messages_body_checked(account.id, folder_name, checked_uids)
+        if not checked_uids:
+            break
+    return downloaded_attachments, downloaded_inline_images
+
+
+async def _has_unchecked_message_bodies(account, folder_name: str) -> bool:
+    rows = await list_cached_messages_needing_body_check(account.id, folder_name, 1)
+    return bool(rows)
+
+
+async def _sync_cached_read_state(receiver, account, folder_name: str, unseen_uids: set[int] | None = None) -> int:
+    if unseen_uids is None:
+        try:
+            unseen_uids = set(await receiver.fetch_unseen_uids(folder_name))
+        except Exception as exc:
+            logger.debug("history sync read state skipped: account=%s folder=%s error=%s", account.email, folder_name, exc)
+            return 0
+    cached_uids = sorted(await get_cached_uids(account.id, folder_name))
+    updated = 0
+    for i in range(0, len(cached_uids), 1000):
+        batch = cached_uids[i:i + 1000]
+        updates = [(uid, 0 if uid in unseen_uids else 1) for uid in batch]
+        updated += await batch_update_is_read(account.id, folder_name, updates)
+    return updated
+
+
 async def run_history_sync(
     account_id: str,
     job_id: str | None = None,
@@ -778,7 +905,6 @@ async def run_history_sync(
 
             folder = folders[index]
             folder_name = getattr(folder, "path", "") or getattr(folder, "name", "") or "INBOX"
-            page = int(job.get("current_page", 1) or 1) if folder_name == current_folder_name else 1
             unseen_uids: set[int] | None = None
 
             try:
@@ -791,196 +917,47 @@ async def run_history_sync(
                     exc,
                 )
 
-            while True:
-                if await _is_paused(job_id):
-                    await update_history_sync_job(
-                        job_id,
-                        current_folder=folder_name,
-                        current_page=page,
-                        fetched_messages=fetched_messages,
-                        downloaded_attachments=downloaded_attachments,
-                        downloaded_inline_images=downloaded_inline_images,
-                    )
-                    return
+            await update_history_sync_job(
+                job_id,
+                current_folder=folder_name,
+                current_page=1,
+                completed_folders=index,
+                fetched_messages=fetched_messages,
+                downloaded_attachments=downloaded_attachments,
+                downloaded_inline_images=downloaded_inline_images,
+            )
+            fetched_delta, att_delta, inline_delta = await _sync_recent_uncached_messages(
+                receiver, account, folder_name, unseen_uids
+            )
+            fetched_messages = max(fetched_messages + fetched_delta, await _local_synced_count())
+            downloaded_attachments += att_delta
+            downloaded_inline_images += inline_delta
+            await update_history_sync_job(
+                job_id,
+                fetched_messages=fetched_messages,
+                downloaded_attachments=downloaded_attachments,
+                downloaded_inline_images=downloaded_inline_images,
+            )
 
+            if await _is_paused(job_id):
+                return
+
+            att_delta, inline_delta = await _fill_unchecked_message_bodies(
+                receiver, account, folder_name, unseen_uids
+            )
+            downloaded_attachments += att_delta
+            downloaded_inline_images += inline_delta
+            if await _has_unchecked_message_bodies(account, folder_name):
                 await update_history_sync_job(
                     job_id,
                     current_folder=folder_name,
-                    current_page=page,
-                    completed_folders=index,
+                    current_page=2,
                     fetched_messages=fetched_messages,
                     downloaded_attachments=downloaded_attachments,
                     downloaded_inline_images=downloaded_inline_images,
                 )
-                result = await receiver.fetch_messages(folder_name, page=page, page_size=20)
-                if page == 1:
-                    unread_count = len(unseen_uids) if unseen_uids is not None else 0
-                    await upsert_folder_stats(account.id, folder_name, result.total or 0, unread_count)
-                if not result.messages:
-                    break
-
-                cached_batch = []
-                read_state_updates: list[tuple[int, int]] = []
-                for message in result.messages:
-                    if await _is_paused(job_id):
-                        await update_history_sync_job(
-                            job_id,
-                            current_folder=folder_name,
-                            current_page=page,
-                            current_uid=getattr(message, "uid", 0),
-                            fetched_messages=fetched_messages,
-                            downloaded_attachments=downloaded_attachments,
-                            downloaded_inline_images=downloaded_inline_images,
-                        )
-                        return
-
-                    cached_detail = await get_cached_message_detail(account.id, message.uid, folder_name)
-                    cached_has_body = bool(cached_detail and (cached_detail.get("body_text") or cached_detail.get("body_html")))
-                    cached_assets_complete = bool(
-                        cached_detail
-                        and (
-                            not cached_detail.get("has_attachments")
-                            or cached_detail.get("storage_path")
-                        )
-                    )
-                    cached_has_bad_date = bool(cached_detail and (cached_detail.get("date") or "") == UNKNOWN_MESSAGE_DATE)
-                    message_has_good_date = bool((message.date or "") and message.date != UNKNOWN_MESSAGE_DATE)
-                    if cached_has_body and cached_assets_complete and not (cached_has_bad_date and not message_has_good_date):
-                        cached_batch.append(
-                            CachedMessage(
-                                id=f"{account.id}_{message.uid}",
-                                account_id=account.id,
-                                user_uid=account.user_uid,
-                                uid=message.uid,
-                                folder=folder_name,
-                                subject=message.subject,
-                                from_addr=message.from_addr,
-                                to_addr=message.to_addr,
-                                date=normalize_message_date(message.date, fallback=(cached_detail or {}).get("date", "")),
-                                is_read=message.is_read,
-                                is_starred=message.is_starred,
-                                has_attachments=bool(cached_detail.get("has_attachments", False)),
-                                body_text=cached_detail.get("body_text", ""),
-                                body_html=cached_detail.get("body_html", ""),
-                                storage_path=cached_detail.get("storage_path", ""),
-                                cached_at=time.time(),
-                            )
-                        )
-                        if unseen_uids is not None:
-                            read_state_updates.append((message.uid, 1 if message.uid not in unseen_uids else 0))
-                        fetched_messages = max(fetched_messages, await _local_synced_count())
-                        await update_history_sync_job(
-                            job_id,
-                            current_folder=folder_name,
-                            current_page=page,
-                            current_uid=message.uid,
-                            fetched_messages=fetched_messages,
-                            downloaded_attachments=downloaded_attachments,
-                            downloaded_inline_images=downloaded_inline_images,
-                        )
-                        continue
-
-                    detail = await receiver.fetch_message_detail(str(message.uid), folder=folder_name)
-                    if unseen_uids is not None:
-                        detail.is_read = detail.uid not in unseen_uids
-                        read_state_updates.append((detail.uid, 1 if detail.is_read else 0))
-                    effective_message_date = coalesce_message_date(detail.date, message.date, (cached_detail or {}).get("date", ""))
-                    existing_attachments = await list_cached_attachments(account.id, detail.uid, folder_name)
-                    if existing_attachments:
-                        for existing in existing_attachments:
-                            try:
-                                _, target_path, moved = ensure_message_file_location(
-                                    message_date=detail.date,
-                                    account_id=account.id,
-                                    account_email=account.email,
-                                    uid=detail.uid,
-                                    part_number=existing.get("part_number", 0),
-                                    filename=existing.get("filename", ""),
-                                    content_type=existing.get("content_type", ""),
-                                    current_path=existing.get("local_path", ""),
-                                    fallback_message_date=effective_message_date,
-                                )
-                                if moved:
-                                    await upsert_cached_attachments([
-                                        CachedAttachment(
-                                            account_id=account.id,
-                                            user_uid=account.user_uid,
-                                            uid=detail.uid,
-                                            folder=folder_name,
-                                            part_number=existing.get("part_number", 0),
-                                            filename=existing.get("filename", ""),
-                                            content_type=existing.get("content_type", ""),
-                                            size=existing.get("size", 0),
-                                            content_id=existing.get("content_id", ""),
-                                            is_inline=bool(existing.get("is_inline", False)),
-                                            local_path=str(target_path),
-                                            cached_at=time.time(),
-                                        )
-                                    ])
-                            except Exception as exc:
-                                logger.debug(
-                                    "history sync attachment migrate failed: account=%s uid=%s error=%s",
-                                    account.email,
-                                    detail.uid,
-                                    exc,
-                                )
-                    body_html, storage_path, att_count, inline_count, attachment_records = await _cache_message_assets(receiver, account, folder_name, detail)
-                    detail.body_html = body_html
-
-                    cached_batch.append(
-                        CachedMessage(
-                            id=f"{account.id}_{detail.uid}",
-                            account_id=account.id,
-                            user_uid=account.user_uid,
-                            uid=detail.uid,
-                            folder=folder_name,
-                            subject=detail.subject,
-                            from_addr=detail.from_addr,
-                            to_addr=detail.to_addr,
-                            date=normalize_message_date(detail.date, fallback=effective_message_date),
-                            is_read=detail.is_read,
-                            is_starred=detail.is_starred,
-                            has_attachments=bool(detail.attachments),
-                            body_text=detail.body_text,
-                            body_html=detail.body_html,
-                            storage_path=storage_path,
-                            cached_at=time.time(),
-                        )
-                    )
-
-                    if attachment_records:
-                        await upsert_cached_attachments(attachment_records)
-
-                    fetched_messages = max(fetched_messages, await _local_synced_count())
-                    downloaded_attachments += att_count
-                    downloaded_inline_images += inline_count
-                    await update_history_sync_job(
-                        job_id,
-                        current_folder=folder_name,
-                        current_page=page,
-                        current_uid=detail.uid,
-                        fetched_messages=fetched_messages,
-                        downloaded_attachments=downloaded_attachments,
-                        downloaded_inline_images=downloaded_inline_images,
-                    )
-                    await asyncio.sleep(0.05)
-
-                if cached_batch:
-                    await upsert_cached_messages(cached_batch)
-                    fetched_messages = max(fetched_messages, await _local_synced_count())
-                    await update_history_sync_job(
-                        job_id,
-                        fetched_messages=fetched_messages,
-                        downloaded_attachments=downloaded_attachments,
-                        downloaded_inline_images=downloaded_inline_images,
-                    )
-                if read_state_updates:
-                    await batch_update_is_read(account.id, folder_name, read_state_updates)
-
-                if result.total and page * result.page_size >= result.total:
-                    break
-                page += 1
-                await update_history_sync_job(job_id, current_page=page, current_uid=0)
+                return
+            await _sync_cached_read_state(receiver, account, folder_name, unseen_uids)
 
             await update_history_sync_job(
                 job_id,

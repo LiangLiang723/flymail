@@ -516,6 +516,7 @@ async def _cache_messages_with_details(receiver, account: Account, folder: str, 
                 has_attachments=bool(detail.attachments),
                 body_text=detail.body_text,
                 body_html=detail.body_html,
+                body_checked=True,
                 storage_path=storage_path,
                 cached_at=time.time(),
             )
@@ -656,6 +657,7 @@ async def sync_missing_messages(account: Account, folder: str) -> int:
                                         has_attachments=bool(detail.attachments),
                                         body_text=detail.body_text,
                                         body_html=detail.body_html,
+                                        body_checked=True,
                                         storage_path=storage_path,
                                         cached_at=time.time(),
                                     )
@@ -711,6 +713,7 @@ def _messages_to_cached(messages: List[Message], account: Account) -> List[Cache
             has_attachments=m.has_attachments,
             body_text=m.body_text,
             body_html=m.body_html,
+            body_checked=bool(m.body_text or m.body_html),
             storage_path=getattr(m, "storage_path", ""),
             cached_at=time.time(),
         )

@@ -415,6 +415,7 @@ async def init_db():
                 has_attachments INTEGER DEFAULT 0,
                 body_text LONGTEXT,
                 body_html LONGTEXT,
+                body_checked INTEGER DEFAULT 0,
                 storage_path LONGTEXT,
                 cached_at REAL DEFAULT 0,
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
@@ -551,6 +552,11 @@ async def init_db():
         await db.execute("ALTER TABLE cached_messages ADD COLUMN storage_path LONGTEXT")
     except Exception as e:
         logger.debug("migration add cached_messages.storage_path ignored: %s", e)
+
+    try:
+        await db.execute("ALTER TABLE cached_messages ADD COLUMN body_checked INTEGER DEFAULT 0")
+    except Exception as e:
+        logger.debug("migration add cached_messages.body_checked ignored: %s", e)
 
     try:
         await db.execute("ALTER TABLE notifications ADD COLUMN type VARCHAR(64) DEFAULT 'new_mail'")
@@ -1364,6 +1370,56 @@ async def get_cached_body_count(account_id: str, folder: str) -> int:
     return int((row[0] if row else 0) or 0)
 
 
+async def list_cached_messages_needing_body_check(account_id: str, folder: str, limit: int = 100) -> List[dict]:
+    """Return cached messages whose remote detail has not been checked yet."""
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''SELECT uid, subject, from_addr, to_addr, date, is_read, is_starred, has_attachments, storage_path
+            FROM cached_messages
+            WHERE account_id = ? AND folder IN ({placeholders})
+              AND COALESCE(body_checked, 0) = 0
+              AND COALESCE(body_text, '') = ''
+              AND COALESCE(body_html, '') = ''
+            ORDER BY date DESC, uid DESC
+            LIMIT ?''',
+        [account_id] + aliases + [int(limit or 100)],
+    )
+    rows = await cursor.fetchall()
+    return [
+        {
+            "uid": row[0],
+            "subject": row[1] or "",
+            "from_addr": row[2] or "",
+            "to_addr": row[3] or "",
+            "date": row[4] or "",
+            "is_read": bool(row[5]),
+            "is_starred": bool(row[6]),
+            "has_attachments": bool(row[7]),
+            "storage_path": row[8] or "",
+        }
+        for row in rows
+    ]
+
+
+async def mark_cached_messages_body_checked(account_id: str, folder: str, uids: list[int]) -> int:
+    if not uids:
+        return 0
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    uid_placeholders = ','.join('?' * len(uids))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''UPDATE cached_messages
+            SET body_checked = 1, cached_at = ?
+            WHERE account_id = ? AND folder IN ({placeholders}) AND uid IN ({uid_placeholders})''',
+        [time.time(), account_id] + aliases + [int(uid) for uid in uids],
+    )
+    await db.commit()
+    return cursor.rowcount
+
+
 async def get_cached_attachment_rows(account_id: str) -> list[dict]:
     db = await get_db()
     cursor = await db.execute(
@@ -1588,11 +1644,12 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
         message_id = build_cached_message_id(msg.account_id, msg.folder, msg.uid)
         body_text = _truncate_text_bytes(msg.body_text or '', DB_MESSAGE_BODY_MAX_BYTES)
         body_html = _truncate_text_bytes(msg.body_html or '', DB_MESSAGE_BODY_MAX_BYTES)
+        body_checked = bool(getattr(msg, "body_checked", False) or body_text or body_html)
         cursor = await db.execute(
             '''INSERT INTO cached_messages
                (id, account_id, user_uid, uid, folder, subject, from_addr, to_addr, date,
-                is_read, is_starred, has_attachments, body_text, body_html, storage_path, cached_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_read, is_starred, has_attachments, body_text, body_html, body_checked, storage_path, cached_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                subject = VALUES(subject),
                from_addr = VALUES(from_addr),
@@ -1603,13 +1660,14 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
                has_attachments = VALUES(has_attachments),
                body_text = COALESCE(VALUES(body_text), cached_messages.body_text),
                body_html = COALESCE(VALUES(body_html), cached_messages.body_html),
+               body_checked = GREATEST(VALUES(body_checked), COALESCE(cached_messages.body_checked, 0)),
                storage_path = COALESCE(VALUES(storage_path), cached_messages.storage_path),
                cached_at = VALUES(cached_at)''',
             (
                 message_id, msg.account_id, msg.user_uid, msg.uid, msg.folder, msg.subject,
                 msg.from_addr, msg.to_addr, msg.date, 1 if msg.is_read else 0,
                 1 if msg.is_starred else 0, 1 if msg.has_attachments else 0,
-                body_text, body_html, msg.storage_path or '', msg.cached_at or time.time(),
+                body_text, body_html, 1 if body_checked else 0, msg.storage_path or '', msg.cached_at or time.time(),
             ),
         )
         affected += cursor.rowcount
