@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import AccountList from './views/AccountList.vue';
 import ComposeEmail from './views/ComposeEmail.vue';
 import HistorySync from './views/HistorySync.vue';
@@ -163,8 +163,13 @@ async function changePassword() {
   uiStore.success('密码已更新');
 }
 
-function returnToMail() {
+function returnToMail(payload?: { account_id?: string }) {
   currentView.value = 'mail';
+  if (payload?.account_id) {
+    nextTick(() => {
+      window.dispatchEvent(new CustomEvent('flymail-sent-message', { detail: payload }));
+    });
+  }
 }
 
 function handleNavigate(event: Event) {

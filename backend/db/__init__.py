@@ -1735,7 +1735,7 @@ async def get_cached_messages_by_folder(user_uid: str, account_id: str, folder: 
         params + [page_size, offset],
     )
     rows = await cursor.fetchall()
-    messages = [{'id': str(row[1]), 'uid': row[1], 'subject': row[2] or '', 'from_addr': row[3] or '', 'to_addr': row[4] or '', 'date': row[5] or '', 'is_read': bool(row[6]), 'is_starred': bool(row[7]), 'folder': row[8] or folder, 'has_attachments': bool(row[9]), 'account_id': row[10] or account_id} for row in rows]
+    messages = [{'id': str(row[0]), 'uid': row[1], 'subject': row[2] or '', 'from_addr': row[3] or '', 'to_addr': row[4] or '', 'date': row[5] or '', 'is_read': bool(row[6]), 'is_starred': bool(row[7]), 'folder': row[8] or folder, 'has_attachments': bool(row[9]), 'account_id': row[10] or account_id} for row in rows]
     result = {'messages': messages, 'total': total, 'unread_total': unread_total, 'page': page, 'page_size': page_size}
     result['cached_count'] = filtered_total
     return result
@@ -1765,7 +1765,7 @@ async def search_cached_messages_by_folder(user_uid: str, account_id: str, folde
     offset = max(0, (page - 1) * page_size)
     cursor = await db.execute(f'''SELECT id, uid, subject, from_addr, to_addr, date, is_read, is_starred, folder, has_attachments, account_id FROM cached_messages WHERE {where_clause} ORDER BY date DESC, uid DESC LIMIT ? OFFSET ?''', params + [page_size, offset])
     rows = await cursor.fetchall()
-    messages = [{'id': str(row[1]), 'uid': row[1], 'subject': row[2] or '', 'from_addr': row[3] or '', 'to_addr': row[4] or '', 'date': row[5] or '', 'is_read': bool(row[6]), 'is_starred': bool(row[7]), 'folder': row[8] or folder, 'has_attachments': bool(row[9]), 'account_id': row[10] or account_id} for row in rows]
+    messages = [{'id': str(row[0]), 'uid': row[1], 'subject': row[2] or '', 'from_addr': row[3] or '', 'to_addr': row[4] or '', 'date': row[5] or '', 'is_read': bool(row[6]), 'is_starred': bool(row[7]), 'folder': row[8] or folder, 'has_attachments': bool(row[9]), 'account_id': row[10] or account_id} for row in rows]
     return {'messages': messages, 'total': total, 'unread_total': unread_total, 'page': page, 'page_size': page_size}
 
 

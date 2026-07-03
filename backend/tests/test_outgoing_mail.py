@@ -24,6 +24,7 @@ def _load_outgoing_mail_module():
 
     mail_cache_stub = types.ModuleType("services.mail_cache")
     mail_cache_stub.sync_folder_to_cache = AsyncMock(return_value=0)
+    mail_cache_stub.sync_missing_messages = AsyncMock(return_value=0)
 
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = types.SimpleNamespace(refresh_clients=AsyncMock())
@@ -139,6 +140,7 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cached.is_read)
         db_stub.upsert_folder_stats.assert_awaited_once_with("account-1", "[Gmail]/Sent Mail", 1, 0)
         self.assertEqual(mail_cache_stub.sync_folder_to_cache.await_count, 2)
+        mail_cache_stub.sync_missing_messages.assert_awaited_once_with(account, "[Gmail]/Sent Mail")
         self.assertEqual(sync_stub.sync_service.refresh_clients.await_count, 2)
         sync_stub.sync_service.refresh_clients.assert_any_await(
             "account-1",
@@ -182,6 +184,7 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
         receiver.save_draft.assert_awaited_once()
         db_stub.upsert_cached_messages.assert_not_awaited()
         self.assertEqual(mail_cache_stub.sync_folder_to_cache.await_count, 2)
+        mail_cache_stub.sync_missing_messages.assert_awaited_once_with(account, "Sent Messages")
         self.assertEqual(sync_stub.sync_service.refresh_clients.await_count, 2)
 
 

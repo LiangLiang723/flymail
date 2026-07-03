@@ -329,7 +329,7 @@ import TiptapEditor from '../components/TiptapEditor.vue';
 
 const emit = defineEmits<{
   discard: [];
-  sent: [];
+  sent: [payload?: { account_id?: string }];
 }>();
 
 const mailStore = useMailStore();
@@ -770,7 +770,7 @@ async function sendMail() {
     }) as any;
     showToast('发送成功', 'success');
     clearComposeForm();
-    emit('sent');
+    emit('sent', { account_id: fromAccountId.value });
   } catch (e: any) {
     showToast('发送失败: ' + getErrorMessage(e), 'error');
   } finally {

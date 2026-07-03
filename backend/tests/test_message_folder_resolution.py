@@ -183,6 +183,38 @@ def _load_messages_route_module():
 
 
 class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
+    async def test_cached_list_uses_stable_database_id(self):
+        messages = _load_messages_route_module()
+        payload = {
+            "messages": [
+                {
+                    "id": "account-1_Sent_aaa_12",
+                    "uid": 12,
+                    "subject": "same",
+                    "folder": "Sent",
+                    "account_id": "account-1",
+                },
+                {
+                    "id": "account-1_Sent_Messages_bbb_12",
+                    "uid": 12,
+                    "subject": "same",
+                    "folder": "Sent Messages",
+                    "account_id": "account-1",
+                },
+            ],
+            "total": 2,
+            "unread_total": 0,
+            "page": 1,
+            "page_size": 50,
+        }
+
+        response = messages._build_list_response(payload, "account-1", {})
+
+        self.assertEqual(
+            [item["id"] for item in response["messages"]],
+            ["account-1_Sent_aaa_12", "account-1_Sent_Messages_bbb_12"],
+        )
+
     async def test_manual_refresh_runs_missing_uid_backfill(self):
         messages = _load_messages_route_module()
         account = types.SimpleNamespace(

@@ -513,6 +513,25 @@ const onResize = () => {
 };
 window.addEventListener('resize', onResize);
 
+async function handleSentMessage(event: Event) {
+  const detail = (event as CustomEvent).detail || {};
+  if (detail.account_id && detail.account_id !== mailStore.currentAccountId) {
+    mailStore.setAccount(detail.account_id);
+    await mailStore.loadFolders();
+  }
+  const sentFolder = mailStore.folders.find((folder) => folder.name === '已发送');
+  mailStore.setFolder(sentFolder?.path || 'Sent');
+  selectedMessage.value = null;
+  currentPage.value = 1;
+  readFilter.value = '';
+  attachmentFilter.value = false;
+  searchKeyword.value = '';
+  pageCache.clear();
+  await loadMessages();
+  await mailStore.loadFolderCounts();
+}
+window.addEventListener('flymail-sent-message', handleSentMessage);
+
 // iOS风格文件夹弹出层
 const showFolderSheet = ref(false);
 
@@ -774,6 +793,7 @@ onUnmounted(() => {
   disconnectWs();
   // 清理 resize 事件监听，防止内存泄漏
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('flymail-sent-message', handleSentMessage);
   if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
 });
 

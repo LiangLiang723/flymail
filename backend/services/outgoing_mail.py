@@ -11,7 +11,7 @@ from models import Account
 from models import CachedMessage
 from db import get_folder_stats, upsert_cached_messages, upsert_folder_stats
 from providers.factory import ProviderFactory
-from services.mail_cache import sync_folder_to_cache
+from services.mail_cache import sync_folder_to_cache, sync_missing_messages
 from services.message_body import html_to_text, prepare_outgoing_body_html
 from services.sync import sync_service
 from services.token import ensure_token
@@ -127,6 +127,19 @@ async def find_special_folder(account: Account, folder_type: str) -> str:
     return ""
 
 
+async def refresh_sent_folder_after_send(account: Account, user_uid: str, sent_folder: str) -> None:
+    if not sent_folder:
+        return
+    try:
+        await sync_folder_to_cache(account, sent_folder)
+        await sync_missing_messages(account, sent_folder)
+    except Exception as exc:
+        logger.warning("refresh sent folder after send failed: %s", exc)
+    await sync_service.refresh_clients(account.id, sent_folder, user_uid=user_uid)
+    if sent_folder != "Sent":
+        await sync_service.refresh_clients(account.id, "Sent", user_uid=user_uid)
+
+
 async def ensure_sent_message_cached(
     account: Account,
     user_uid: str,
@@ -190,8 +203,5 @@ async def ensure_sent_message_cached(
     except Exception as exc:
         logger.debug("sent folder reconnect check failed: %s", exc)
 
-    await sync_folder_to_cache(account, sent_folder)
-    await sync_service.refresh_clients(account.id, sent_folder, user_uid=user_uid)
-    if sent_folder != "Sent":
-        await sync_service.refresh_clients(account.id, "Sent", user_uid=user_uid)
+    await refresh_sent_folder_after_send(account, user_uid, sent_folder)
     return sent_folder
