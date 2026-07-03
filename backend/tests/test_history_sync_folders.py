@@ -23,6 +23,7 @@ def _load_history_sync_module():
         "get_history_sync_job_by_id",
         "list_cached_attachments",
         "list_cached_messages_needing_body_check",
+        "mark_cached_messages_empty_body_checked",
         "mark_cached_messages_body_checked",
         "update_history_sync_job",
         "upsert_cached_attachments",
@@ -173,6 +174,7 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
             patch.object(history_sync, "upsert_cached_messages", AsyncMock()) as upsert,
             patch.object(history_sync, "upsert_cached_attachments", AsyncMock()),
             patch.object(history_sync, "mark_cached_messages_body_checked", AsyncMock()) as mark_checked,
+            patch.object(history_sync, "mark_cached_messages_empty_body_checked", AsyncMock()) as mark_empty_checked,
         ):
             await history_sync._fill_unchecked_message_bodies(receiver, account, "INBOX", set())
 
@@ -180,6 +182,7 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cached_message.body_checked)
         self.assertEqual(cached_message.body_text, "")
         mark_checked.assert_awaited_with("account-1", "INBOX", [101])
+        mark_empty_checked.assert_awaited_with("account-1", "INBOX", [101])
 
     async def test_body_fill_rechecks_checked_empty_messages(self):
         history_sync = _load_history_sync_module()
@@ -194,6 +197,7 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
             ) as list_needing,
             patch.object(history_sync, "_cache_message_detail", AsyncMock(return_value=(1, 0, 0))),
             patch.object(history_sync, "mark_cached_messages_body_checked", AsyncMock()),
+            patch.object(history_sync, "mark_cached_messages_empty_body_checked", AsyncMock()),
         ):
             await history_sync._fill_unchecked_message_bodies(receiver, account, "INBOX", set())
 

@@ -27,6 +27,7 @@ from db import (
     get_history_sync_job,
     get_history_sync_job_by_id,
     list_cached_messages_needing_body_check,
+    mark_cached_messages_empty_body_checked,
     mark_cached_messages_body_checked,
     update_history_sync_job,
     upsert_cached_attachments,
@@ -798,6 +799,7 @@ async def _fill_unchecked_message_bodies(
             except Exception as exc:
                 logger.debug("history sync body fill failed: account=%s folder=%s uid=%s error=%s", account.email, folder_name, uid, exc)
         await mark_cached_messages_body_checked(account.id, folder_name, checked_uids)
+        await mark_cached_messages_empty_body_checked(account.id, folder_name, checked_uids)
         if not checked_uids:
             break
     return downloaded_attachments, downloaded_inline_images

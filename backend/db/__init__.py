@@ -448,6 +448,16 @@ async def init_db():
     await db.execute("CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_uid)")
 
     await db.execute("""
+            CREATE TABLE IF NOT EXISTS cached_message_empty_body_checks (
+                account_id VARCHAR(191) NOT NULL,
+                folder VARCHAR(255) NOT NULL,
+                uid INTEGER NOT NULL,
+                checked_at REAL DEFAULT 0,
+                PRIMARY KEY (account_id, folder, uid)
+            )
+        """)
+
+    await db.execute("""
             CREATE TABLE IF NOT EXISTS notifications (
                 id VARCHAR(191) PRIMARY KEY,
                 user_uid VARCHAR(191) NOT NULL,
@@ -1397,6 +1407,16 @@ async def list_cached_messages_needing_body_check(
     aliases = _expand_folder_aliases(folder)
     placeholders = ','.join('?' * len(aliases))
     checked_condition = "1 = 1" if include_checked_empty else "COALESCE(body_checked, 0) = 0"
+    empty_check_condition = (
+        "AND NOT EXISTS ("
+        "SELECT 1 FROM cached_message_empty_body_checks e "
+        "WHERE e.account_id = cached_messages.account_id "
+        "AND e.folder = cached_messages.folder "
+        "AND e.uid = cached_messages.uid"
+        ")"
+        if include_checked_empty
+        else ""
+    )
     db = await get_db()
     cursor = await db.execute(
         f'''SELECT uid, subject, from_addr, to_addr, date, is_read, is_starred, has_attachments, storage_path
@@ -1405,6 +1425,7 @@ async def list_cached_messages_needing_body_check(
               AND {checked_condition}
               AND COALESCE(body_text, '') = ''
               AND COALESCE(body_html, '') = ''
+              {empty_check_condition}
             ORDER BY date DESC, uid DESC
             LIMIT ?''',
         [account_id] + aliases + [int(limit or 100)],
@@ -1441,6 +1462,27 @@ async def mark_cached_messages_body_checked(account_id: str, folder: str, uids: 
     )
     await db.commit()
     return cursor.rowcount
+
+
+async def mark_cached_messages_empty_body_checked(account_id: str, folder: str, uids: list[int]) -> int:
+    if not uids:
+        return 0
+    aliases = _expand_folder_aliases(folder)
+    db = await get_db()
+    checked_at = time.time()
+    affected = 0
+    for alias in aliases:
+        for uid in uids:
+            cursor = await db.execute(
+                '''INSERT INTO cached_message_empty_body_checks
+                   (account_id, folder, uid, checked_at)
+                   VALUES (?, ?, ?, ?)
+                   ON DUPLICATE KEY UPDATE checked_at = VALUES(checked_at)''',
+                (account_id, alias, int(uid), checked_at),
+            )
+            affected += cursor.rowcount
+    await db.commit()
+    return affected
 
 
 async def get_cached_attachment_rows(account_id: str) -> list[dict]:
@@ -1974,7 +2016,16 @@ async def get_history_sync_job(account_id: str, job_type: str = "history_sync") 
     if not row:
         return None
     columns = [description[0] for description in cursor.description]
-    return _history_job_row_to_dict(columns, row)
+    job = _history_job_row_to_dict(columns, row)
+    if job.get("status") in {"pending", "running"} and time.time() - float(job.get("updated_at") or 0) > 600:
+        await update_history_sync_job(
+            job["id"],
+            status="failed",
+            error_message="同步任务超过 10 分钟没有进度，已标记为失败，可重试",
+            finished_at=time.time(),
+        )
+        return await get_history_sync_job(account_id, job_type=job_type)
+    return job
 
 
 async def list_history_sync_jobs(user_uid: str, job_type: str | None = None) -> List[dict]:
