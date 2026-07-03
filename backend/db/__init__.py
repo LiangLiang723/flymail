@@ -1387,16 +1387,22 @@ async def get_cached_body_count(account_id: str, folder: str) -> int:
     return int((row[0] if row else 0) or 0)
 
 
-async def list_cached_messages_needing_body_check(account_id: str, folder: str, limit: int = 100) -> List[dict]:
+async def list_cached_messages_needing_body_check(
+    account_id: str,
+    folder: str,
+    limit: int = 100,
+    include_checked_empty: bool = False,
+) -> List[dict]:
     """Return cached messages whose remote detail has not been checked yet."""
     aliases = _expand_folder_aliases(folder)
     placeholders = ','.join('?' * len(aliases))
+    checked_condition = "1 = 1" if include_checked_empty else "COALESCE(body_checked, 0) = 0"
     db = await get_db()
     cursor = await db.execute(
         f'''SELECT uid, subject, from_addr, to_addr, date, is_read, is_starred, has_attachments, storage_path
             FROM cached_messages
             WHERE account_id = ? AND folder IN ({placeholders})
-              AND COALESCE(body_checked, 0) = 0
+              AND {checked_condition}
               AND COALESCE(body_text, '') = ''
               AND COALESCE(body_html, '') = ''
             ORDER BY date DESC, uid DESC

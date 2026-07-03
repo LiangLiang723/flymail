@@ -766,11 +766,22 @@ async def _sync_recent_uncached_messages(receiver, account, folder_name: str, un
     return fetched, downloaded_attachments, downloaded_inline_images
 
 
-async def _fill_unchecked_message_bodies(receiver, account, folder_name: str, unseen_uids: set[int] | None) -> tuple[int, int]:
+async def _fill_unchecked_message_bodies(
+    receiver,
+    account,
+    folder_name: str,
+    unseen_uids: set[int] | None,
+    include_checked_empty: bool = True,
+) -> tuple[int, int]:
     downloaded_attachments = 0
     downloaded_inline_images = 0
     while True:
-        rows = await list_cached_messages_needing_body_check(account.id, folder_name, BODY_CHECK_BATCH_SIZE)
+        rows = await list_cached_messages_needing_body_check(
+            account.id,
+            folder_name,
+            BODY_CHECK_BATCH_SIZE,
+            include_checked_empty=include_checked_empty,
+        )
         if not rows:
             break
         checked_uids = []
@@ -792,8 +803,13 @@ async def _fill_unchecked_message_bodies(receiver, account, folder_name: str, un
     return downloaded_attachments, downloaded_inline_images
 
 
-async def _has_unchecked_message_bodies(account, folder_name: str) -> bool:
-    rows = await list_cached_messages_needing_body_check(account.id, folder_name, 1)
+async def _has_unchecked_message_bodies(account, folder_name: str, include_checked_empty: bool = True) -> bool:
+    rows = await list_cached_messages_needing_body_check(
+        account.id,
+        folder_name,
+        1,
+        include_checked_empty=include_checked_empty,
+    )
     return bool(rows)
 
 
@@ -950,6 +966,7 @@ async def run_history_sync(
             if await _has_unchecked_message_bodies(account, folder_name):
                 await update_history_sync_job(
                     job_id,
+                    status="pending",
                     current_folder=folder_name,
                     current_page=2,
                     fetched_messages=fetched_messages,
