@@ -341,6 +341,9 @@ const ccList = ref<string[]>([]);
 const bccList = ref<string[]>([]);
 const subject = ref('');
 const bodyHtml = ref('');
+const draftMessageId = ref('');
+const draftFolder = ref('');
+const savedSnapshot = ref('');
 const showCc = ref(false);
 const showBcc = ref(false);
 
@@ -651,12 +654,15 @@ async function applyComposeDraft(draft: any = null) {
   bccList.value = draft?.bcc || [];
   subject.value = draft?.subject || '';
   bodyHtml.value = draft?.body_html || '';
+  draftMessageId.value = draft?.draft_message_id || '';
+  draftFolder.value = draft?.draft_folder || '';
   fromAccountId.value = draft?.account_id || mailStore.currentAccountId || accounts.value[0]?.id || '';
   showCc.value = ccList.value.length > 0;
   showBcc.value = bccList.value.length > 0;
   if (!draft?.body_html) {
     await loadDefaultSignatureIfEmpty();
   }
+  markSavedSnapshot();
 }
 
 // 初始化：选择当前账号，加载签名，消费草稿数据
@@ -708,9 +714,45 @@ function clearComposeForm() {
   bccInput.value = '';
   subject.value = '';
   bodyHtml.value = '';
+  draftMessageId.value = '';
+  draftFolder.value = '';
   attachments.value = [];
   showCc.value = false;
   showBcc.value = false;
+  markSavedSnapshot();
+}
+
+function currentSnapshot() {
+  return JSON.stringify({
+    to: toList.value,
+    cc: ccList.value,
+    bcc: bccList.value,
+    subject: subject.value,
+    body_html: bodyHtml.value,
+    attachments: attachments.value.map(a => a.path),
+  });
+}
+
+function markSavedSnapshot() {
+  savedSnapshot.value = currentSnapshot();
+}
+
+function hasUnsavedChanges() {
+  return currentSnapshot() !== savedSnapshot.value;
+}
+
+function composePayload(action: 'send' | 'draft' | 'schedule') {
+  return {
+    account_id: fromAccountId.value,
+    to: toList.value,
+    cc: ccList.value,
+    bcc: bccList.value,
+    subject: subject.value,
+    body_html: bodyHtml.value,
+    draft_message_id: draftMessageId.value || undefined,
+    draft_folder: draftFolder.value || undefined,
+    action,
+  };
 }
 
 // 发送邮件
@@ -723,14 +765,8 @@ async function sendMail() {
   sending.value = true;
   try {
     await api.post('/messages/compose', {
-      account_id: fromAccountId.value,
-      to: toList.value,
-      cc: ccList.value,
-      bcc: bccList.value,
-      subject: subject.value,
-      body_html: bodyHtml.value,
+      ...composePayload('send'),
       attachments: attachments.value.map(a => a.path),
-      action: 'send',
     }) as any;
     showToast('发送成功', 'success');
     clearComposeForm();
@@ -746,15 +782,10 @@ async function sendMail() {
 async function saveDraft() {
   savingDraft.value = true;
   try {
-    await api.post('/messages/compose', {
-      account_id: fromAccountId.value,
-      to: toList.value,
-      cc: ccList.value,
-      bcc: bccList.value,
-      subject: subject.value,
-      body_html: bodyHtml.value,
-      action: 'draft',
-    });
+    const data = await api.post('/messages/compose', composePayload('draft')) as any;
+    draftMessageId.value = data.draft_message_id || draftMessageId.value;
+    draftFolder.value = data.draft_folder || draftFolder.value;
+    markSavedSnapshot();
     showToast('草稿已保存', 'success');
   } catch (e: any) {
     showToast('保存草稿失败: ' + getErrorMessage(e), 'error');
@@ -782,23 +813,8 @@ async function scheduleMail() {
   const scheduleTimeISO = `${y}-${m}-${d}T${h}:${min}:00`;
   try {
     await api.post('/messages/compose', {
-      account_id: fromAccountId.value,
-      to: toList.value,
-      cc: ccList.value,
-      bcc: bccList.value,
-      subject: subject.value,
-      body_html: bodyHtml.value,
-      action: 'draft',
-    });
-    await api.post('/messages/compose', {
-      account_id: fromAccountId.value,
-      to: toList.value,
-      cc: ccList.value,
-      bcc: bccList.value,
-      subject: subject.value,
-      body_html: bodyHtml.value,
+      ...composePayload('schedule'),
       attachments: attachments.value.map(a => a.path),
-      action: 'schedule',
       schedule_time: scheduleTimeISO,
     });
     showScheduleModal.value = false;
@@ -812,7 +828,7 @@ async function scheduleMail() {
 
 // 关闭邮件
 function discardMail() {
-  if (subject.value || bodyHtml.value || toList.value.length > 0) {
+  if (hasUnsavedChanges()) {
     showConfirm('确定关闭写邮件？未保存的内容将丢失', () => { emit('discard'); });
   } else {
     emit('discard');

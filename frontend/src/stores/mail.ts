@@ -343,7 +343,17 @@ export const useMailStore = defineStore('mail', () => {
     }
   }
 
-  function setComposeDraft(draft: { to?: string[]; cc?: string[]; bcc?: string[]; subject?: string; body_html?: string; in_reply_to?: string; account_id?: string }) {
+  function setComposeDraft(draft: {
+    to?: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject?: string;
+    body_html?: string;
+    in_reply_to?: string;
+    account_id?: string;
+    draft_message_id?: string;
+    draft_folder?: string;
+  }) {
     composeDraft.value = draft;
   }
 

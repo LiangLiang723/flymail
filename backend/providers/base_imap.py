@@ -773,7 +773,7 @@ class BaseIMAPReceiver(MailReceiver):
 
     # ---- 草稿保存 ----
 
-    async def save_draft(self, message_bytes: bytes, folder: str = "Drafts") -> None:
+    async def save_draft(self, message_bytes: bytes, folder: str = "Drafts") -> int | None:
         """通过 IMAP APPEND 命令保存草稿到服务器"""
         if not self._conn:
             raise ConnectionError("IMAP 未连接")
@@ -789,9 +789,14 @@ class BaseIMAPReceiver(MailReceiver):
             )
             if status != "OK":
                 raise Exception(f"IMAP APPEND 失败: {response}")
-            return status
+            response_text = " ".join(
+                item.decode("utf-8", errors="ignore") if isinstance(item, bytes) else str(item)
+                for item in (response or [])
+            )
+            match = re.search(r"APPENDUID\s+\d+\s+(\d+)", response_text, re.IGNORECASE)
+            return int(match.group(1)) if match else None
 
-        await asyncio.to_thread(_append)
+        return await asyncio.to_thread(_append)
 
     # ---- 连接管理 ----
 

@@ -78,7 +78,7 @@ def _load_outgoing_mail_module():
 class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
     async def test_build_outgoing_message_preserves_html_and_plain_line_breaks(self):
         outgoing_mail, _db_stub, _mail_cache_stub, _sync_stub = _load_outgoing_mail_module()
-        body_html = "<p>第一行</p><p>第二行<br>继续第二行</p><ul><li>列表项</li></ul>"
+        body_html = "<p>第一行</p><p></p><p>第二行<br>继续第二行</p><ul><li>列表项</li></ul>"
 
         raw = outgoing_mail.build_outgoing_message_bytes(
             from_email="sender@example.com",
@@ -99,8 +99,8 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
             if part.get_content_type() == "text/plain":
                 plain_parts.append(part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8"))
 
-        self.assertEqual(html_parts, [body_html])
-        self.assertEqual(plain_parts, ["第一行\n第二行\n继续第二行\n- 列表项"])
+        self.assertEqual(html_parts, ["<p>第一行</p><p><br></p><p>第二行<br>继续第二行</p><ul><li>列表项</li></ul>"])
+        self.assertEqual(plain_parts, ["第一行\n\n第二行\n继续第二行\n- 列表项"])
 
     async def test_append_failure_caches_sent_message_locally(self):
         outgoing_mail, db_stub, mail_cache_stub, sync_stub = _load_outgoing_mail_module()

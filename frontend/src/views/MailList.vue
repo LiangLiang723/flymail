@@ -957,6 +957,8 @@ async function selectMessage(msg: Message) {
         subject: data.subject || msg.subject || '',
         body_html: data.body_html || data.body_text || '',
         account_id: mailStore.currentAccountId,
+        draft_message_id: msg.id,
+        draft_folder: mailStore.currentFolder,
       });
       navigateToCompose();
     } catch (e) {

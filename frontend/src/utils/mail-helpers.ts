@@ -101,6 +101,9 @@ export function getFolderCount(folder: { name?: string; path?: string; unread_co
     key.includes('draft') ||
     key.includes('deleted') ||
     key.includes('trash') ||
+    key.includes('已发送') ||
+    key.includes('草稿') ||
+    key.includes('已删除') ||
     key.includes('\u5df2\u53d1\u9001') ||
     key.includes('\u5df2\u53d1\u90ae\u4ef6') ||
     key.includes('\u8349\u7a3f\u7bb1') ||
@@ -116,6 +119,15 @@ export function getFolderCount(folder: { name?: string; path?: string; unread_co
     key.includes('[gmail]/trash')
   ) {
     return folder.total_count || 0
+  }
+  if (
+    key.includes('inbox') ||
+    key.includes('junk') ||
+    key.includes('spam') ||
+    key.includes('收件箱') ||
+    key.includes('垃圾')
+  ) {
+    return folder.unread_count || 0
   }
   return folder.unread_count || 0
 }

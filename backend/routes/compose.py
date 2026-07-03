@@ -20,6 +20,7 @@ from providers.factory import ProviderFactory
 from services.token import ensure_token as _ensure_gmail_token
 from services.sync import sync_service
 from services.mail_cache import sync_folder_to_cache
+from services.message_body import prepare_outgoing_body_html
 from services.outgoing_mail import ensure_sent_message_cached, find_special_folder
 from utils.logger import get_logger
 from schemas import (
@@ -70,6 +71,34 @@ async def _cache_sent_message_after_send(
     except Exception as exc:
         logger.warning("发送成功后缓存已发送邮件失败: %s", exc)
         return ""
+
+
+async def _delete_source_draft_after_success(
+    account: Account,
+    user_uid: str,
+    draft_message_id: str | None,
+    draft_folder: str | None,
+    default_folder: str = "",
+) -> None:
+    if not draft_message_id:
+        return
+    folder = draft_folder or default_folder or "Drafts"
+    try:
+        credentials = await _ensure_gmail_token(account)
+        receiver = ProviderFactory.get_receiver(account.provider)
+        await receiver.connect(credentials)
+        try:
+            from services.draft import delete_draft_from_imap
+            await delete_draft_from_imap(receiver, int(str(draft_message_id).rsplit("_", 1)[-1]), folder=folder)
+        finally:
+            await _safe_disconnect(receiver)
+        try:
+            await sync_folder_to_cache(account, folder)
+            await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
+        except Exception as sync_err:
+            logger.warning("鍒犻櫎鑽夌鍚庡悓姝ヨ崏绋跨澶辫触: %s", sync_err)
+    except Exception as exc:
+        logger.warning("鍒犻櫎婧愯崏绋垮け璐? %s", exc)
 
 
 
@@ -167,6 +196,7 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
     account, _ = _find_account_or_error(accounts, body.account_id)
     if not account:
         account = accounts[0]
+    body_html = prepare_outgoing_body_html(body.body_html)
 
     # ---- 保存草稿 ----
     if body.action == "draft":
@@ -177,12 +207,19 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
             await receiver.connect(credentials)
             try:
                 from services.draft import save_draft_to_imap
-                ok = await save_draft_to_imap(
+                ok, new_draft_uid = await save_draft_to_imap(
                     receiver, account.email, account.email,
-                    body.to, body.cc, body.bcc, body.subject, body.body_html,
+                    body.to, body.cc, body.bcc, body.subject, body_html,
                     folder=drafts_folder,
                 )
                 if ok:
+                    await _delete_source_draft_after_success(
+                        account,
+                        user_uid,
+                        body.draft_message_id,
+                        body.draft_folder,
+                        drafts_folder,
+                    )
                     # 草稿保存成功后，主动同步草稿箱缓存
                     try:
                         if drafts_folder:
@@ -190,7 +227,12 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                             await sync_service.refresh_clients(account.id, drafts_folder, user_uid=user_uid)
                     except Exception as sync_err:
                         logger.warning("保存草稿后同步草稿箱失败: %s", sync_err)
-                    return {"success": True, "message": "草稿保存成功"}
+                    return {
+                        "success": True,
+                        "message": "草稿保存成功",
+                        "draft_message_id": str(new_draft_uid or ""),
+                        "draft_folder": drafts_folder,
+                    }
                 else:
                     raise AppError(500, "草稿保存失败")
             finally:
@@ -217,12 +259,18 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 cc=body.cc,
                 bcc=body.bcc,
                 subject=body.subject,
-                body_html=body.body_html,
+                body_html=body_html,
                 attachment_paths=body.attachments,
                 in_reply_to=body.in_reply_to,
                 run_time=run_time,
                 provider=account.provider,
                 email=account.email,
+            )
+            await _delete_source_draft_after_success(
+                account,
+                user_uid,
+                body.draft_message_id,
+                body.draft_folder,
             )
             return {"success": True, "message": "定时发送已设置", "job_id": job_id}
         except Exception as e:
@@ -238,7 +286,7 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
             result = await sender.send_message(
                 to=body.to,
                 subject=body.subject,
-                body_html=body.body_html,
+                body_html=body_html,
                 body_text="",
                 cc=body.cc or None,
                 bcc=body.bcc or None,
@@ -259,9 +307,15 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 cc=body.cc or [],
                 bcc=body.bcc or [],
                 subject=body.subject,
-                body_html=body.body_html,
+                body_html=body_html,
                 attachments=body.attachments or [],
                 in_reply_to=body.in_reply_to,
+            )
+            await _delete_source_draft_after_success(
+                account,
+                user_uid,
+                body.draft_message_id,
+                body.draft_folder,
             )
             return {"success": True, "message": "发送成功", "sent_folder": sent_folder}
         else:

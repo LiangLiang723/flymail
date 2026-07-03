@@ -1,8 +1,6 @@
 import os
-import re
 import time
 import urllib.parse
-from html import unescape
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -14,24 +12,12 @@ from models import CachedMessage
 from db import get_folder_stats, search_cached_messages_by_folder, upsert_cached_messages, upsert_folder_stats
 from providers.factory import ProviderFactory
 from services.mail_cache import sync_folder_to_cache
+from services.message_body import html_to_text, prepare_outgoing_body_html
 from services.sync import sync_service
 from services.token import ensure_token
 from utils.logger import get_logger
 
 logger = get_logger("services.outgoing_mail")
-
-
-def _html_to_text(body_html: str) -> str:
-    if not body_html:
-        return ""
-    text = re.sub(r"<br\b[^>]*>", "\n", body_html, flags=re.IGNORECASE)
-    text = re.sub(r"</(p|div|h[1-6]|li|tr)\s*>", "\n", text, flags=re.IGNORECASE)
-    text = re.sub(r"<li\b[^>]*>", "- ", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", "", text)
-    text = unescape(text).replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n[ \t]+", "\n", text)
-    return text.strip()
 
 
 def build_outgoing_message_bytes(
@@ -44,6 +30,7 @@ def build_outgoing_message_bytes(
     attachments: list[str],
     in_reply_to: str | None = None,
 ) -> bytes:
+    body_html = prepare_outgoing_body_html(body_html or "")
     msg = MIMEMultipart("mixed")
     msg["From"] = from_email
     msg["To"] = ", ".join(to or [])
@@ -56,10 +43,10 @@ def build_outgoing_message_bytes(
         msg["References"] = in_reply_to
 
     alt = MIMEMultipart("alternative")
-    body_text = _html_to_text(body_html)
+    body_text = html_to_text(body_html)
     if body_text:
         alt.attach(MIMEText(body_text, "plain", "utf-8"))
-    alt.attach(MIMEText(body_html or "", "html", "utf-8"))
+    alt.attach(MIMEText(body_html, "html", "utf-8"))
     msg.attach(alt)
 
     for file_path in attachments or []:
@@ -102,8 +89,8 @@ async def _cache_outgoing_message_locally(
             date=formatdate(localtime=True),
             is_read=True,
             has_attachments=bool(attachments),
-            body_text=_html_to_text(body_html or ""),
-            body_html=body_html or "",
+            body_text=html_to_text(body_html or ""),
+            body_html=prepare_outgoing_body_html(body_html or ""),
             cached_at=time.time(),
         )
     ])

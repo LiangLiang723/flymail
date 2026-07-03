@@ -244,6 +244,8 @@ class ComposeMessageRequest(BaseModel):
     schedule_time: str | None = Field(default=None, description="ISO8601 定时发送时间")
     in_reply_to: str | None = Field(default=None, description="回复的邮件 Message-ID")
     forward_from: str | None = Field(default=None, description="转发的邮件 Message-ID")
+    draft_message_id: str | None = Field(default=None, description="正在编辑的草稿邮件ID")
+    draft_folder: str | None = Field(default=None, description="正在编辑的草稿所在文件夹")
 
 
 class ComposeMessageResponse(BaseModel):
@@ -251,6 +253,8 @@ class ComposeMessageResponse(BaseModel):
     message: str = Field(description="结果消息")
     job_id: str = Field(default="", description="定时发送任务ID")
     sent_folder: str = Field(default="", description="已发送文件夹路径")
+    draft_message_id: str = Field(default="", description="保存后的草稿邮件ID")
+    draft_folder: str = Field(default="", description="保存后的草稿文件夹路径")
 
 
 class UploadAttachmentResponse(BaseModel):
