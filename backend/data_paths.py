@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path

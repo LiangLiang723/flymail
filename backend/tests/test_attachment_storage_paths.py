@@ -1,6 +1,9 @@
 import unittest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
-from data_paths import DOWNLOADS_DIR, build_message_file_path
+from data_paths import DOWNLOADS_DIR, build_message_file_path, clear_account_storage
 
 
 class AttachmentStoragePathTest(unittest.TestCase):
@@ -29,6 +32,18 @@ class AttachmentStoragePathTest(unittest.TestCase):
         )
 
         self.assertTrue(path.is_relative_to(DOWNLOADS_DIR))
+
+    def test_clear_account_storage_removes_download_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            downloads_dir = Path(tmp) / "files" / "download"
+            account_dir = downloads_dir / "user@example.com"
+            account_dir.mkdir(parents=True)
+            (account_dir / "attachment.txt").write_text("content", encoding="utf-8")
+
+            with patch("data_paths.DOWNLOADS_DIR", downloads_dir):
+                clear_account_storage("account-1", "user@example.com")
+
+            self.assertFalse(account_dir.exists())
 
 
 if __name__ == "__main__":
