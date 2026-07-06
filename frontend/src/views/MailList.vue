@@ -9,7 +9,7 @@
           @click="switchAccount(acc.id)"
         >
           <span class="account-icon" :class="acc.provider" v-html="providerIcon(acc.provider)"></span>
-          <span class="account-email">{{ acc.email }}</span>
+          <span class="account-email">{{ accountDisplayName(acc) }}</span>
         </button>
         <button v-if="mailStore.reauthAccountIds.has(acc.id)" class="btn-reauth" @click.stop="reauthorize(acc.id)" title="重新授权">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -344,6 +344,10 @@ import { useConfirmAction } from '../composables/useConfirmAction';
 
 const mailStore = useMailStore();
 const uiStore = useUIStore();
+
+function accountDisplayName(account: any) {
+  return String(account?.remark || '').trim() || account?.email || '';
+}
 
 const messages = ref<Message[]>([]);
 const selectedMessage = ref<Message | null>(null);

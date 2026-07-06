@@ -22,7 +22,7 @@
         <div class="job-header">
           <div>
             <div class="job-title-row">
-              <h3 class="job-title">{{ item.email }}</h3>
+              <h3 class="job-title">{{ accountDisplayName(item) }}</h3>
               <span class="status-badge" :class="statusClass(item.status)">{{ statusText(item.status) }}</span>
             </div>
             <p class="job-provider">{{ providerName(item.provider) }}</p>
@@ -107,6 +107,7 @@ interface FolderProgressItem {
 interface HistorySyncItem {
   account_id: string
   email: string
+  remark?: string
   provider: string
   account_status?: string
   status: string
@@ -124,12 +125,16 @@ let wsRefreshTimer: number | null = null;
 
 const { connect: connectWs, disconnect: disconnectWs } = useWebSocket(handleWsMessage);
 
+function accountDisplayName(item: HistorySyncItem) {
+  return String(item.remark || '').trim() || item.email;
+}
+
 function isAccountDisabled(item: HistorySyncItem) {
   return item.account_status === 'offline';
 }
 
 function showDisabledAccountTip(item?: HistorySyncItem) {
-  ui.warning(`${item?.email || '该账户'} 已禁用，请先在邮箱管理启用账户`);
+  ui.warning(`${item ? accountDisplayName(item) : '该账户'} 已禁用，请先在邮箱管理启用账户`);
 }
 
 function handleSyncActionResponse(data: any, fallback: string) {
@@ -180,7 +185,7 @@ async function refreshSync(item: HistorySyncItem) {
   }
   const ok = await ui.showConfirm({
     title: '刷新同步',
-    message: `确定要补全同步 ${item.email} 的历史邮件吗？本地已有邮件和附件会复用，不会重复下载。`,
+    message: `确定要补全同步 ${accountDisplayName(item)} 的历史邮件吗？本地已有邮件和附件会复用，不会重复下载。`,
     confirmText: '确认刷新同步',
   });
   if (!ok) return;
@@ -239,7 +244,7 @@ async function retryJob(accountId: string) {
 async function clearJob(item: HistorySyncItem) {
   const ok = await ui.showConfirm({
     title: '清空本地缓存',
-    message: `确定要清空 ${item.email} 的本地邮件、附件和图片缓存吗？这个过程会在后台执行。`,
+    message: `确定要清空 ${accountDisplayName(item)} 的本地邮件、附件和图片缓存吗？这个过程会在后台执行。`,
     confirmText: '确认清空',
     danger: true,
   });

@@ -297,6 +297,7 @@ async def get_history_sync_jobs(request: Request):
             {
                 "account_id": account.id,
                 "email": account.email,
+                "remark": account.remark,
                 "provider": account.provider,
                 "account_status": account.status,
                 "status": history_job.get("status", "idle") if history_job else "idle",
@@ -324,6 +325,7 @@ async def get_history_sync_job_detail(account_id: str, request: Request):
         "account": {
             "id": account.id,
             "email": account.email,
+            "remark": account.remark,
             "provider": account.provider,
         },
         "folder_progress": folder_progress,
