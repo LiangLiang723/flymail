@@ -28,6 +28,7 @@ from providers.base import Message
 from providers.factory import ProviderFactory
 from services.history_sync import _cache_message_assets
 from utils.logger import get_logger
+from utils.tasks import create_background_task
 
 logger = get_logger("cache")
 
@@ -54,6 +55,43 @@ async def try_acquire_sync_lock(account_id: str) -> asyncio.Lock | None:
 def remove_sync_lock(account_id: str):
     """清理指定账号的同步锁（账号删除时调用，防止内存泄漏）"""
     _sync_locks.pop(account_id, None)
+
+
+async def schedule_archive_for_new_uids(account: Account, folder: str, uids: list[int]) -> None:
+    """Schedule one non-blocking archive batch for genuinely new message UIDs."""
+    unique_uids = list(dict.fromkeys(int(uid) for uid in uids if int(uid) > 0))
+    if not unique_uids:
+        return
+    try:
+        from services.backup import archive_messages_batch, should_archive
+
+        if not await should_archive(account.user_uid, account.id):
+            return
+        create_background_task(
+            archive_messages_batch(account, folder, unique_uids),
+            name=f"archive_batch_{account.id}_{folder}",
+        )
+    except Exception as exc:
+        logger.debug("归档触发失败（不影响同步）: %s", exc)
+
+
+async def mark_archived_deleted_before_purge(
+    account_id: str,
+    folder: str,
+    cached_uids: set[int],
+    remote_uids: set[int],
+) -> set[int]:
+    """Mark archived messages deleted on server before cache rows are purged."""
+    deleted_uids = {int(uid) for uid in cached_uids} - {int(uid) for uid in remote_uids}
+    if not deleted_uids:
+        return set()
+    try:
+        from services.backup import mark_archived_as_deleted
+
+        await mark_archived_as_deleted(account_id, folder, sorted(deleted_uids))
+    except Exception as exc:
+        logger.debug("标记归档删除失败: %s", exc)
+    return deleted_uids
 
 
 def _select_uncached_recent_messages(messages: List[Message], cached_uids: set[int]) -> tuple[List[Message], bool]:
@@ -197,6 +235,11 @@ async def sync_recent_folder_to_cache(account: Account, folder: str = "INBOX", p
             new_messages, reached_cached = _select_uncached_recent_messages(result.messages, cached_uids)
             if new_messages:
                 added += await _cache_messages_with_details(receiver, account, folder, new_messages, unseen_uids)
+                await schedule_archive_for_new_uids(
+                    account,
+                    folder,
+                    [message.uid for message in new_messages],
+                )
 
             if reached_cached:
                 break
@@ -375,6 +418,13 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
             if cached_count > total_count:
                 all_uids_for_purge = set(await receiver.fetch_new_message_uids(folder, since_uid=0))
                 if all_uids_for_purge:
+                    cached_uids = await get_cached_uids(account.id, folder)
+                    await mark_archived_deleted_before_purge(
+                        account.id,
+                        folder,
+                        cached_uids,
+                        all_uids_for_purge,
+                    )
                     purged = await purge_deleted_from_cache(account.id, folder, all_uids_for_purge)
                     if purged > 0:
                         logger.info("增量清理过期缓存: 账号=%s, 文件夹=%s, 删除 %d 封",
@@ -390,7 +440,10 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
         logger.debug("获取 UNSEEN UID 失败: %s", e)
 
     if messages:
+        existing_uids = await get_cached_uids(account.id, folder)
+        new_uids = [message.uid for message in messages if message.uid not in existing_uids]
         await _cache_messages_with_details(receiver, account, folder, messages, unseen_uids)
+        await schedule_archive_for_new_uids(account, folder, new_uids)
         # 日志中包含已读/未读统计，方便排查问题
         read_count = sum(1 for m in messages if m.is_read)
         logger.info(
@@ -447,8 +500,10 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
         except Exception as e:
             logger.warning("批量 is_read 校正失败: %s", e)
 
-    # 清理缓存中已不在 IMAP 服务器上的邮件
+    # 清理缓存中已不在 IMAP 服务器上的邮件；先保留本地归档并标记服务器删除。
     if all_uids is not None and len(all_uids) > 0:
+        cached_uids = await get_cached_uids(account.id, folder)
+        await mark_archived_deleted_before_purge(account.id, folder, cached_uids, all_uids)
         purged = await purge_deleted_from_cache(account.id, folder, all_uids)
         if purged > 0:
             logger.info("清理过期缓存: 账号=%s, 文件夹=%s, 删除 %d 封", account.email, folder, purged)

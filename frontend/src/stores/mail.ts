@@ -13,6 +13,7 @@ const CORE_FOLDERS = [
 
 interface MailNotification {
   id: string;
+  account_id?: string;
   provider: string;
   email: string;
   folder: string;
@@ -20,6 +21,13 @@ interface MailNotification {
   read: boolean;
   type: string;
   message: string;
+  message_cache_id?: string;
+  message_uid?: number;
+  subject?: string;
+  from_addr?: string;
+  body_preview?: string;
+  has_attachments?: boolean;
+  batch_count?: number;
 }
 
 type FolderCount = { unread_count: number; total_count: number };
@@ -289,6 +297,7 @@ export const useMailStore = defineStore('mail', () => {
       const data = await api.get('/notifications') as any;
       notifications.value = (data.notifications || []).map((item: any) => ({
         id: item.id,
+        account_id: item.account_id || '',
         provider: item.provider,
         email: item.email,
         folder: item.folder,
@@ -296,6 +305,13 @@ export const useMailStore = defineStore('mail', () => {
         read: item.is_read,
         type: item.type || 'new_mail',
         message: item.message || '',
+        message_cache_id: item.message_cache_id || '',
+        message_uid: Number(item.message_uid || 0),
+        subject: item.subject || '',
+        from_addr: item.from_addr || '',
+        body_preview: item.body_preview || '',
+        has_attachments: Boolean(item.has_attachments),
+        batch_count: Number(item.batch_count || 1),
       }));
     } catch (e) {
       console.error('加载通知失败:', e);
@@ -303,9 +319,28 @@ export const useMailStore = defineStore('mail', () => {
     }
   }
 
-  function addNotification(provider: string, email: string, folder: string, notificationId?: string, type = 'new_mail', message = '') {
+  function addNotification(
+    provider: string,
+    email: string,
+    folder: string,
+    notificationId?: string,
+    type = 'new_mail',
+    message = '',
+    details: Partial<MailNotification> = {},
+  ) {
     const id = notificationId || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
-    notifications.value.unshift({ id, provider, email, folder, time: Date.now(), read: false, type, message });
+    if (notifications.value.some((item) => item.id === id)) return;
+    notifications.value.unshift({
+      id,
+      provider,
+      email,
+      folder,
+      time: Date.now(),
+      read: false,
+      type,
+      message,
+      ...details,
+    });
     if (notifications.value.length > 50) {
       notifications.value = notifications.value.slice(0, 50);
     }

@@ -78,6 +78,9 @@
           <button v-if="searchKeyword" class="btn-icon" @click="clearSearch" title="清空搜索">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
+          <button v-if="!noReadStateFolder && currentFolderUnreadCount > 0" class="btn-icon" @click="markCurrentFolderAllRead" title="当前文件夹全部已读">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </button>
           <!-- 移动端：筛选展开/收起按钮 -->
           <button class="btn-icon mobile-filter-toggle" :class="{ active: hasActiveFilter }" @click="showMobileFilters = !showMobileFilters">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
@@ -262,6 +265,12 @@
             </svg>
             <span>转发</span>
           </button>
+          <button class="btn-action" @click="addSenderToContacts" title="添加发件人为联系人">
+            <span>联系人</span>
+          </button>
+          <button class="btn-action" @click="exportSelectedMessage" title="打印或保存为 PDF">
+            <span>导出 PDF</span>
+          </button>
           <button class="btn-action" :class="{ confirm: deleteConfirm }" @click="onDeleteMessage" :title="deleteConfirm ? '再次点击确认删除' : '删除邮件'">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -307,7 +316,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             <span>附件 ({{ selectedMessage.attachments.length }})</span>
           </div>
-          <div class="attachment-item" v-for="att in selectedMessage.attachments" :key="att.part_number" @click="downloadAttachment(att)">
+          <div class="attachment-item" v-for="att in selectedMessage.attachments" :key="att.part_number">
             <div class="att-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
@@ -318,12 +327,16 @@
                 <span v-if="att.local_path" class="att-local-tag">已下载</span>
               </div>
             </div>
-            <div class="att-download">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <div class="attachment-actions-inline">
+              <button class="att-download" type="button" title="下载到本机" @click="downloadAttachment(att)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button class="att-download" type="button" title="保存到 NAS" @click="chooseAttachmentNasTarget(att)">NAS</button>
             </div>
           </div>
         </div>
       </div>
+      <NasPathPicker v-model="showAttachmentNasPicker" mode="dir" title="选择 NAS 保存目录" @confirm="saveAttachmentToSelectedNas" />
     </div>
     </div>
   </div>
@@ -335,15 +348,23 @@ import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
 import { providerIcon } from '../utils/provider';
-import { sanitizeHtml } from '../utils/sanitize';
-import { extractName, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, getFolderCount } from '../utils/mail-helpers';
+import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
+import { renderMailBody } from '../utils/sanitize';
+import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
 import type { Attachment, Message } from '../types/mail';
 import { useWebSocket } from '../composables/useWebSocket';
 import { useSelectMode } from '../composables/useSelectMode';
 import { useConfirmAction } from '../composables/useConfirmAction';
+import { useContacts } from '../composables/useContacts';
+import { buildForwardDraft, buildReplyDraft } from '../composables/useReplyForward';
+import { exportMailToPDF } from '../utils/export-pdf';
+import NasPathPicker from '../components/NasPathPicker.vue';
 
 const mailStore = useMailStore();
 const uiStore = useUIStore();
+const { quickAddContact } = useContacts();
+const showAttachmentNasPicker = ref(false);
+const attachmentForNas = ref<Attachment | null>(null);
 
 function accountDisplayName(account: any) {
   return String(account?.remark || '').trim() || account?.email || '';
@@ -395,23 +416,9 @@ function foldersMatchForRefresh(eventFolder: string, currentFolder: string): boo
   return folderAliasKey(eventFolder) === folderAliasKey(currentFolder);
 }
 
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function renderPlainTextBody(text: string | undefined | null) {
-  if (!text) return '';
-  return escapeHtml(text).replace(/\r\n|\r|\n/g, '<br>');
-}
-
 function renderMessageBody(message: Message | null) {
   if (!message) return '';
-  return sanitizeHtml(message.body_html) || renderPlainTextBody(message.body_text);
+  return renderMailBody(message.body_html, message.body_text);
 }
 
 const isDraftFolder = computed(() => {
@@ -591,6 +598,28 @@ async function batchMarkRead() {
   }
 }
 
+async function markCurrentFolderAllRead() {
+  if (!mailStore.currentAccountId || currentFolderUnreadCount.value <= 0) return;
+  const confirmed = await uiStore.showConfirm({
+    title: '当前文件夹全部已读',
+    message: `确定将“${mailStore.currentFolderName}”中的全部未读邮件标记为已读吗？`,
+    confirmText: '全部已读',
+  });
+  if (!confirmed) return;
+  try {
+    const result = await api.post('/messages/mark-all-read', {
+      account_ids: [mailStore.currentAccountId],
+      folder: mailStore.currentFolder,
+    }) as any;
+    pageCache.clear();
+    await loadMessages();
+    await mailStore.loadFolderCounts();
+    uiStore.success(`已标记 ${Number(result.total_marked || 0)} 封邮件为已读`);
+  } catch (error: any) {
+    uiStore.error(error?.error || error?.message || '全部已读失败');
+  }
+}
+
 // 请求版本号：防止切换账号时旧请求的响应覆盖新数据
 let loadVersion = 0;
 
@@ -600,11 +629,7 @@ const { wsConnected, connect: connectWs, disconnect: disconnectWs } = useWebSock
 /** 处理 WebSocket 业务消息 */
 function handleWsMessage(data: any) {
   if (data.type === 'new_mail') {
-    // IDLE 检测到新邮件：只弹通知，不刷新列表（缓存还没同步完，刷新会读到旧数据）
-    if (data.provider && data.email) {
-      mailStore.addNotification(data.provider, data.email, data.folder || 'INBOX', data.notification_id);
-    }
-    // 只刷新侧边栏未读计数（STATUS 命令是即时的，不需要等缓存同步）
+    // 全局 App 负责通知入库；邮件页只刷新侧边栏未读计数。
     if (!data.account_id || data.account_id === mailStore.currentAccountId) {
       mailStore.loadFolderCounts();
     }
@@ -640,12 +665,7 @@ function handleWsMessage(data: any) {
       }
     }
   } else if (data.type === 'schedule_success' || data.type === 'schedule_failed') {
-    // 定时发送结果通知
-    mailStore.addNotification(
-      data.provider || '', data.email || '', '', data.notification_id,
-      data.type, data.message || ''
-    );
-    // 发送成功时刷新侧边栏计数（已发送文件夹可能有新邮件）
+    // 全局 App 负责通知入库；发送成功时刷新已发送文件夹计数。
     if (data.type === 'schedule_success') {
       mailStore.loadFolderCounts();
     }
@@ -775,12 +795,46 @@ watch(
   }
 );
 
-onMounted(() => {
-  loadMessages();
+async function openPendingMessage() {
+  const raw = sessionStorage.getItem('flymail_pending_message');
+  if (!raw) return false;
+  sessionStorage.removeItem('flymail_pending_message');
+  try {
+    const pending = JSON.parse(raw);
+    if (!pending?.account_id || !pending?.id) return false;
+    if (mailStore.currentAccountId !== pending.account_id) {
+      mailStore.setAccount(pending.account_id);
+      await mailStore.loadFolders();
+    }
+    mailStore.setFolder(pending.folder || 'INBOX');
+    await loadMessages();
+    const target = messages.value.find((item: Message) =>
+      item.id === pending.id || (pending.uid && Number(item.uid) === Number(pending.uid))
+    ) || {
+      id: pending.id,
+      uid: pending.uid,
+      subject: '',
+      from_addr: '',
+      date: '',
+      is_read: true,
+      folder: pending.folder || 'INBOX',
+      account_id: pending.account_id,
+    };
+    await selectMessage(target as Message);
+    return true;
+  } catch (error) {
+    console.error('打开聚合邮件失败:', error);
+    return false;
+  }
+}
+
+onMounted(async () => {
   connectWs();
+  if (!(await openPendingMessage())) await loadMessages();
 });
 
-onActivated(() => {
+onActivated(async () => {
+  if (await openPendingMessage()) return;
   if (selectedMessage.value) {
     mailStore.loadFolderCounts();
     return;
@@ -849,28 +903,39 @@ async function refreshLatestPage() {
 
 /** 重新授权指定账号（复用添加账号的 OAuth 流程） */
 async function reauthorize(accountId?: string) {
+  const targetId = accountId || mailStore.currentAccountId;
+  const targetAccount = mailStore.accounts.find((a: any) => a.id === targetId);
+  if (!targetAccount) return;
+  const provider = targetAccount.provider;
+  const providerLabel = provider === 'outlook' ? 'Microsoft' : 'Google';
+  const { win: authWindow } = openAuthWindowSync(providerLabel);
+  if (!authWindow) {
+    uiStore.error(authWindowBlockedMessage(providerLabel));
+    return;
+  }
   try {
-    const targetId = accountId || mailStore.currentAccountId;
-    const targetAccount = mailStore.accounts.find((a: any) => a.id === targetId);
-    if (!targetAccount) return;
-    const provider = targetAccount.provider;
     const settingsData = await api.get('/settings') as any;
     const settings = settingsData.settings || {};
     let redirectUri = '';
     if (provider === 'outlook') {
       redirectUri = settings.outlook_redirect_uri || '';
-      if (!redirectUri) { uiStore.error('请先在设置页面配置 Microsoft 重定向 URI'); return; }
+      if (!redirectUri) { closeAuthWindow(authWindow); uiStore.error('请先在设置页面配置 Microsoft 重定向 URI'); return; }
     } else {
       redirectUri = settings.gmail_redirect_uri || '';
-      if (!redirectUri) { uiStore.error('请先在设置页面配置 Gmail 重定向 URI'); return; }
+      if (!redirectUri) { closeAuthWindow(authWindow); uiStore.error('请先在设置页面配置 Gmail 重定向 URI'); return; }
     }
     // 标记这是重新授权，OAuth 回调后不跳转到账号页
     sessionStorage.setItem('flymail_oauth_reauth', '1');
     const data = await api.post('/accounts/auth-url', { provider, redirect_uri: redirectUri }) as any;
-    if (data.error) { uiStore.error('获取授权链接失败：' + data.error); return; }
-    if (data.auth_url) { window.open(data.auth_url, '_blank'); }
-    else { uiStore.error('获取授权链接失败'); }
+    if (data.error) { closeAuthWindow(authWindow); uiStore.error('获取授权链接失败：' + data.error); return; }
+    if (data.auth_url) {
+      if (!navigateAuthWindow(authWindow, data.auth_url)) uiStore.error(authWindowBlockedMessage(providerLabel));
+    } else {
+      closeAuthWindow(authWindow);
+      uiStore.error('获取授权链接失败');
+    }
   } catch (e: any) {
+    closeAuthWindow(authWindow);
     uiStore.error('重新授权失败：' + (e.response?.data?.error || e.message || '网络错误'));
   }
 }
@@ -1074,37 +1139,51 @@ function onDetailTouchEnd(e: TouchEvent) {
   }
 }
 
-/** 回复邮件：预填收件人+主题+引用原文，跳转到写邮件 */
+/** 回复邮件：按原发件人、收件人和抄送人角色构建回复列表。 */
 function replyMessage() {
   if (!selectedMessage.value) return;
-  const msg = selectedMessage.value;
-  const replyTo = (msg as any).reply_to || msg.from_addr;
-  const subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject || ''}`;
-  const quoteHtml = `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:10px;color:#666;">${msg.body_html || msg.body_text || ''}</blockquote>`;
-  mailStore.setComposeDraft({
-    to: [replyTo],
-    subject,
-    body_html: quoteHtml,
-    in_reply_to: msg.id,
-    account_id: mailStore.currentAccountId,
-  });
-  // 通过 App.vue 的 currentView 切换到 compose
+  const account = mailStore.accounts.find((item: any) => item.id === mailStore.currentAccountId);
+  mailStore.setComposeDraft(buildReplyDraft(
+    selectedMessage.value,
+    String(account?.email || '').toLowerCase(),
+    mailStore.currentAccountId,
+  ));
   navigateToCompose();
 }
 
-/** 转发邮件：预填主题+引用原文，收件人留空，跳转到写邮件 */
+/** 转发邮件：净化原始正文与元数据后构建草稿。 */
 function forwardMessage() {
   if (!selectedMessage.value) return;
-  const msg = selectedMessage.value;
-  const subject = msg.subject?.startsWith('Fwd:') ? msg.subject : `Fwd: ${msg.subject || ''}`;
-  const fwdHtml = `<br><br><p>---------- 转发的邮件 ----------</p><p>发件人: ${msg.from_addr}</p><p>主题: ${msg.subject}</p><p>日期: ${msg.date}</p><hr/><div>${msg.body_html || msg.body_text || ''}</div>`;
-  mailStore.setComposeDraft({
-    to: [],
-    subject,
-    body_html: fwdHtml,
-    account_id: mailStore.currentAccountId,
-  });
+  mailStore.setComposeDraft(buildForwardDraft(selectedMessage.value, mailStore.currentAccountId));
   navigateToCompose();
+}
+
+async function addSenderToContacts() {
+  if (!selectedMessage.value) return;
+  const email = extractEmails(selectedMessage.value.from_addr || '')[0] || '';
+  if (!email) {
+    uiStore.error('无法识别发件人邮箱');
+    return;
+  }
+  try {
+    await quickAddContact(extractName(selectedMessage.value.from_addr), email);
+    uiStore.success('已添加到联系人');
+  } catch (error: any) {
+    if (error?.status_code === 409 || error?.status === 409 || String(error?.error || error?.message || '').includes('已在联系人')) {
+      uiStore.info('该邮箱已在联系人中');
+    } else {
+      uiStore.error(error?.error || error?.message || '添加联系人失败');
+    }
+  }
+}
+
+async function exportSelectedMessage() {
+  if (!selectedMessage.value) return;
+  try {
+    await exportMailToPDF(selectedMessage.value);
+  } catch (error: any) {
+    uiStore.error(error?.message || '导出 PDF 失败');
+  }
 }
 
 function parseAddressList(value: string): string[] {
@@ -1148,6 +1227,32 @@ function downloadAttachment(att: Attachment) {
     partNumber: att.part_number,
     filename: att.filename || 'attachment',
   });
+}
+
+function chooseAttachmentNasTarget(att: Attachment) {
+  attachmentForNas.value = att;
+  showAttachmentNasPicker.value = true;
+}
+
+async function saveAttachmentToSelectedNas(targetDir: string) {
+  const msg = selectedMessage.value;
+  const att = attachmentForNas.value;
+  showAttachmentNasPicker.value = false;
+  attachmentForNas.value = null;
+  if (!msg || !att) return;
+  try {
+    const result = await saveAttachmentToNas({
+      messageId: msg.id,
+      accountId: msg.account_id || mailStore.currentAccountId || '',
+      folder: msg.folder || 'INBOX',
+      partNumber: att.part_number,
+      targetDir,
+      filename: att.filename || 'attachment',
+    });
+    uiStore.success(`附件已保存到 ${result.path}`);
+  } catch (error: any) {
+    uiStore.error(error?.error || error?.message || '保存附件到 NAS 失败');
+  }
 }
 </script>
 

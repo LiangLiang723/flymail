@@ -10,12 +10,15 @@
           </div>
           <p class="brand-slogan">为多邮箱用户打造的自托管邮件客户端</p>
         </div>
+        <button class="check-update-btn" type="button" :disabled="checking" @click="checkUpdate">
+          {{ checking ? '检测中…' : '检测更新' }}
+        </button>
       </div>
 
       <p class="brand-desc">
-        FlyMail 统一管理 Gmail、Outlook、QQ 邮箱、网易邮箱、iCloud 等主流平台的邮件数据。
-        当前版本已重构为 Docker 多用户版，支持管理员与普通用户分权、历史邮件后台同步、断点续传、
-        附件与内嵌图片下载，以及本地数据目录持久化。
+        FlyMail 统一管理 Gmail、Outlook、QQ 邮箱、网易邮箱、iCloud、新浪邮箱及通用 IMAP/SMTP 邮箱。
+        当前 Docker 多用户版支持聚合收件箱、联系人、本地邮件备份、PDF 导出、NAS 附件、第三方通知、
+        历史邮件断点同步、账号级 Gmail 代理，以及 MySQL 与本地文件持久化。
       </p>
     </section>
 
@@ -34,8 +37,8 @@
     <section class="about-card">
       <div class="link-block">
         <h3>项目地址</h3>
-        <a class="repo-link" href="https://github.com/wangjinjing1/flymail" target="_blank" rel="noreferrer">
-          github.com/wangjinjing1/flymail
+        <a class="repo-link" href="https://github.com/LiangLiang723/flymail" target="_blank" rel="noreferrer">
+          github.com/LiangLiang723/flymail
         </a>
       </div>
 
@@ -58,14 +61,47 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+import { useUIStore } from '../stores/ui';
+
 const version = import.meta.env.VITE_APP_VERSION || '0.0.0';
 const base = import.meta.env.BASE_URL;
+const ui = useUIStore();
+const checking = ref(false);
+const VERSION_URL = 'https://raw.githubusercontent.com/LiangLiang723/flymail/main/VERSION';
 
 function onLogoError(event: Event) {
   (event.target as HTMLImageElement).style.display = 'none';
 }
 
-const features = ['多邮箱', '实时同步', '自托管隐私', '同步管理', '断点续传', '多用户隔离'];
+function compareVersions(left: string, right: string) {
+  const a = left.split('.').map(Number);
+  const b = right.split('.').map(Number);
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const delta = (a[index] || 0) - (b[index] || 0);
+    if (delta !== 0) return delta > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+async function checkUpdate() {
+  if (checking.value) return;
+  checking.value = true;
+  try {
+    const response = await fetch(VERSION_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const latest = (await response.text()).trim();
+    if (!latest) throw new Error('empty version');
+    if (compareVersions(version, latest) < 0) ui.success(`发现新版本 v${latest}`);
+    else ui.success(`当前已是最新版本 v${version}`);
+  } catch {
+    ui.error('检测更新失败，请检查网络连接');
+  } finally {
+    checking.value = false;
+  }
+}
+
+const features = ['多邮箱聚合', '联系人', '本地备份', '第三方通知', 'NAS附件', '多用户隔离'];
 const techs = ['Vue 3', 'TypeScript', 'FastAPI', 'MySQL', 'IMAP', 'WebSocket', 'Docker'];
 </script>
 
@@ -107,6 +143,22 @@ const techs = ['Vue 3', 'TypeScript', 'FastAPI', 'MySQL', 'IMAP', 'WebSocket', '
 .brand-meta {
   flex: 1;
   min-width: 0;
+}
+
+.check-update-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-primary);
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.check-update-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .brand-name-line {

@@ -10,7 +10,7 @@
 
     <!-- 顶部工具栏 -->
     <div class="compose-toolbar">
-      <button class="toolbar-btn primary" @click="sendMail" :disabled="sending">
+      <button class="toolbar-btn primary" @click="sendMail" :disabled="sending || attachmentOverLimit">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         <span>{{ sending ? '发送中...' : '发送' }}</span>
       </button>
@@ -161,7 +161,12 @@
             {{ addr }}
             <button class="tag-remove" @click="toList.splice(i, 1)">&times;</button>
           </span>
-          <input v-model="toInput" type="email" inputmode="email" enterkeyhint="done" @keydown.enter.prevent="addRecipient('to')" @keyup.enter.prevent="addRecipient('to')" @keydown.comma.prevent="addRecipient('to')" @change="addRecipient('to')" @blur="addRecipient('to')" placeholder="输入邮箱后回车" class="tag-input-field" />
+          <input v-model="toInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="toField.onInput" @keydown="handleRecipientKeydown('to', $event)" @keydown.comma.prevent="addRecipient('to')" @change="addRecipient('to')" @blur="closeRecipientSuggestions('to')" placeholder="输入姓名或邮箱" class="tag-input-field" />
+          <div v-if="toField.showSuggestions.value" class="contact-suggestions">
+            <button v-for="(item, index) in toField.suggestions.value" :key="`to-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === toField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('to', item)">
+              <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -173,7 +178,12 @@
             {{ addr }}
             <button class="tag-remove" @click="ccList.splice(i, 1)">&times;</button>
           </span>
-          <input v-model="ccInput" type="email" inputmode="email" enterkeyhint="done" @keydown.enter.prevent="addRecipient('cc')" @keyup.enter.prevent="addRecipient('cc')" @keydown.comma.prevent="addRecipient('cc')" @change="addRecipient('cc')" @blur="addRecipient('cc')" placeholder="输入邮箱后回车" class="tag-input-field" />
+          <input v-model="ccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="ccField.onInput" @keydown="handleRecipientKeydown('cc', $event)" @keydown.comma.prevent="addRecipient('cc')" @change="addRecipient('cc')" @blur="closeRecipientSuggestions('cc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
+          <div v-if="ccField.showSuggestions.value" class="contact-suggestions">
+            <button v-for="(item, index) in ccField.suggestions.value" :key="`cc-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === ccField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('cc', item)">
+              <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -185,7 +195,12 @@
             {{ addr }}
             <button class="tag-remove" @click="bccList.splice(i, 1)">&times;</button>
           </span>
-          <input v-model="bccInput" type="email" inputmode="email" enterkeyhint="done" @keydown.enter.prevent="addRecipient('bcc')" @keyup.enter.prevent="addRecipient('bcc')" @keydown.comma.prevent="addRecipient('bcc')" @change="addRecipient('bcc')" @blur="addRecipient('bcc')" placeholder="输入邮箱后回车" class="tag-input-field" />
+          <input v-model="bccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="bccField.onInput" @keydown="handleRecipientKeydown('bcc', $event)" @keydown.comma.prevent="addRecipient('bcc')" @change="addRecipient('bcc')" @blur="closeRecipientSuggestions('bcc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
+          <div v-if="bccField.showSuggestions.value" class="contact-suggestions">
+            <button v-for="(item, index) in bccField.suggestions.value" :key="`bcc-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === bccField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('bcc', item)">
+              <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -203,23 +218,31 @@
       <!-- 附件区域（在编辑器下方、表单底部） -->
       <div class="attachments-section">
         <div class="attachments-header">
-          <label class="upload-btn">
-            <input type="file" multiple @change="handleFileSelect" class="hidden-input" />
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            附件
-          </label>
-          <span v-if="attachments.length" class="attachments-count">{{ attachments.length }}个</span>
+          <div class="attachment-actions">
+            <label class="upload-btn">
+              <input type="file" multiple @change="handleFileSelect" class="hidden-input" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              本机附件
+            </label>
+            <button class="upload-btn" type="button" @click="showNasPicker = true">从 NAS 添加</button>
+          </div>
+          <span v-if="attachments.length" class="attachments-count" :class="{ error: attachmentOverLimit }">
+            {{ attachments.length }}个 · {{ formatSize(totalAttachmentBytes) }} / {{ attachmentLimitMb }}MB
+          </span>
         </div>
         <div v-if="attachments.length" class="attachments-list">
           <div v-for="(att, i) in attachments" :key="i" class="attachment-item">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span class="att-name">{{ att.filename }}</span>
+            <span v-if="att.source === 'nas'" class="att-source">NAS</span>
             <span class="att-size">{{ formatSize(att.size) }}</span>
             <button class="att-remove" @click="removeAttachment(i)">&times;</button>
           </div>
         </div>
       </div>
     </div>
+
+    <NasPathPicker v-model="showNasPicker" mode="file" title="从 NAS 选择附件" @confirm="addNasAttachment" />
 
     <!-- 定时发送弹窗 -->
     <div v-if="showScheduleModal" class="modal-overlay" @click.self="showScheduleModal = false">
@@ -325,7 +348,10 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import api from '../utils/api';
 import { useMailStore } from '../stores/mail';
+import NasPathPicker from '../components/NasPathPicker.vue';
 import TiptapEditor from '../components/TiptapEditor.vue';
+import { useContactAutocomplete } from '../composables/useContactAutocomplete';
+import type { ContactSuggestion } from '../composables/useContacts';
 
 const emit = defineEmits<{
   discard: [];
@@ -351,9 +377,14 @@ const showBcc = ref(false);
 const toInput = ref('');
 const ccInput = ref('');
 const bccInput = ref('');
+const { createField } = useContactAutocomplete();
+const toField = createField(toInput);
+const ccField = createField(ccInput);
+const bccField = createField(bccInput);
 
 // 附件
-const attachments = ref<{ filename: string; size: number; path: string }[]>([]);
+const attachments = ref<{ filename: string; size: number; path: string; source?: 'local' | 'nas' }[]>([]);
+const showNasPicker = ref(false);
 const isDragging = ref(false);
 
 // 状态
@@ -473,6 +504,19 @@ function initScheduleTime() {
 
 // 账号列表
 const accounts = computed(() => mailStore.accounts);
+const attachmentLimits: Record<string, number> = {
+  gmail: 18,
+  qq: 35,
+  netease: 35,
+  icloud: 15,
+  outlook: 15,
+  sina: 15,
+  custom: 20,
+};
+const selectedAccount = computed(() => accounts.value.find((account: any) => account.id === fromAccountId.value));
+const attachmentLimitMb = computed(() => attachmentLimits[selectedAccount.value?.provider || ''] || 15);
+const totalAttachmentBytes = computed(() => attachments.value.reduce((total, item) => total + Number(item.size || 0), 0));
+const attachmentOverLimit = computed(() => totalAttachmentBytes.value > attachmentLimitMb.value * 1024 * 1024);
 
 // ==================== 签名模板（内置 + 用户自定义） ====================
 const showSignaturePanel = ref(false);
@@ -681,18 +725,61 @@ watch(
   },
 );
 
+type RecipientField = 'to' | 'cc' | 'bcc';
+
+function recipientRefs(field: RecipientField) {
+  return {
+    input: field === 'to' ? toInput : field === 'cc' ? ccInput : bccInput,
+    list: field === 'to' ? toList : field === 'cc' ? ccList : bccList,
+    autocomplete: field === 'to' ? toField : field === 'cc' ? ccField : bccField,
+  };
+}
+
+function recipientEmail(value: string) {
+  return value.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0]?.toLowerCase() || '';
+}
+
 // 添加收件人
-function addRecipient(field: 'to' | 'cc' | 'bcc') {
-  const inputRef = field === 'to' ? toInput : field === 'cc' ? ccInput : bccInput;
-  const listRef = field === 'to' ? toList : field === 'cc' ? ccList : bccList;
-  const email = inputRef.value.trim().replace(/,$/, '');
+function addRecipient(field: RecipientField) {
+  const { input, list, autocomplete } = recipientRefs(field);
+  const address = input.value.trim().replace(/,$/, '');
+  const email = recipientEmail(address);
   if (!email) return;
-  // 简单邮箱格式校验
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
-  if (!listRef.value.includes(email)) {
-    listRef.value.push(email);
+  if (!list.value.some((item) => recipientEmail(item) === email)) {
+    list.value.push(address);
   }
-  inputRef.value = '';
+  input.value = '';
+  autocomplete.closeSuggestions();
+}
+
+function chooseSuggestion(field: RecipientField, item: ContactSuggestion) {
+  const { input, list, autocomplete } = recipientRefs(field);
+  const address = autocomplete.selectSuggestion(item);
+  if (!list.value.some((existing) => recipientEmail(existing) === item.email.toLowerCase())) {
+    list.value.push(address);
+  }
+  input.value = '';
+}
+
+function handleRecipientKeydown(field: RecipientField, event: KeyboardEvent) {
+  const { autocomplete } = recipientRefs(field);
+  const result = autocomplete.handleKeydown(event);
+  if (result.selected) {
+    chooseSuggestion(field, result.selected);
+    return;
+  }
+  if (!result.handled && event.key === 'Enter') {
+    event.preventDefault();
+    addRecipient(field);
+  }
+}
+
+function closeRecipientSuggestions(field: RecipientField) {
+  window.setTimeout(() => {
+    const { autocomplete } = recipientRefs(field);
+    autocomplete.closeSuggestions();
+    addRecipient(field);
+  }, 120);
 }
 
 function commitRecipientInputs() {
@@ -758,6 +845,10 @@ function composePayload(action: 'send' | 'draft' | 'schedule') {
 // 发送邮件
 async function sendMail() {
   commitRecipientInputs();
+  if (attachmentOverLimit.value) {
+    showToast(`附件总大小超过当前邮箱 ${attachmentLimitMb.value}MB 限制`, 'error');
+    return;
+  }
   if (toList.value.length === 0) {
     showToast('请输入收件人', 'info');
     return;
@@ -796,6 +887,10 @@ async function saveDraft() {
 
 // 定时发送
 async function scheduleMail() {
+  if (attachmentOverLimit.value) {
+    showToast(`附件总大小超过当前邮箱 ${attachmentLimitMb.value}MB 限制`, 'error');
+    return;
+  }
   if (toList.value.length === 0) {
     showToast('请输入收件人', 'info');
     return;
@@ -853,6 +948,23 @@ async function handleDrop(event: DragEvent) {
   }
 }
 
+async function addNasAttachment(path: string) {
+  showNasPicker.value = false;
+  try {
+    const data = await api.post('/messages/register-nas-attachment', { path }) as any;
+    if (!attachments.value.some((item) => item.path === data.path)) {
+      attachments.value.push({
+        filename: data.filename,
+        size: data.size,
+        path: data.path,
+        source: 'nas',
+      });
+    }
+  } catch (e: any) {
+    showToast('添加 NAS 附件失败: ' + getErrorMessage(e), 'error');
+  }
+}
+
 async function uploadFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);
@@ -864,6 +976,7 @@ async function uploadFile(file: File) {
       filename: data.filename,
       size: data.size,
       path: data.path,
+      source: 'local',
     });
   } catch (e: any) {
     showToast('上传附件失败: ' + file.name, 'error');
@@ -872,10 +985,12 @@ async function uploadFile(file: File) {
 
 async function removeAttachment(index: number) {
   const att = attachments.value[index];
-  try {
-    await api.delete('/messages/upload-attachment', { params: { path: att.path } });
-  } catch {
-    // 删除失败也从前端移除
+  if (att.source !== 'nas') {
+    try {
+      await api.delete('/messages/upload-attachment', { params: { path: att.path } });
+    } catch {
+      // 删除失败也从前端移除
+    }
   }
   attachments.value.splice(index, 1);
 }
@@ -1048,6 +1163,7 @@ function formatSize(bytes: number): string {
   background: var(--bg-primary);
   min-height: 36px;
   align-items: center;
+  position: relative;
 }
 
 .tag-input:focus-within {
@@ -1077,6 +1193,49 @@ function formatSize(bytes: number): string {
 
 .tag-remove:hover {
   color: #fff;
+}
+
+.contact-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+
+.contact-suggestions button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.contact-suggestions button:hover,
+.contact-suggestions button.active {
+  background: var(--bg-hover);
+}
+
+.contact-suggestions small {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tag-input-field {
@@ -1133,9 +1292,20 @@ function formatSize(bytes: number): string {
   gap: 8px;
 }
 
+.attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .attachments-count {
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+.attachments-count.error {
+  color: var(--color-danger, #dc2626);
+  font-weight: 600;
 }
 
 .upload-btn {
@@ -1182,6 +1352,14 @@ function formatSize(bytes: number): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.att-source {
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--accent-blue, #007AFF);
+  color: #fff;
+  font-size: 10px;
 }
 
 .att-size {

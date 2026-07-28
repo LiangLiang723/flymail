@@ -33,6 +33,10 @@
           <p>{{ currentUser.username }} · {{ currentUser.role === 'admin' ? '管理员' : '普通用户' }}</p>
         </div>
         <div class="topbar-actions">
+          <button class="notification-button" type="button" @click="showNotifications = !showNotifications" title="通知中心">
+            <span>通知</span>
+            <strong v-if="mailStore.unreadNotificationCount">{{ mailStore.unreadNotificationCount > 99 ? '99+' : mailStore.unreadNotificationCount }}</strong>
+          </button>
           <button class="btn btn-secondary" @click="changePassword">修改密码</button>
           <button class="btn btn-secondary" @click="logout">退出登录</button>
         </div>
@@ -45,11 +49,48 @@
             <MailList />
           </KeepAlive>
         </template>
+        <UnifiedInbox v-else-if="currentView === 'unified'" />
         <HistorySync v-else-if="currentView === 'history-sync'" />
         <AccountList v-else-if="currentView === 'accounts'" />
+        <ContactList v-else-if="currentView === 'contacts'" />
+        <Backup v-else-if="currentView === 'backup'" />
         <UserManagement v-else-if="currentView === 'users' && isAdmin" />
         <Settings v-else-if="currentView === 'settings'" />
+        <NotificationSettings v-else-if="currentView === 'notifications'" />
+        <About v-else-if="currentView === 'about'" />
       </main>
+    </div>
+
+    <div v-if="showNotifications" class="notification-overlay" @click.self="showNotifications = false">
+      <aside class="notification-drawer">
+        <header class="notification-header">
+          <div><h3>通知中心</h3><span>{{ mailStore.unreadNotificationCount }} 条未读</span></div>
+          <button type="button" @click="showNotifications = false">×</button>
+        </header>
+        <div class="notification-tools">
+          <button type="button" @click="mailStore.markAllNotificationsRead()">全部已读</button>
+          <button type="button" class="danger-text" @click="mailStore.clearNotifications()">清空</button>
+        </div>
+        <div v-if="!mailStore.notifications.length" class="notification-empty">暂无通知</div>
+        <div v-else class="notification-list">
+          <button
+            v-for="item in mailStore.notifications"
+            :key="item.id"
+            type="button"
+            class="notification-item"
+            :class="{ unread: !item.read }"
+            @click="openNotification(item)"
+          >
+            <span class="notification-dot"></span>
+            <span class="notification-content">
+              <strong>{{ item.subject || item.message || notificationTitle(item) }}</strong>
+              <small>{{ item.from_addr || item.email }}<template v-if="item.batch_count && item.batch_count > 1"> · {{ item.batch_count }} 封</template></small>
+              <em v-if="item.body_preview">{{ item.body_preview }}</em>
+            </span>
+            <time>{{ formatNotificationTime(item.time) }}</time>
+          </button>
+        </div>
+      </aside>
     </div>
 
     <div class="toast-container">
@@ -83,15 +124,21 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import About from './views/About.vue';
 import AccountList from './views/AccountList.vue';
+import Backup from './views/Backup.vue';
 import ComposeEmail from './views/ComposeEmail.vue';
+import ContactList from './views/ContactList.vue';
 import HistorySync from './views/HistorySync.vue';
 import LoginView from './views/LoginView.vue';
 import MailList from './views/MailList.vue';
+import NotificationSettings from './views/NotificationSettings.vue';
 import Settings from './views/Settings.vue';
+import UnifiedInbox from './views/UnifiedInbox.vue';
 import UserManagement from './views/UserManagement.vue';
 import { useMailStore } from './stores/mail';
 import { useUIStore } from './stores/ui';
+import { useWebSocket } from './composables/useWebSocket';
 import api from './utils/api';
 
 const mailStore = useMailStore();
@@ -99,6 +146,45 @@ const uiStore = useUIStore();
 
 const currentUser = ref<any>(null);
 const authReady = ref(false);
+const showNotifications = ref(false);
+
+function handleGlobalWsMessage(data: any) {
+  if (data.type === 'new_mail') {
+    mailStore.addNotification(
+      data.provider || '',
+      data.email || '',
+      data.folder || 'INBOX',
+      data.notification_id,
+      'new_mail',
+      data.message || data.subject || '',
+      {
+        account_id: data.account_id || '',
+        message_cache_id: data.message_cache_id || '',
+        message_uid: Number(data.message_uid || 0),
+        subject: data.subject || '',
+        from_addr: data.from_addr || '',
+        body_preview: data.body_preview || '',
+        has_attachments: Boolean(data.has_attachments),
+        batch_count: Number(data.batch_count || 1),
+      },
+    );
+  } else if (['schedule_success', 'schedule_failed', 'backup_success', 'backup_failed'].includes(data.type)) {
+    mailStore.addNotification(
+      data.provider || '',
+      data.email || '',
+      data.folder || '',
+      data.notification_id,
+      data.type,
+      data.message || '',
+      {
+        account_id: data.account_id || '',
+        subject: data.subject || '',
+      },
+    );
+  }
+}
+
+const { connect: connectGlobalWs, disconnect: disconnectGlobalWs } = useWebSocket(handleGlobalWsMessage);
 const savedView = sessionStorage.getItem('flymail_view') || 'mail';
 const currentView = ref(savedView === 'compose' ? 'mail' : savedView);
 
@@ -106,13 +192,18 @@ const isAdmin = computed(() => currentUser.value?.role === 'admin');
 
 const navItems = computed(() => {
   const items = [
+    { key: 'unified', label: '聚合收件箱' },
     { key: 'mail', label: '邮件管理' },
     { key: 'history-sync', label: '同步管理' },
     { key: 'accounts', label: '账号管理' },
+    { key: 'contacts', label: '联系人' },
+    { key: 'backup', label: '邮件备份' },
     { key: 'settings', label: '设置' },
+    { key: 'notifications', label: '第三方通知' },
+    { key: 'about', label: '关于' },
   ];
   if (isAdmin.value) {
-    items.splice(3, 0, { key: 'users', label: '用户管理' });
+    items.splice(6, 0, { key: 'users', label: '用户管理' });
   }
   return items;
 });
@@ -127,6 +218,7 @@ async function bootstrapAfterLogin() {
   await mailStore.fetchUser();
   await mailStore.loadAccounts();
   await mailStore.loadNotifications();
+  connectGlobalWs();
 }
 
 async function checkAuth() {
@@ -146,6 +238,7 @@ async function handleLoginSuccess() {
 
 async function logout() {
   await api.post('/auth/logout');
+  disconnectGlobalWs();
   currentUser.value = null;
   mailStore.accounts = [];
   sessionStorage.removeItem('flymail_view');
@@ -179,6 +272,36 @@ function handleNavigate(event: Event) {
   } else if (typeof detail === 'string') {
     currentView.value = detail;
   }
+}
+
+function notificationTitle(item: any) {
+  if (item.type === 'schedule_success') return '定时邮件发送成功';
+  if (item.type === 'schedule_failed') return '定时邮件发送失败';
+  if (item.type === 'backup_success') return '邮件备份完成';
+  if (item.type === 'backup_failed') return '邮件备份失败';
+  return '收到新邮件';
+}
+
+function formatNotificationTime(value: number) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+async function openNotification(item: any) {
+  await mailStore.markNotificationRead(item.id);
+  showNotifications.value = false;
+  if (!item.account_id || (!item.message_cache_id && !item.message_uid)) return;
+  mailStore.setAccount(item.account_id);
+  mailStore.setFolder(item.folder || 'INBOX');
+  sessionStorage.setItem('flymail_pending_message', JSON.stringify({
+    account_id: item.account_id,
+    folder: item.folder || 'INBOX',
+    id: item.message_cache_id || String(item.message_uid),
+    uid: item.message_uid || undefined,
+  }));
+  currentView.value = 'mail';
 }
 
 onMounted(() => {
@@ -299,7 +422,77 @@ watch(currentView, (value) => {
 .topbar-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
+
+.notification-button {
+  position: relative;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #e9eef5;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.notification-button strong {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.notification-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.notification-drawer {
+  width: min(420px, 100vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: -12px 0 36px rgba(15, 23, 42, 0.18);
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.notification-header h3 { margin: 0 0 4px; }
+.notification-header span { color: #64748b; font-size: 13px; }
+.notification-header button { border: 0; background: transparent; font-size: 28px; cursor: pointer; }
+.notification-tools { display: flex; justify-content: flex-end; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #e8edf3; }
+.notification-tools button { border: 0; background: transparent; color: #1677ff; cursor: pointer; }
+.notification-tools .danger-text { color: #dc2626; }
+.notification-list { flex: 1; overflow-y: auto; }
+.notification-empty { flex: 1; display: grid; place-items: center; color: #64748b; }
+.notification-item { width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; padding: 14px 16px; border: 0; border-bottom: 1px solid #edf1f5; background: #fff; text-align: left; cursor: pointer; }
+.notification-item:hover { background: #f8fafc; }
+.notification-item.unread { background: #f3f8ff; }
+.notification-dot { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: transparent; }
+.notification-item.unread .notification-dot { background: #1677ff; }
+.notification-content { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.notification-content strong, .notification-content small, .notification-content em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notification-content small, .notification-content em { color: #64748b; font-size: 12px; font-style: normal; }
+.notification-item time { color: #94a3b8; font-size: 11px; white-space: nowrap; }
 
 .content {
   flex: 1;
@@ -319,7 +512,12 @@ watch(currentView, (value) => {
 .content-accounts,
 .content-history-sync,
 .content-users,
-.content-settings {
+.content-settings,
+.content-unified,
+.content-contacts,
+.content-backup,
+.content-notifications,
+.content-about {
   padding: 0;
   width: 100%;
 }

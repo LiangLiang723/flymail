@@ -104,6 +104,7 @@ def _load_accounts_route_module():
         "AccountTestResponse",
         "AccountUpdateRequest",
         "AuthCodeAccountRequest",
+        "CustomAccountRequest",
         "AuthUrlRequest",
         "AuthUrlResponse",
         "DeleteResponse",

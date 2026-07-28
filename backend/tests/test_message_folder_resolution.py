@@ -53,6 +53,11 @@ def _load_messages_route_module():
         "get_cached_messages_by_folder",
         "get_folder_filter_counts",
         "get_folder_stats",
+        "get_unified_inbox_messages",
+        "get_unified_inbox_stats",
+        "get_unified_inbox_filter_counts",
+        "get_user_settings",
+        "mark_all_cached_messages_read",
         "list_account_folder_counts",
         "list_cached_attachments",
         "search_cached_messages_by_folder",
@@ -102,6 +107,8 @@ def _load_messages_route_module():
         "BatchDeleteResponse",
         "BatchMarkReadRequest",
         "BatchMarkReadResponse",
+        "MarkAllReadRequest",
+        "MarkAllReadResponse",
         "DeleteResponse",
         "MessageItem",
         "MessageListResponse",
@@ -111,8 +118,23 @@ def _load_messages_route_module():
         "PrefetchMessagesResponse",
         "StatusResponse",
         "UploadAttachmentResponse",
+        "RegisterNasAttachmentRequest",
+        "SaveAttachmentToNasRequest",
+        "SaveAttachmentToNasResponse",
     ):
         setattr(schemas_stub, name, object)
+
+    attachments_stub = types.ModuleType("services.attachments")
+    attachments_stub.MAX_SINGLE_FILE_SIZE = 100 * 1024 * 1024
+    for name in (
+        "build_upload_path",
+        "is_temp_upload_path",
+        "resolve_compose_attachment_path",
+        "resolve_user_attachment_path",
+        "sanitize_attachment_filename",
+        "unique_target_file",
+    ):
+        setattr(attachments_stub, name, object())
 
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = object()
@@ -144,6 +166,7 @@ def _load_messages_route_module():
         "providers.factory",
         "routes._helpers",
         "schemas",
+        "services.attachments",
         "services.sync",
         "services.mail_cache",
         "services.token",
@@ -163,6 +186,7 @@ def _load_messages_route_module():
             "providers.factory": factory_stub,
             "routes._helpers": helpers_stub,
             "schemas": schemas_stub,
+            "services.attachments": attachments_stub,
             "services.sync": sync_stub,
             "services.mail_cache": mail_cache_stub,
             "services.token": token_stub,

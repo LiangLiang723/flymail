@@ -22,6 +22,7 @@ from services.sync import sync_service
 from services.mail_cache import sync_folder_to_cache
 from services.message_body import prepare_outgoing_body_html
 from services.outgoing_mail import ensure_sent_message_cached, find_special_folder
+from services.attachments import check_attachment_total_size, validate_attachment_paths
 from utils.logger import get_logger
 from schemas import (
     ComposeMessageRequest,
@@ -43,6 +44,13 @@ logger = get_logger("routes.compose")
 # ==================== 路由 ====================
 
 router = APIRouter(tags=["写信"])
+
+
+def prepare_attachment_paths(user_uid: str, account: Account, paths: list[str] | None) -> list[str]:
+    """Validate attachment ownership and the selected provider's total-size limit."""
+    safe_paths = validate_attachment_paths(user_uid, paths)
+    check_attachment_total_size(safe_paths, account.provider)
+    return safe_paths
 
 
 async def _cache_sent_message_after_send(
@@ -197,6 +205,9 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
     if not account:
         account = accounts[0]
     body_html = prepare_outgoing_body_html(body.body_html)
+    attachment_paths = []
+    if body.action in {"send", "schedule"}:
+        attachment_paths = prepare_attachment_paths(user_uid, account, body.attachments)
 
     # ---- 保存草稿 ----
     if body.action == "draft":
@@ -260,7 +271,7 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 bcc=body.bcc,
                 subject=body.subject,
                 body_html=body_html,
-                attachment_paths=body.attachments,
+                attachment_paths=attachment_paths,
                 in_reply_to=body.in_reply_to,
                 run_time=run_time,
                 draft_message_id=body.draft_message_id,
@@ -286,7 +297,7 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 body_text="",
                 cc=body.cc or None,
                 bcc=body.bcc or None,
-                attachments=body.attachments or None,
+                attachments=attachment_paths or None,
                 in_reply_to=body.in_reply_to,
             )
         finally:
@@ -304,7 +315,7 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 bcc=body.bcc or [],
                 subject=body.subject,
                 body_html=body_html,
-                attachments=body.attachments or [],
+                attachments=attachment_paths,
                 in_reply_to=body.in_reply_to,
             )
             await _delete_source_draft_after_success(

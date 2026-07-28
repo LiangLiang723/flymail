@@ -33,6 +33,11 @@ class GmailAuthProvider(AuthProvider):
     REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke"
     USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v2/userinfo"
 
+    @staticmethod
+    def _get_http_proxy(credentials: Credentials | None = None) -> str | None:
+        extra = credentials.extra if credentials else None
+        return gmail_config.proxy_url_from_extra(extra) or None
+
     def get_auth_url(self, redirect_uri: str = "", state: str = "") -> str:
         """生成 Google OAuth2 授权 URL
 
@@ -130,7 +135,13 @@ class GmailAuthProvider(AuthProvider):
             logger.error("解码 state 失败: %s", e)
             return None
 
-    async def handle_callback(self, code: str, redirect_uri: str = "", state: str = "") -> Credentials:
+    async def handle_callback(
+        self,
+        code: str,
+        redirect_uri: str = "",
+        state: str = "",
+        proxy_url: str = "",
+    ) -> Credentials:
         """处理 OAuth2 回调，用授权码换取访问令牌
 
         关键：redirect_uri 必须与授权时使用的完全一致，
@@ -193,7 +204,10 @@ class GmailAuthProvider(AuthProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(
+                timeout=30.0,
+                proxy=(proxy_url or "").strip() or None,
+            ) as client:
                 response = await client.post(
                     self.TOKEN_ENDPOINT,
                     data=token_data,
@@ -256,7 +270,10 @@ class GmailAuthProvider(AuthProvider):
         email = ""
         if data.get("access_token"):
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(
+                    timeout=10.0,
+                    proxy=(proxy_url or "").strip() or None,
+                ) as client:
                     userinfo = await client.get(
                         self.USERINFO_ENDPOINT,
                         headers={"Authorization": f"Bearer {data['access_token']}"},
@@ -286,7 +303,10 @@ class GmailAuthProvider(AuthProvider):
         # O10 修复：捕获网络异常，转换为 OAuthTokenError(is_permanent=False)，
         # 与 handle_callback 的异常处理风格保持一致
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(
+                timeout=30.0,
+                proxy=self._get_http_proxy(credentials),
+            ) as client:
                 response = await client.post(
                     self.TOKEN_ENDPOINT,
                     data={

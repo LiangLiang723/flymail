@@ -83,6 +83,45 @@ class IPv4SMTP(smtplib.SMTP):
         return sock
 
 
+class ProxyIMAP4_SSL(IPv4IMAP4_SSL):
+    """IMAP4_SSL over an authenticated HTTP CONNECT tunnel."""
+
+    def __init__(self, host, port=993, proxy_url="", timeout=None):
+        self._proxy_url = proxy_url
+        super().__init__(host, port, timeout=timeout)
+
+    def open(self, host='', port=993, timeout=None):
+        from providers.proxy import create_proxy_socket
+
+        target_host = host or getattr(self, "host", "")
+        target_port = port or 993
+        sock = create_proxy_socket(self._proxy_url, target_host, target_port, timeout or 30)
+        try:
+            ssl_sock = self._get_ssl_context().wrap_socket(sock, server_hostname=target_host)
+        except Exception:
+            sock.close()
+            raise
+        self.host = target_host
+        self.port = target_port
+        self.sock = ssl_sock
+        self._set_file_handle(self.sock.makefile('rb'))
+
+
+class ProxySMTP(IPv4SMTP):
+    """SMTP STARTTLS connection over an HTTP CONNECT tunnel."""
+
+    def __init__(self, host, port=587, proxy_url="", timeout=30):
+        self._proxy_url = proxy_url
+        super().__init__(host, port, timeout=timeout)
+
+    def _get_socket(self, host, port, timeout):
+        from providers.proxy import create_proxy_socket
+
+        if not isinstance(timeout, (int, float)):
+            timeout = self.TIMEOUT
+        return create_proxy_socket(self._proxy_url, host, port, timeout)
+
+
 class IPv4SMTP_SSL(smtplib.SMTP_SSL):
     """强制 IPv4 的 SMTP_SSL 子类（SSL 直连模式）
 

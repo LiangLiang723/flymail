@@ -23,6 +23,7 @@ class Account(BaseModel):
     remark: str = ""
     group_name: str = ""
     hide_email: bool = False
+    sort_order: int = 0
     poll_interval_seconds: int = 10
     created_at: float = 0.0
     updated_at: float = 0.0
@@ -37,12 +38,14 @@ class CachedMessage(BaseModel):
     subject: str
     from_addr: str
     to_addr: str
+    cc: str = ""
     date: str
     is_read: bool = False
     is_starred: bool = False
     has_attachments: bool = False
     body_text: str = ""
     body_html: str = ""
+    message_id: str = ""
     body_checked: bool = False
     storage_path: str = ""
     cached_at: float = 0.0
@@ -74,6 +77,38 @@ class Notification(BaseModel):
     created_at: float = 0.0
     type: str = "new_mail"
     message: str = ""
+    message_cache_id: str = ""
+    message_uid: int = 0
+    rfc_message_id: str = ""
+    subject: str = ""
+    from_addr: str = ""
+    to_addr: str = ""
+    cc: str = ""
+    mail_date: str = ""
+    body_preview: str = ""
+    has_attachments: bool = False
+    batch_count: int = 1
+    extra_json: str = ""
+
+
+class ContactEmail(BaseModel):
+    id: int = 0
+    contact_id: int = 0
+    email: str = ""
+    is_primary: bool = False
+
+
+class Contact(BaseModel):
+    id: int = 0
+    user_uid: str = ""
+    name: str = ""
+    emails: list[ContactEmail] = []
+    phone: str = ""
+    company: str = ""
+    remark: str = ""
+    group_name: str = ""
+    created_at: float = 0.0
+    updated_at: float = 0.0
 
 
 class Signature(BaseModel):

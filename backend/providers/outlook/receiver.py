@@ -451,7 +451,7 @@ class OutlookReceiver(BaseIMAPReceiver):
             uid_set = ",".join(str(uid) for uid in batch)
             status, msg_data = self._conn.uid(
                 'FETCH', uid_set,
-                '(FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)])'
+                self._LIST_FETCH_ITEMS
             )
             if status == "OK":
                 parsed = self._parse_batch_fetch_response(msg_data, folder)

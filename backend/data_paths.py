@@ -19,6 +19,7 @@ LOGS_DIR = BASE_DATA_DIR / "logs"
 FILES_DIR = BASE_DATA_DIR / "files"
 DOWNLOADS_DIR = FILES_DIR / "download"
 UPLOADS_DIR = FILES_DIR / "uploads"
+BACKUP_DIR = BASE_DATA_DIR / "backup"
 
 
 def _slugify(value: str) -> str:
@@ -149,5 +150,6 @@ def ensure_data_dirs() -> None:
         LOGS_DIR,
         UPLOADS_DIR,
         DOWNLOADS_DIR,
+        BACKUP_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

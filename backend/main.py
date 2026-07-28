@@ -18,11 +18,14 @@ from errors import AppError, app_error_handler
 from routes.accounts import router as accounts_router
 from routes.admin_users import router as admin_users_router
 from routes.auth import oauth_callback_app, router as oauth_router
+from routes.backup import router as backup_router
 from routes.compose import router as compose_router
+from routes.contacts import router as contacts_router
 from routes.folders import router as folders_router
 from routes.local_auth import router as local_auth_router
 from routes.messages import router as messages_router
 from routes.notifications import router as notifications_router
+from routes.notify_settings import router as notify_settings_router
 from routes.settings import router as settings_router, sync_gmail_config, sync_outlook_config
 from routes.signatures import router as signatures_router
 from routes.websocket import router as websocket_router
@@ -34,6 +37,7 @@ from services.upload_cleanup import start_upload_cleanup, stop_upload_cleanup
 from services.users import ensure_admin_user
 from utils.logger import get_logger, setup_logging
 from utils.proxy_env import apply_proxy_env
+from utils.static_files import resolve_ui_file
 from version import VERSION
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -113,10 +117,13 @@ app.include_router(local_auth_router)
 app.include_router(admin_users_router)
 app.include_router(accounts_router)
 app.include_router(oauth_router)
+app.include_router(backup_router)
 app.include_router(compose_router)
+app.include_router(contacts_router)
 app.include_router(folders_router)
 app.include_router(messages_router)
 app.include_router(notifications_router)
+app.include_router(notify_settings_router)
 app.include_router(settings_router)
 app.include_router(signatures_router)
 app.include_router(websocket_router)
@@ -135,10 +142,9 @@ async def get_user(request: Request):
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if full_path:
-        file_path = UI_DIR / full_path
-        if file_path.is_file():
-            return FileResponse(str(file_path))
+    file_path = resolve_ui_file(UI_DIR, full_path)
+    if file_path is not None:
+        return FileResponse(str(file_path))
     return FileResponse(str(UI_DIR / "index.html"))
 
 

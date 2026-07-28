@@ -23,7 +23,7 @@ from fastapi.responses import HTMLResponse
 from errors import AppError
 from fastapi.middleware.cors import CORSMiddleware
 
-from db import activate_account, create_account, get_accounts, update_account_credentials
+from db import activate_account, create_account, get_accounts, get_user_settings, update_account_credentials
 from models import Account
 from providers.factory import ProviderFactory
 from services.history_sync import schedule_history_sync
@@ -36,6 +36,17 @@ from version import VERSION
 
 logger = get_logger("routes.auth")
 
+
+def merge_gmail_proxy_settings(credentials, settings: dict):
+    """Merge the current user's Gmail proxy settings into OAuth credentials."""
+    enabled = bool((settings or {}).get("gmail_proxy_enabled", False))
+    proxy_url = str((settings or {}).get("gmail_proxy_url", "") or "").strip() if enabled else ""
+    credentials.extra = dict(credentials.extra or {})
+    credentials.extra["gmail_proxy_enabled"] = enabled
+    credentials.extra["gmail_proxy_url"] = proxy_url
+    return credentials
+
+
 # 主应用挂载用的路由，tags=["认证"]
 router = APIRouter(tags=["认证"])
 
@@ -43,7 +54,7 @@ router = APIRouter(tags=["认证"])
 from config import GATEWAY_PREFIX
 
 
-# ==================== OAuth state 签名与验证（安全修复 S5） ====================
+# ==================== OAuth state 签名与验证 ====================
 
 # state 有效期 10 分钟，防止重放攻击
 _OAUTH_STATE_MAX_AGE = 600
@@ -52,7 +63,7 @@ _OAUTH_STATE_MAX_AGE = 600
 def _get_oauth_secret() -> bytes:
     """获取 OAuth state 签名密钥。
 
-    安全修复 O3：不再用 data_dir 拼接固定字符串（可被本地复现），
+    不再用 data_dir 拼接固定字符串（可被本地复现），
     改为首次启动时生成 32 字节随机密钥，持久化到 data_dir 下的 .oauth_secret 文件。
     - 飞牛OS：文件权限 0600，仅 owner 可读
     - 不同实例密钥不同，且不可预测
@@ -116,9 +127,8 @@ def _verify_oauth_signature(state_data: dict) -> bool:
     返回 True 表示验证通过，False 表示签名无效或已过期。
     """
     sig = state_data.pop("_sig", "")
-    # 关键修复：用 get 而非 pop 获取 _ts，保留 _ts 在 state_data 中参与签名计算
-    # 旧代码 pop("_ts") 会移除 _ts，导致生成签名时 state_data 不含 _ts，
-    # 但生成签名时 _ts 是包含在内的，两次签名输入不同，签名永远不匹配
+    # 用 get 而非 pop 获取 _ts，保留 _ts 在 state_data 中参与签名计算
+    # （若 pop 掉 _ts，验签时与签发时的输入不一致，签名永远不匹配）
     ts = state_data.get("_ts", 0)
     if not sig or not ts:
         return False
@@ -151,7 +161,7 @@ def _extract_oauth_state_data(state: str) -> dict:
             # 解析 user_state 字段并合并到顶层
             raw_user_state = state_data.pop("user_state", "")
             if raw_user_state:
-                # O1 修复：强制要求 user_state 必须是带签名的 JSON dict
+                # 强制要求 user_state 必须是带签名的 JSON dict
                 # 不再兼容"纯 uid 字符串"格式（该格式无签名，可被攻击者伪造）
                 try:
                     user_context = json.loads(raw_user_state)
@@ -161,7 +171,7 @@ def _extract_oauth_state_data(state: str) -> dict:
                 if not isinstance(user_context, dict):
                     logger.warning("OAuth state 的 user_state 不是 JSON 对象，已拒绝")
                     return {}
-                # 安全修复 S5：验证 user_state 中的 HMAC 签名
+                # 验证 user_state 中的 HMAC 签名
                 if not _verify_oauth_signature(user_context):
                     logger.warning("OAuth state 签名验证失败，可能被篡改")
                     return {}
@@ -217,9 +227,9 @@ def _build_oauth_result_html(params: dict) -> HTMLResponse:
     原窗口收到 postMessage 后设置 flymail_oauth_just_added 标记，
     避免账号页立即做连接测试导致误报 invalid token。
 
-    安全修复 O2：postMessage 的 targetOrigin 不再使用 '*'，改为从 state 中
+    postMessage 的 targetOrigin 不再使用 '*'，改为从 state 中
     提取 frontend_url 的 origin（已签名验证），仅允许飞牛前端源接收消息。
-    安全修复 O13：JS 字符串拼接改用 json.dumps 生成 JS 安全字面量，
+    JS 字符串拼接改用 json.dumps 生成 JS 安全字面量，
     避免 html.escape 在 JS 上下文中无效转义的问题。
     """
     import html as html_module
@@ -234,7 +244,7 @@ def _build_oauth_result_html(params: dict) -> HTMLResponse:
     color = "#16a34a" if success else "#dc2626"
     icon = "✓" if success else "!"
 
-    # O2 修复：从 state 中提取 frontend_url 的 origin 作为 targetOrigin
+    # 从 state 中提取 frontend_url 的 origin 作为 targetOrigin
     # 仅允许飞牛前端源接收 postMessage，避免任意源截获含 email 的消息
     state = params.get("state", "")
     frontend_url = _extract_oauth_frontend_url_from_state(state) if state else ""
@@ -247,7 +257,7 @@ def _build_oauth_result_html(params: dict) -> HTMLResponse:
     # 这比 '*' 更安全：宁可通知失败，也不泄露 email
     target_origin_js = json_module.dumps(target_origin)
 
-    # O13 修复：用 json.dumps 生成 JS 安全的字符串字面量
+    # 用 json.dumps 生成可安全嵌入 JS 的字符串字面量
     provider_js = json_module.dumps(params.get("provider", "mail"))
     email_js = json_module.dumps(params.get("email", ""))
     error_js = json_module.dumps(params.get("oauth_error", ""))
@@ -258,7 +268,7 @@ def _build_oauth_result_html(params: dict) -> HTMLResponse:
     if success:
         notify_js = f"""
       // 通知打开此窗口的原窗口（飞牛应用），OAuth 授权成功
-      // O2 修复：targetOrigin 使用飞牛前端 origin，不再用 '*'
+      // targetOrigin 使用飞牛前端 origin，不再用 '*'
       if (window.opener) {{
         window.opener.postMessage({{
           type: 'flymail_oauth_success',
@@ -272,7 +282,7 @@ def _build_oauth_result_html(params: dict) -> HTMLResponse:
     elif error:
         notify_js = f"""
       // 通知原窗口 OAuth 授权失败
-      // O2 修复：targetOrigin 使用飞牛前端 origin，不再用 '*'
+      // targetOrigin 使用飞牛前端 origin，不再用 '*'
       if (window.opener) {{
         window.opener.postMessage({{
           type: 'flymail_oauth_error',
@@ -375,11 +385,27 @@ async def oauth_callback(
         signed_redirect_uri = _extract_oauth_redirect_uri_from_state(state)
         actual_redirect_uri = signed_redirect_uri or settings_redirect_uri
 
-        credentials = await auth.handle_callback(
-            code,
-            redirect_uri=actual_redirect_uri,
-            state=state,
-        )
+        user_proxy_settings = await get_user_settings(
+            uid,
+            ["gmail_proxy_enabled", "gmail_proxy_url"],
+        ) if provider == "gmail" else {}
+        if provider == "gmail":
+            proxy_url = str(user_proxy_settings.get("gmail_proxy_url", "") or "").strip()
+            if not bool(user_proxy_settings.get("gmail_proxy_enabled", False)):
+                proxy_url = ""
+            credentials = await auth.handle_callback(
+                code,
+                redirect_uri=actual_redirect_uri,
+                state=state,
+                proxy_url=proxy_url,
+            )
+            credentials = merge_gmail_proxy_settings(credentials, user_proxy_settings)
+        else:
+            credentials = await auth.handle_callback(
+                code,
+                redirect_uri=actual_redirect_uri,
+                state=state,
+            )
 
         email = credentials.extra.get("email", "")
         state_data = _extract_oauth_state_data(state)
@@ -402,7 +428,7 @@ async def oauth_callback(
             else:
                 await update_account_credentials(existing.id, new_creds)
             logger.info("重新授权成功，已更新凭据: email=%s, provider=%s", email, provider)
-            # O9 修复：先停止旧的 IMAP 监听任务（用旧 token 的任务会持续认证失败），
+            # 先停止旧的 IMAP 监听任务（用旧 token 的任务会持续认证失败），
             # 再启动新的监听任务
             await sync_service.remove_account(existing.id)
             # 重启该账号的 IMAP 监听

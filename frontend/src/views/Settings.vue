@@ -68,6 +68,33 @@
       </div>
     </div>
 
+    <div class="provider-card">
+      <div class="storage-card-body">
+        <div class="storage-heading">
+          <div>
+            <h3 class="storage-title">Gmail 网络代理</h3>
+            <p class="field-hint">按当前用户生效，用于 Gmail IMAP、SMTP、IDLE 和 token 刷新。支持带认证的 HTTP CONNECT 代理。</p>
+          </div>
+        </div>
+        <div class="proxy-config-row">
+          <label class="proxy-toggle-row">
+            <input v-model="form.gmail_proxy_enabled" type="checkbox" />
+            <span>启用 HTTP 代理</span>
+          </label>
+          <div v-if="form.gmail_proxy_enabled" class="proxy-url-row">
+            <input v-model.trim="form.gmail_proxy_url" class="input" type="text" autocomplete="off" placeholder="http://user:password@proxy.example.com:8080" />
+            <button class="btn btn-secondary" type="button" :disabled="proxyTesting || !form.gmail_proxy_url" @click="testProxy">
+              {{ proxyTesting ? '测试中…' : '测试连通' }}
+            </button>
+          </div>
+          <span v-if="proxyTestMessage" class="status-msg" :class="proxyTestSuccess ? 'success' : 'error'">{{ proxyTestMessage }}</span>
+        </div>
+        <div class="save-bar">
+          <button class="btn btn-primary btn-save" @click="saveSettings" :disabled="saving">保存代理设置</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Gmail 配置卡片（可折叠） -->
     <div class="provider-card">
       <!-- 折叠按钮 - 带红色渐变背景 -->
@@ -654,6 +681,8 @@ interface SettingsForm {
   gmail_client_id: string;
   gmail_client_secret: string;
   gmail_redirect_uri: string;
+  gmail_proxy_enabled: boolean;
+  gmail_proxy_url: string;
   outlook_client_id: string;
   outlook_client_secret: string;
   outlook_redirect_uri: string;
@@ -675,6 +704,8 @@ const form = ref<SettingsForm>({
   gmail_client_id: '',
   gmail_client_secret: '',
   gmail_redirect_uri: '',
+  gmail_proxy_enabled: false,
+  gmail_proxy_url: '',
   outlook_client_id: '',
   outlook_client_secret: '',
   outlook_redirect_uri: '',
@@ -685,6 +716,9 @@ const outlookSecretConfigured = ref(false);
 const saving = ref(false);
 const saveSuccess = ref(false);
 const saveError = ref('');
+const proxyTesting = ref(false);
+const proxyTestMessage = ref('');
+const proxyTestSuccess = ref(false);
 
 async function loadSettingsData() {
   try {
@@ -695,6 +729,8 @@ async function loadSettingsData() {
       gmail_client_id: data.gmail_client_id || '',
       gmail_client_secret: '',
       gmail_redirect_uri: data.gmail_redirect_uri || '',
+      gmail_proxy_enabled: Boolean(data.gmail_proxy_enabled),
+      gmail_proxy_url: data.gmail_proxy_url || '',
       outlook_client_id: data.outlook_client_id || '',
       outlook_client_secret: '',
       outlook_redirect_uri: data.outlook_redirect_uri || '',
@@ -710,16 +746,34 @@ onMounted(() => {
   loadSettingsData();
 });
 
+async function testProxy() {
+  if (!form.value.gmail_proxy_url || proxyTesting.value) return;
+  proxyTesting.value = true;
+  proxyTestMessage.value = '';
+  try {
+    const result = await api.post('/settings/proxy/test', { proxy_url: form.value.gmail_proxy_url }, { timeout: 30000 }) as any;
+    proxyTestSuccess.value = Boolean(result.success);
+    proxyTestMessage.value = result.message || (result.success ? '代理可用' : '代理不可用');
+  } catch (error: any) {
+    proxyTestSuccess.value = false;
+    proxyTestMessage.value = error?.error || error?.message || '代理测试失败';
+  } finally {
+    proxyTesting.value = false;
+  }
+}
+
 async function saveSettings() {
   saving.value = true;
   saveSuccess.value = false;
   saveError.value = '';
   try {
-    const payload: Record<string, string | number> = {
+    const payload: Record<string, string | number | boolean> = {
       uploads_cleanup_weekday: form.value.uploads_cleanup_weekday,
       uploads_cleanup_time: form.value.uploads_cleanup_time || '02:00',
       gmail_client_id: form.value.gmail_client_id,
       gmail_redirect_uri: form.value.gmail_redirect_uri,
+      gmail_proxy_enabled: form.value.gmail_proxy_enabled,
+      gmail_proxy_url: form.value.gmail_proxy_enabled ? form.value.gmail_proxy_url : '',
       outlook_client_id: form.value.outlook_client_id,
       outlook_redirect_uri: form.value.outlook_redirect_uri,
     };

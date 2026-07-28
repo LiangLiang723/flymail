@@ -67,6 +67,50 @@ class IPv4IMAP4_SSL(aioimaplib.IMAP4_SSL):
         self._client_task.add_done_callback(_on_client_task_done)
 
 
+class ProxyIMAP4_SSL(aioimaplib.IMAP4_SSL):
+    """aioimaplib IMAP client over an HTTP CONNECT tunnel."""
+
+    def __init__(self, *args, proxy_url: str = "", **kwargs):
+        self._proxy_url = proxy_url
+        super().__init__(*args, **kwargs)
+
+    def create_client(self, host: str, port: int, loop: asyncio.AbstractEventLoop,
+                      conn_lost_cb: Callable = None, ssl_context: ssl.SSLContext = None) -> None:
+        if ssl_context is None:
+            ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        local_loop = loop if loop is not None else asyncio.get_running_loop()
+        self.protocol = aioimaplib.IMAP4ClientProtocol(local_loop, conn_lost_cb)
+
+        async def _connect_via_proxy():
+            from providers.proxy import create_proxy_socket
+
+            raw_sock = await asyncio.to_thread(
+                create_proxy_socket,
+                self._proxy_url,
+                host,
+                port,
+                IMAP_CONNECT_TIMEOUT,
+            )
+            raw_sock.setblocking(False)
+            return await local_loop.create_connection(
+                lambda: self.protocol,
+                sock=raw_sock,
+                ssl=ssl_context,
+                server_hostname=host,
+            )
+
+        self._client_task = local_loop.create_task(_connect_via_proxy())
+
+        def _on_client_task_done(task: asyncio.Task):
+            if task.cancelled():
+                return
+            exc = task.exception()
+            if exc:
+                logger.debug("代理 IMAP 连接建立任务结束（异常已记录）: %s", exc)
+
+        self._client_task.add_done_callback(_on_client_task_done)
+
+
 def _apply_tcp_keepalive(sock: socket.socket) -> None:
     """为已连接的 socket 开启 TCP keepalive，防止 NAT/防火墙清理空闲连接
 
@@ -118,7 +162,8 @@ class IdleConnection:
 
     def __init__(self, account_id: str, host: str, port: int, email: str,
                  auth_type: str, auth_credential: str,
-                 ssl_context: Optional[ssl.SSLContext] = None):
+                 ssl_context: Optional[ssl.SSLContext] = None,
+                 proxy_url: str = ""):
         self.account_id = account_id
         self.host = host
         self.port = port
@@ -126,6 +171,7 @@ class IdleConnection:
         self.auth_type = auth_type
         self.auth_credential = auth_credential
         self.ssl_context = ssl_context
+        self.proxy_url = proxy_url
         self.client: Optional[aioimaplib.IMAP4_SSL] = None
         self.connected = False
         self._idle_active = False  # 标记当前是否处于 IDLE 状态，防止并发操作
@@ -137,13 +183,17 @@ class IdleConnection:
         """建立 IMAP 连接并登录"""
         ssl_ctx = self.ssl_context or ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
 
-        # 使用 IPv4 强制子类，保留主机名用于 SSL 证书验证
-        self.client = IPv4IMAP4_SSL(
-            host=self.host,
-            port=self.port,
-            timeout=IMAP_CONNECT_TIMEOUT,
-            ssl_context=ssl_ctx,
-        )
+        # 使用账号级代理或 IPv4 直连，TLS 始终保留原主机名校验。
+        client_cls = ProxyIMAP4_SSL if self.proxy_url else IPv4IMAP4_SSL
+        kwargs = {
+            "host": self.host,
+            "port": self.port,
+            "timeout": IMAP_CONNECT_TIMEOUT,
+            "ssl_context": ssl_ctx,
+        }
+        if self.proxy_url:
+            kwargs["proxy_url"] = self.proxy_url
+        self.client = client_cls(**kwargs)
 
         await self.client.wait_hello_from_server()
 
@@ -385,6 +435,7 @@ class IdleManager:
     async def get_or_create(self, account_id: str, host: str, port: int,
                            email: str, auth_type: str, auth_credential: str,
                            ssl_context: Optional[ssl.SSLContext] = None,
+                           proxy_url: str = "",
                            folder: str = "INBOX") -> IdleConnection:
         """获取或创建指定文件夹的 IDLE 连接
 
@@ -400,7 +451,7 @@ class IdleManager:
 
         conn = IdleConnection(
             account_id, host, port, email,
-            auth_type, auth_credential, ssl_context,
+            auth_type, auth_credential, ssl_context, proxy_url,
         )
         await conn.connect()
         self.connections[key] = conn

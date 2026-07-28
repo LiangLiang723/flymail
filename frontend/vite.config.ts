@@ -6,8 +6,13 @@ import vue from '@vitejs/plugin-vue';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let appVersion = '0.0.0';
+let appleTouchIconDataUri = '';
 try {
   appVersion = readFileSync(resolve(__dirname, '../VERSION'), 'utf-8').trim();
+} catch {}
+try {
+  const icon = readFileSync(resolve(__dirname, 'public/apple-touch-icon.png'));
+  appleTouchIconDataUri = `data:image/png;base64,${icon.toString('base64')}`;
 } catch {}
 
 const basePath = (process.env.FLYMAIL_BASE_PATH || '/').replace(/\/+$/, '') || '/';
@@ -26,7 +31,15 @@ const devOnlyProxy = {
 };
 
 export default defineConfig(({ command }) => ({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    {
+      name: 'inline-apple-touch-icon',
+      transformIndexHtml(html) {
+        return html.replace('__FLYMAIL_APPLE_TOUCH_ICON__', appleTouchIconDataUri || './apple-touch-icon.png');
+      },
+    },
+  ],
   base: basePath.endsWith('/') ? basePath : `${basePath}/`,
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),

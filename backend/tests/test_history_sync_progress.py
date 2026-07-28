@@ -36,6 +36,9 @@ def _load_settings_route_module():
     db_stub.get_history_sync_job = AsyncMock(return_value=None)
     db_stub.list_account_folder_counts = AsyncMock(return_value=[])
     db_stub.list_history_sync_jobs = AsyncMock(return_value=[])
+    db_stub.get_user_settings = AsyncMock(return_value={})
+    db_stub.set_user_settings = AsyncMock()
+    db_stub.update_account_credentials = AsyncMock(return_value=True)
 
     history_sync_stub = types.ModuleType("services.history_sync")
     for name in (
@@ -63,6 +66,10 @@ def _load_settings_route_module():
         "SettingsResponse",
         "SettingsUpdateRequest",
         "SettingsUpdateResponse",
+        "ProxyTestRequest",
+        "ProxyTestResponse",
+        "UnifiedSettingsRequest",
+        "UnifiedSettingsResponse",
     ):
         setattr(schemas_stub, name, dict)
 

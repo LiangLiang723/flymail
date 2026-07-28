@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import os
+from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -30,6 +31,21 @@ def _build_jobstore_url() -> str:
             return database_url.replace("mysql://", "mysql+pymysql://", 1)
         return database_url
     return f"sqlite:///{_jobstore_db_path}"
+
+
+def _redact_jobstore_url(database_url: str) -> str:
+    parsed = urlsplit(database_url)
+    if parsed.password is None:
+        return database_url
+
+    hostname = parsed.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+
+    netloc = f"{parsed.username or ''}:***@{hostname}"
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
 
 
 _jobstore_url = _build_jobstore_url()
@@ -256,7 +272,7 @@ def start_scheduler():
     if not s.running:
         try:
             s.start()
-            logger.info("定时发送调度器已启动，任务存储: %s", _jobstore_url)
+            logger.info("定时发送调度器已启动，任务存储: %s", _redact_jobstore_url(_jobstore_url))
         except Exception as e:
             logger.error("定时发送调度器启动失败（定时发送功能不可用，其他功能正常）: %s", e)
 

@@ -2,13 +2,12 @@ import asyncio
 import base64
 import os
 import time
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Body, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from data_paths import UPLOADS_DIR, coalesce_message_date, ensure_data_dirs, ensure_message_file_location
+from data_paths import coalesce_message_date, ensure_data_dirs, ensure_message_file_location
 from db import (
     adjust_account_folder_unread,
     batch_delete_cached_messages,
@@ -23,6 +22,11 @@ from db import (
     get_cached_messages_by_folder,
     get_folder_filter_counts,
     get_folder_stats,
+    get_unified_inbox_messages,
+    get_unified_inbox_stats,
+    get_unified_inbox_filter_counts,
+    get_user_settings,
+    mark_all_cached_messages_read,
     list_account_folder_counts,
     list_cached_attachments,
     search_cached_messages_by_folder,
@@ -51,6 +55,8 @@ from schemas import (
     BatchDeleteResponse,
     BatchMarkReadRequest,
     BatchMarkReadResponse,
+    MarkAllReadRequest,
+    MarkAllReadResponse,
     DeleteResponse,
     MessageItem,
     MessageListResponse,
@@ -60,6 +66,18 @@ from schemas import (
     PrefetchMessagesResponse,
     StatusResponse,
     UploadAttachmentResponse,
+    RegisterNasAttachmentRequest,
+    SaveAttachmentToNasRequest,
+    SaveAttachmentToNasResponse,
+)
+from services.attachments import (
+    MAX_SINGLE_FILE_SIZE,
+    build_upload_path,
+    is_temp_upload_path,
+    resolve_compose_attachment_path,
+    resolve_user_attachment_path,
+    sanitize_attachment_filename,
+    unique_target_file,
 )
 from services.sync import sync_service
 from services.token import ensure_token as ensure_account_token
@@ -77,9 +95,12 @@ REMOTE_PAGE_FETCH_TIMEOUT_SECONDS = 45
 
 
 def _extract_uid(message_id: str) -> str:
-    if "_" in message_id:
-        return message_id.rsplit("_", 1)[-1]
-    return message_id
+    value = str(message_id or "").strip()
+    if ":" in value:
+        value = value.rsplit(":", 1)[-1]
+    if "_" in value:
+        value = value.rsplit("_", 1)[-1]
+    return value
 
 
 def _message_uid_int(message_id: str) -> int:
@@ -629,6 +650,42 @@ async def _load_local_messages(
     return _build_list_response(data, account.id, filter_counts)
 
 
+@router.get("/api/messages/unified", response_model=MessageListResponse, summary="获取聚合收件箱")
+async def list_unified_messages(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=40, ge=1, le=100),
+    account_filter: str = Query(default=""),
+    read_filter: str = Query(default=""),
+    attachment_filter: bool = Query(default=False),
+):
+    user_uid = await get_uid(request)
+    accounts = await get_accounts(user_uid)
+    if not accounts:
+        return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size, "no_accounts": True}
+    settings = await get_user_settings(user_uid, ["unified_account_ids"])
+    configured_ids = settings.get("unified_account_ids", [])
+    valid_ids = {account.id for account in accounts}
+    account_ids = [account_id for account_id in configured_ids if account_id in valid_ids]
+    if not account_ids:
+        return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size, "no_accounts": True}
+    result = await get_unified_inbox_messages(
+        user_uid, account_ids, page, page_size, account_filter, read_filter, attachment_filter
+    )
+    account_map = {account.id: account for account in accounts}
+    for message in result["messages"]:
+        account = account_map.get(message.get("account_id", ""))
+        if account:
+            message["account_email"] = account.email
+            message["account_provider"] = account.provider
+    stats = await get_unified_inbox_stats(user_uid, account_ids)
+    if stats["total_count"] > 0:
+        result["total"] = stats["total_count"]
+        result["unread_total"] = stats["unread_count"]
+    result["filter_counts"] = await get_unified_inbox_filter_counts(user_uid, account_ids, account_filter)
+    return result
+
+
 @router.get("/api/messages", response_model=MessageListResponse, summary="获取邮件列表")
 async def list_messages(
     request: Request,
@@ -1061,27 +1118,95 @@ async def download_attachment(
 
 @router.post("/api/messages/upload-attachment", response_model=UploadAttachmentResponse, summary="上传附件")
 async def upload_attachment(request: Request, file: UploadFile = File(...)):
-    await get_uid(request)
+    user_uid = await get_uid(request)
     if not file.filename:
         raise AppError(400, "附件文件名不能为空")
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    unique_name = f"{uuid.uuid4().hex}_{Path(file.filename).name}"
-    save_path = UPLOADS_DIR / unique_name
+    safe_filename, save_path = build_upload_path(user_uid, file.filename)
     content = await file.read()
-    save_path.write_bytes(content)
+    if len(content) > MAX_SINGLE_FILE_SIZE:
+        raise AppError(413, f"单个文件不能超过 {MAX_SINGLE_FILE_SIZE // (1024 * 1024)}MB")
+    await asyncio.to_thread(save_path.write_bytes, content)
     return {
-        "filename": file.filename,
+        "filename": safe_filename,
         "size": len(content),
         "path": str(save_path),
+        "source": "local",
+    }
+
+
+@router.post(
+    "/api/messages/register-nas-attachment",
+    response_model=UploadAttachmentResponse,
+    summary="引用 NAS 授权目录附件",
+)
+async def register_nas_attachment(request: Request, body: RegisterNasAttachmentRequest = Body(...)):
+    user_uid = await get_uid(request)
+    file_path = resolve_compose_attachment_path(user_uid, body.path)
+    if is_temp_upload_path(user_uid, str(file_path)):
+        raise AppError(400, "临时附件请使用上传接口")
+    size = file_path.stat().st_size
+    if size > MAX_SINGLE_FILE_SIZE:
+        raise AppError(413, f"单个文件不能超过 {MAX_SINGLE_FILE_SIZE // (1024 * 1024)}MB")
+    return {
+        "filename": sanitize_attachment_filename(file_path.name),
+        "size": size,
+        "path": str(file_path),
+        "source": "nas",
+    }
+
+
+@router.post(
+    "/api/messages/{message_id}/attachments/{part_number}/save-to-nas",
+    response_model=SaveAttachmentToNasResponse,
+    summary="将邮件附件保存到 NAS 授权目录",
+)
+async def save_attachment_to_nas(
+    request: Request,
+    message_id: str,
+    part_number: int,
+    body: SaveAttachmentToNasRequest = Body(...),
+):
+    import shutil
+    from utils.paths import is_path_authorized
+
+    await get_uid(request)
+    target_dir_raw = (body.target_dir or "").strip()
+    if not target_dir_raw or not is_path_authorized(target_dir_raw):
+        raise AppError(403, "目标目录不在授权范围内")
+    target_dir = Path(target_dir_raw).resolve()
+    if not target_dir.is_dir() or not os.access(target_dir, os.W_OK):
+        raise AppError(400, "目标目录不存在或不可写")
+
+    response = await download_attachment(
+        request=request,
+        message_id=message_id,
+        part_number=part_number,
+        folder=body.folder or "INBOX",
+        account_id=body.account_id,
+    )
+    source_path = Path(response.path).resolve()
+    raw_name = (body.filename or "").strip() or source_path.name
+    destination = unique_target_file(target_dir, raw_name)
+    if not is_path_authorized(str(destination)):
+        raise AppError(403, "目标文件路径不在授权范围内")
+    await asyncio.to_thread(shutil.copyfile, source_path, destination)
+    return {
+        "success": True,
+        "path": str(destination),
+        "filename": destination.name,
+        "size": destination.stat().st_size,
     }
 
 
 @router.delete("/api/messages/upload-attachment", response_model=StatusResponse, summary="删除已上传附件")
-async def delete_attachment(path: str = Query(..., description="附件路径")):
-    target = Path(path).resolve()
-    uploads_root = UPLOADS_DIR.resolve()
-    if uploads_root not in target.parents and target != uploads_root:
-        raise AppError(400, "只允许删除 uploads 目录下的文件")
+async def delete_attachment(request: Request, path: str = Query(..., description="附件路径")):
+    user_uid = await get_uid(request)
+    if not is_temp_upload_path(user_uid, path):
+        from utils.paths import is_path_authorized
+        if is_path_authorized(path):
+            return {"success": True}
+        raise AppError(403, "无权访问该附件")
+    target = resolve_user_attachment_path(user_uid, path)
     if target.exists() and target.is_file():
         target.unlink()
     return {"success": True}
@@ -1249,3 +1374,47 @@ async def batch_mark_read(
         await _adjust_folder_unread_stats(account.id, body.folder, delta)
     await sync_service.notify_message_state_changed(account.id, "mark_read", uid_strs, folder=body.folder, user_uid=user_uid)
     return {"success": True, "marked": marked}
+
+
+async def _mark_one_account_all_read(account: Account, folder: str, user_uid: str) -> dict:
+    marked = 0
+    uid_strs: list[str] = []
+    try:
+        if account.status != "offline":
+            credentials = await ensure_account_token(account)
+            receiver = ProviderFactory.get_receiver(account.provider)
+            await receiver.connect(credentials)
+            try:
+                remote_folder = await _resolve_remote_folder(receiver, folder)
+                uids = await receiver.fetch_unseen_uids(remote_folder)
+                uid_strs = [str(uid) for uid in uids]
+                marked = await receiver.mark_as_read_batch(uid_strs, remote_folder) if uid_strs else 0
+            finally:
+                await _safe_disconnect(receiver)
+        updated = await mark_all_cached_messages_read(account.id, folder)
+        stats = await get_folder_stats(account.id, folder)
+        await upsert_folder_stats(account.id, folder, stats.get("total_count", 0), 0)
+        await sync_service.notify_message_state_changed(
+            account.id, "mark_read", uid_strs, folder=folder, user_uid=user_uid
+        )
+        return {"account_id": account.id, "email": account.email, "marked": max(marked, updated)}
+    except Exception as exc:
+        logger.error("mark all read failed: account=%s error_type=%s", account.email, type(exc).__name__)
+        return {"account_id": account.id, "email": account.email, "marked": 0}
+
+
+@router.post("/api/messages/mark-all-read", response_model=MarkAllReadResponse, summary="一键全部已读")
+async def mark_all_read(request: Request, body: MarkAllReadRequest = Body(...)):
+    user_uid = await get_uid(request)
+    account_map = {account.id: account for account in await get_accounts(user_uid)}
+    target_accounts = [account_map[account_id] for account_id in body.account_ids if account_id in account_map]
+    if not target_accounts:
+        raise AppError(404, "未找到指定账号")
+    results = await asyncio.gather(
+        *[_mark_one_account_all_read(account, body.folder, user_uid) for account in target_accounts]
+    )
+    return {
+        "success": True,
+        "results": results,
+        "total_marked": sum(int(item.get("marked", 0) or 0) for item in results),
+    }

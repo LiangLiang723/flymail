@@ -3,7 +3,11 @@
 处理应用设置的查询与更新（Gmail/Outlook OAuth2 凭据等），
 以及 OAuth 配置诊断接口。
 """
+import asyncio
+import json
 import os
+import time
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
 from deps import get_uid
@@ -14,6 +18,9 @@ from db import (
     get_history_sync_job,
     list_account_folder_counts,
     list_history_sync_jobs,
+    get_user_settings,
+    set_user_settings,
+    update_account_credentials,
 )
 from services.history_sync import (
     is_full_history_sync_active,
@@ -29,12 +36,19 @@ from services.history_sync import (
     start_history_sync,
 )
 
+from providers.proxy import create_proxy_socket
 from services.settings import async_load_settings, async_save_settings
+from services.sync import sync_service
+from utils.tasks import create_background_task
 from schemas import (
     OAuthDiagnosticResponse,
     SettingsResponse,
     SettingsUpdateRequest,
     SettingsUpdateResponse,
+    ProxyTestRequest,
+    ProxyTestResponse,
+    UnifiedSettingsRequest,
+    UnifiedSettingsResponse,
 )
 
 router = APIRouter(tags=["设置"])
@@ -71,7 +85,84 @@ def sync_outlook_config(settings: dict):
         outlook_config.OUTLOOK_REDIRECT_URI = redirect_uri
 
 
-# ==================== 设置接口 ====================
+async def apply_user_gmail_proxy(user_uid: str, enabled: bool, proxy_url: str) -> None:
+    """将当前用户的代理设置写入其 Gmail 凭据并重载监听。"""
+    normalized_url = (proxy_url or "").strip() if enabled else ""
+    accounts = await get_accounts(user_uid)
+    for account in accounts:
+        if account.provider != "gmail":
+            continue
+        try:
+            payload = json.loads(account.credentials_json or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        extra = dict(payload.get("extra") or {})
+        extra["gmail_proxy_enabled"] = bool(enabled)
+        extra["gmail_proxy_url"] = normalized_url
+        payload["extra"] = extra
+        new_json = json.dumps(payload, ensure_ascii=False)
+        await update_account_credentials(account.id, new_json)
+        account.credentials_json = new_json
+        create_background_task(sync_service.add_account(account.id), name="reload_gmail_proxy")
+
+
+def _proxy_failure_message(error: Exception) -> str:
+    text = str(error or "").lower()
+    if isinstance(error, TimeoutError) or "timeout" in text or "timed out" in text:
+        return "连接超时，请检查代理地址、端口与网络"
+    if isinstance(error, ConnectionRefusedError) or "refused" in text:
+        return "无法连接代理服务，请确认代理已启动"
+    if isinstance(error, OSError) and getattr(error, "errno", None) == -2:
+        return "无法解析代理主机名"
+    if isinstance(error, ConnectionError):
+        return "代理无法建立到目标服务的 CONNECT 隧道"
+    return "代理连接失败，请检查配置与网络"
+
+
+def _test_proxy_to_google_sync(proxy_url: str) -> dict:
+    """经用户填写的 HTTP 代理探测 Gmail IMAP 与 Google HTTPS。"""
+    raw_url = (proxy_url or "").strip()
+    parsed = urlparse(raw_url)
+    if parsed.scheme.lower() != "http" or not parsed.hostname:
+        return {
+            "success": False,
+            "message": "代理地址格式无效，请使用 http://host:port",
+            "latency_ms": 0,
+            "target": "",
+        }
+
+    started = time.perf_counter()
+    last_error: Exception | None = None
+    for host, port in (("imap.gmail.com", 993), ("www.google.com", 443)):
+        sock = None
+        try:
+            sock = create_proxy_socket(raw_url, host, port, timeout=12)
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            return {
+                "success": True,
+                "message": f"代理连通正常（经 {host}:{port}，{latency_ms}ms）",
+                "latency_ms": latency_ms,
+                "target": f"{host}:{port}",
+            }
+        except Exception as exc:
+            last_error = exc
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    return {
+        "success": False,
+        "message": f"代理无法连通 Google：{_proxy_failure_message(last_error or ConnectionError())}",
+        "latency_ms": latency_ms,
+        "target": "",
+    }
+
+
+# ==================== 设置接口 ==================
 
 
 FOLDER_PROGRESS_ITEMS = [
@@ -168,12 +259,14 @@ async def _find_user_account(request: Request, account_id: str):
 
 
 @router.get("/api/settings", response_model=SettingsResponse, summary="获取应用设置")
-async def get_settings():
+async def get_settings(request: Request):
     """获取当前保存的 Gmail/Outlook OAuth2 凭据等设置。
 
     client_secret 会脱敏处理，只显示首尾各4位，中间用星号替代。
     """
     settings = await async_load_settings()
+    uid = await get_uid(request)
+    user_settings = await get_user_settings(uid, ["gmail_proxy_enabled", "gmail_proxy_url"])
     secret = settings.get("gmail_client_secret", "")
     if secret and len(secret) > 8:
         masked_secret = secret[:4] + "*" * (len(secret) - 8) + secret[-4:]
@@ -189,6 +282,8 @@ async def get_settings():
         "gmail_client_secret": masked_secret if secret else "",
         "gmail_redirect_uri": settings.get("gmail_redirect_uri", ""),
         "has_credentials": bool(settings.get("gmail_client_id")) and bool(settings.get("gmail_client_secret")),
+        "gmail_proxy_enabled": bool(user_settings.get("gmail_proxy_enabled", False)),
+        "gmail_proxy_url": str(user_settings.get("gmail_proxy_url", "") or ""),
         "outlook_client_id": settings.get("outlook_client_id", ""),
         "outlook_client_secret": masked_outlook_secret if outlook_secret else "",
         "outlook_redirect_uri": settings.get("outlook_redirect_uri", ""),
@@ -199,7 +294,7 @@ async def get_settings():
 
 
 @router.put("/api/settings", response_model=SettingsUpdateResponse, summary="更新应用设置")
-async def update_settings(body: SettingsUpdateRequest):
+async def update_settings(request: Request, body: SettingsUpdateRequest):
     """更新 Gmail/Outlook OAuth2 凭据等设置。
 
     - client_secret 为空或包含星号（脱敏值）时不会覆盖已有密钥
@@ -207,6 +302,10 @@ async def update_settings(body: SettingsUpdateRequest):
     """
     # 转为 dict，过滤掉 None 字段（未传入的字段不覆盖）
     update_data = body.model_dump(exclude_none=True)
+
+    uid = await get_uid(request)
+    proxy_enabled_update = update_data.pop("gmail_proxy_enabled", None)
+    proxy_url_update = update_data.pop("gmail_proxy_url", None)
 
     # client_secret 为空或包含星号（脱敏值）时不会覆盖已有密钥
     secret_in_body = update_data.get("gmail_client_secret", "")
@@ -220,6 +319,29 @@ async def update_settings(body: SettingsUpdateRequest):
     if "uploads_cleanup_time" in update_data and not _valid_cleanup_time(update_data["uploads_cleanup_time"]):
         update_data["uploads_cleanup_time"] = "02:00"
 
+    if proxy_enabled_update is not None or proxy_url_update is not None:
+        existing_proxy = await get_user_settings(uid, ["gmail_proxy_enabled", "gmail_proxy_url"])
+        proxy_enabled = bool(
+            proxy_enabled_update
+            if proxy_enabled_update is not None
+            else existing_proxy.get("gmail_proxy_enabled", False)
+        )
+        proxy_url = str(
+            proxy_url_update
+            if proxy_url_update is not None
+            else existing_proxy.get("gmail_proxy_url", "")
+        ).strip()
+        if proxy_enabled:
+            parsed_proxy = urlparse(proxy_url)
+            if parsed_proxy.scheme.lower() != "http" or not parsed_proxy.hostname:
+                from errors import AppError
+                raise AppError(400, "Gmail 代理地址必须使用 http://host:port 格式")
+        await set_user_settings(uid, {
+            "gmail_proxy_enabled": proxy_enabled,
+            "gmail_proxy_url": proxy_url if proxy_enabled else "",
+        })
+        await apply_user_gmail_proxy(uid, proxy_enabled, proxy_url)
+
     saved = await async_save_settings(update_data)
     sync_gmail_config(saved)
     sync_outlook_config(saved)
@@ -228,6 +350,52 @@ async def update_settings(body: SettingsUpdateRequest):
         await restart_upload_cleanup()
 
     return {"success": True, "message": "设置已保存"}
+
+
+@router.post(
+    "/api/settings/proxy/test",
+    response_model=ProxyTestResponse,
+    summary="测试 Gmail HTTP 代理连通性",
+)
+async def test_gmail_proxy(request: Request, body: ProxyTestRequest):
+    await get_uid(request)
+    return await asyncio.to_thread(_test_proxy_to_google_sync, body.proxy_url)
+
+
+@router.get("/api/settings/unified", response_model=UnifiedSettingsResponse, summary="获取聚合收件箱设置")
+async def get_unified_settings(request: Request):
+    from db import get_user_settings
+
+    uid = await get_uid(request)
+    accounts = await get_accounts(uid)
+    settings = await get_user_settings(uid, ["unified_account_ids"])
+    selected = settings.get("unified_account_ids", [])
+    if not isinstance(selected, list):
+        selected = []
+    valid_ids = {account.id for account in accounts}
+    selected = [account_id for account_id in selected if account_id in valid_ids]
+    return {
+        "account_ids": selected,
+        "accounts": [
+            {"id": account.id, "email": account.email, "provider": account.provider, "selected": account.id in selected}
+            for account in accounts
+        ],
+    }
+
+
+@router.put("/api/settings/unified", summary="保存聚合收件箱设置")
+async def save_unified_settings(request: Request, body: UnifiedSettingsRequest):
+    from db import set_user_settings
+
+    uid = await get_uid(request)
+    valid_ids = {account.id for account in await get_accounts(uid)}
+    invalid_ids = [account_id for account_id in body.account_ids if account_id not in valid_ids]
+    if invalid_ids:
+        from errors import AppError
+        raise AppError(400, "聚合账号列表包含无权访问的账号")
+    deduplicated = list(dict.fromkeys(body.account_ids))
+    await set_user_settings(uid, {"unified_account_ids": deduplicated})
+    return {"success": True}
 
 
 @router.get("/api/settings/oauth-diagnostic", response_model=OAuthDiagnosticResponse, summary="OAuth 诊断")

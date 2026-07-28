@@ -8,10 +8,10 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.utils import formatdate
+from email.utils import formatdate, make_msgid
 from ..base import MailSender, Credentials, SendResult
-from ..ipv4 import IPv4SMTP
-from .config import GMAIL_SMTP_HOST, GMAIL_SMTP_PORT
+from ..ipv4 import IPv4SMTP, ProxySMTP
+from . import config as gmail_config
 from utils.logger import get_logger
 
 logger = get_logger("gmail.sender")
@@ -30,8 +30,16 @@ class GmailSender(MailSender):
         self._conn = await asyncio.to_thread(self._connect_smtp, credentials)
 
     def _connect_smtp(self, credentials: Credentials) -> IPv4SMTP:
-        """同步建立 SMTP 连接（使用 IPv4 强制子类）"""
-        conn = IPv4SMTP(GMAIL_SMTP_HOST, GMAIL_SMTP_PORT)
+        """同步建立 SMTP 连接，按账号凭据决定直连或 HTTP 代理。"""
+        proxy_url = gmail_config.proxy_url_from_extra(credentials.extra)
+        if proxy_url:
+            conn = ProxySMTP(
+                gmail_config.GMAIL_SMTP_HOST,
+                gmail_config.GMAIL_SMTP_PORT,
+                proxy_url=proxy_url,
+            )
+        else:
+            conn = IPv4SMTP(gmail_config.GMAIL_SMTP_HOST, gmail_config.GMAIL_SMTP_PORT)
         conn.ehlo()
         # 安全修复 S8：传入安全 SSL context，验证证书和主机名
         # 旧代码 conn.starttls() 不传 context，使用不验证证书的默认 context，存在 MITM 风险
@@ -85,6 +93,7 @@ class GmailSender(MailSender):
             msg["Cc"] = ", ".join(cc) if isinstance(cc, list) else cc
         msg["Subject"] = subject
         msg["Date"] = formatdate(localtime=True)
+        msg["Message-ID"] = make_msgid(idstring=from_email)
         if in_reply_to:
             msg["In-Reply-To"] = in_reply_to
             msg["References"] = in_reply_to

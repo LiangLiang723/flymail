@@ -26,6 +26,12 @@ data/
 *.log
 logs/
 
+# Runtime databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
 # IDE / editor
 .vscode/
 .idea/

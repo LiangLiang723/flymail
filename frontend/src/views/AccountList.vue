@@ -113,7 +113,7 @@
         <div class="dialog-actions">
           <button class="btn btn-secondary" @click="showAddDialog = false">取消</button>
           <button class="btn btn-primary" @click="startAuth" :disabled="!selectedProvider">
-            {{ (selectedProvider === 'qq' || selectedProvider === 'netease') ? '下一步' : '授权登录' }}
+            {{ ['qq', 'netease', 'icloud', 'sina', 'custom'].includes(selectedProvider) ? '下一步' : '授权登录' }}
           </button>
         </div>
       </div>
@@ -197,6 +197,92 @@
       </div>
     </div>
 
+    <!-- 新浪邮箱授权码对话框 -->
+    <div v-if="showSinaDialog" class="dialog-overlay" @click.self="showSinaDialog = false">
+      <div class="dialog">
+        <h3 class="dialog-title">添加新浪邮箱</h3>
+        <p class="dialog-desc">请输入新浪邮箱地址和客户端授权码</p>
+        <div class="qq-form">
+          <div class="form-field">
+            <label class="field-label">邮箱地址</label>
+            <input v-model="sinaForm.email" class="input" type="email" placeholder="example@sina.com" />
+          </div>
+          <div class="form-field">
+            <label class="field-label">客户端授权码</label>
+            <input v-model="sinaForm.auth_code" class="input" type="password" autocomplete="new-password" placeholder="新浪邮箱客户端授权码" />
+            <p class="field-hint">请在新浪邮箱网页设置中开启 IMAP/SMTP，并生成客户端授权码。</p>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" @click="showSinaDialog = false">取消</button>
+          <button class="btn btn-primary" @click="addSinaAccount" :disabled="!sinaForm.email || !sinaForm.auth_code">添加账号</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 通用 IMAP/SMTP 对话框 -->
+    <div v-if="showCustomDialog" class="dialog-overlay" @click.self="showCustomDialog = false">
+      <div class="dialog dialog-wide">
+        <h3 class="dialog-title">添加其他邮箱</h3>
+        <p class="dialog-desc">填写邮箱服务商提供的加密 IMAP/SMTP 参数。禁止明文连接和内网服务器。</p>
+        <div class="custom-form">
+          <div class="form-field">
+            <label class="field-label">邮箱地址</label>
+            <input v-model="customForm.email" class="input" type="email" placeholder="user@example.com" @input="syncCustomUsername" />
+          </div>
+          <div class="form-field">
+            <label class="field-label">登录用户名</label>
+            <input v-model="customForm.username" class="input" type="text" placeholder="默认使用邮箱地址" />
+          </div>
+          <div class="form-field custom-span-2">
+            <label class="field-label">密码或授权码</label>
+            <input v-model="customForm.auth_code" class="input" type="password" autocomplete="new-password" placeholder="邮箱密码、授权码或应用专用密码" />
+          </div>
+          <div class="form-section custom-span-2">收件服务器</div>
+          <div class="form-field">
+            <label class="field-label">IMAP 主机</label>
+            <input v-model="customForm.imap_host" class="input" type="text" placeholder="imap.example.com" />
+          </div>
+          <div class="server-row">
+            <div class="form-field">
+              <label class="field-label">端口</label>
+              <input v-model.number="customForm.imap_port" class="input" type="number" min="1" max="65535" />
+            </div>
+            <div class="form-field">
+              <label class="field-label">加密</label>
+              <select v-model="customForm.imap_ssl" class="input" @change="updateCustomPort('imap')">
+                <option value="ssl">SSL/TLS</option>
+                <option value="starttls">STARTTLS</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-section custom-span-2">发件服务器</div>
+          <div class="form-field">
+            <label class="field-label">SMTP 主机</label>
+            <input v-model="customForm.smtp_host" class="input" type="text" placeholder="smtp.example.com" />
+          </div>
+          <div class="server-row">
+            <div class="form-field">
+              <label class="field-label">端口</label>
+              <input v-model.number="customForm.smtp_port" class="input" type="number" min="1" max="65535" />
+            </div>
+            <div class="form-field">
+              <label class="field-label">加密</label>
+              <select v-model="customForm.smtp_ssl" class="input" @change="updateCustomPort('smtp')">
+                <option value="ssl">SSL/TLS</option>
+                <option value="starttls">STARTTLS</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <p class="field-hint">保存前会同时测试 IMAP 文件夹读取与 SMTP 登录；任一失败都不会保存账号。</p>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" @click="showCustomDialog = false">取消</button>
+          <button class="btn btn-primary" @click="addCustomAccount" :disabled="!customForm.email || !customForm.auth_code || !customForm.imap_host || !customForm.smtp_host">测试并添加</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 编辑账号对话框 -->
     <div v-if="showEditDialog" class="dialog-overlay" @click.self="showEditDialog = false">
       <div class="dialog">
@@ -246,6 +332,7 @@ import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 import { useMailStore } from '../stores/mail';
 import { providerIcon, providerName } from '../utils/provider';
+import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
 import { useWebSocket } from '../composables/useWebSocket';
 
 const ui = useUIStore();
@@ -278,12 +365,26 @@ const showAddDialog = ref(false);
 const showQQDialog = ref(false);
 const showNeteaseDialog = ref(false);
 const showICloudDialog = ref(false);
+const showSinaDialog = ref(false);
+const showCustomDialog = ref(false);
 const showEditDialog = ref(false);
 const selectedProvider = ref('gmail');
 const fetchHistory = ref(false);
 const qqForm = ref({ email: '', auth_code: '' });
 const neteaseForm = ref({ email: '', auth_code: '' });
 const icloudForm = ref({ email: '', auth_code: '' });
+const sinaForm = ref({ email: '', auth_code: '' });
+const customForm = ref({
+  email: '',
+  username: '',
+  auth_code: '',
+  imap_host: '',
+  imap_port: 993,
+  imap_ssl: 'ssl',
+  smtp_host: '',
+  smtp_port: 465,
+  smtp_ssl: 'ssl',
+});
 const MICROSOFT_ICON_SVG = '<svg width="24" height="24" viewBox="0 0 1024 1024"><path d="M0.10238 51.189762h460.503099v460.503099H0.10238V51.189762z" fill="#F45325"/><path d="M512.204759 51.189762H972.707858v460.503099h-460.503099V51.189762z" fill="#81BD06"/><path d="M0.10238 563.292142h460.503099v460.656668H0.10238v-460.656668z" fill="#04A6EF"/><path d="M512.204759 563.292142H972.707858v460.656668h-460.503099v-460.656668z" fill="#FFBA07"/></svg>';
 const editingAccount = ref<any>(null);
 const editForm = ref({ remark: '', group_name: '', hide_email: false, poll_interval_seconds: 10 });
@@ -310,6 +411,16 @@ const providers = [
     type: 'icloud',
     name: 'iCloud邮箱',
     icon: '<svg width="24" height="24" viewBox="0 0 1024 1024"><path d="M791.488 544.095c-1.28-129.695 105.76-191.871 110.528-194.975-60.16-88.032-153.856-100.064-187.232-101.472-79.744-8.064-155.584 46.944-196.064 46.944-40.352 0-102.816-45.76-168.96-44.544-86.912 1.28-167.072 50.528-211.808 128.384-90.304 156.703-23.136 388.831 64.896 515.935 43.008 62.208 94.304 132.064 161.632 129.568 64.832-2.592 89.376-41.952 167.744-41.952s100.416 41.952 169.056 40.672c69.76-1.312 113.984-63.392 156.704-125.792 49.376-72.16 69.728-142.048 70.912-145.632-1.536-0.704-136.064-52.224-137.408-207.136zM662.56 163.52C698.304 120.16 722.432 60 715.84 0c-51.488 2.112-113.888 34.304-150.816 77.536-33.152 38.368-62.144 99.616-54.368 158.432 57.472 4.48 116.128-29.216 151.904-72.448z" fill="currentColor"/></svg>',
+  },
+  {
+    type: 'sina',
+    name: '新浪邮箱',
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>',
+  },
+  {
+    type: 'custom',
+    name: '其他邮箱',
+    icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>',
   },
   {
     type: 'outlook',
@@ -459,10 +570,21 @@ async function startAuth() {
     showICloudDialog.value = true;
     return;
   }
-  const authWindow = window.open('', '_blank', 'width=600,height=700');
+  if (selectedProvider.value === 'sina') {
+    showAddDialog.value = false;
+    showSinaDialog.value = true;
+    return;
+  }
+  if (selectedProvider.value === 'custom') {
+    showAddDialog.value = false;
+    showCustomDialog.value = true;
+    return;
+  }
   const providerLabel = selectedProvider.value === 'outlook' ? 'Microsoft' : 'Google';
-  if (authWindow) {
-    authWindow.document.write(`<html><head><title>正在跳转...</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f7;color:#1d1d1f}</style></head><body><p>正在跳转到 ${providerLabel} 授权页面...</p></body></html>`);
+  const { win: authWindow } = openAuthWindowSync(providerLabel);
+  if (!authWindow) {
+    ui.error(authWindowBlockedMessage(providerLabel));
+    return;
   }
   try {
     const settings = await api.get('/settings') as any;
@@ -470,14 +592,14 @@ async function startAuth() {
     if (selectedProvider.value === 'outlook') {
       redirectUri = settings.outlook_redirect_uri || '';
       if (!redirectUri) {
-        authWindow?.close();
+        closeAuthWindow(authWindow);
         ui.error('请先在设置页面配置 Microsoft 重定向 URI');
         return;
       }
     } else {
       redirectUri = settings.gmail_redirect_uri || '';
       if (!redirectUri) {
-        authWindow?.close();
+        closeAuthWindow(authWindow);
         ui.error('请先在设置页面配置 Gmail 重定向 URI');
         return;
       }
@@ -487,11 +609,12 @@ async function startAuth() {
       redirect_uri: redirectUri,
       fetch_history: fetchHistory.value,
     }) as any;
-    if (data.error) { authWindow?.close(); ui.error('获取授权链接失败：' + data.error); return; }
-    if (data.auth_url) { if (authWindow) authWindow.location.href = data.auth_url; }
-    else { authWindow?.close(); ui.error('获取授权链接失败'); }
+    if (data.error) { closeAuthWindow(authWindow); ui.error('获取授权链接失败：' + data.error); return; }
+    if (data.auth_url) {
+      if (!navigateAuthWindow(authWindow, data.auth_url)) ui.error(authWindowBlockedMessage(providerLabel));
+    } else { closeAuthWindow(authWindow); ui.error('获取授权链接失败'); }
   } catch (e: any) {
-    authWindow?.close();
+    closeAuthWindow(authWindow);
     ui.error('获取授权链接失败：' + (e.response?.data?.error || e.message || '网络错误'));
   }
 }
@@ -565,7 +688,73 @@ async function addICloudAccount() {
   }
 }
 
-function openReconnectDialog(account: any) {
+async function addSinaAccount() {
+  if (!sinaForm.value.email || !sinaForm.value.auth_code) { ui.warning('请填写邮箱地址和客户端授权码'); return; }
+  const validSuffixes = ['@sina.com', '@sina.cn', '@2008.sina.com', '@vip.sina.com', '@vip.sina.cn'];
+  if (!validSuffixes.some((suffix) => sinaForm.value.email.toLowerCase().endsWith(suffix))) {
+    ui.warning('请输入新浪邮箱地址');
+    return;
+  }
+  try {
+    const data = await api.post('/accounts/add-sina', {
+      email: sinaForm.value.email,
+      auth_code: sinaForm.value.auth_code,
+      fetch_history: fetchHistory.value,
+    }, { timeout: 30000 }) as any;
+    if (!data.success) throw new Error(data.error || '未知错误');
+    ui.success('新浪邮箱添加成功！');
+    showSinaDialog.value = false;
+    sinaForm.value = { email: '', auth_code: '' };
+    fetchHistory.value = false;
+    await mailStore.loadAccounts();
+    checkAllAccountsStatus();
+  } catch (e: any) {
+    ui.error('添加失败：' + (e.response?.data?.error || e.error || e.message || '网络错误'));
+  }
+}
+
+function syncCustomUsername() {
+  if (!customForm.value.username) customForm.value.username = customForm.value.email;
+}
+
+function updateCustomPort(protocol: 'imap' | 'smtp') {
+  if (protocol === 'imap' && [143, 993].includes(Number(customForm.value.imap_port))) {
+    customForm.value.imap_port = customForm.value.imap_ssl === 'ssl' ? 993 : 143;
+  }
+  if (protocol === 'smtp' && [465, 587].includes(Number(customForm.value.smtp_port))) {
+    customForm.value.smtp_port = customForm.value.smtp_ssl === 'ssl' ? 465 : 587;
+  }
+}
+
+function resetCustomForm() {
+  customForm.value = {
+    email: '', username: '', auth_code: '',
+    imap_host: '', imap_port: 993, imap_ssl: 'ssl',
+    smtp_host: '', smtp_port: 465, smtp_ssl: 'ssl',
+  };
+}
+
+async function addCustomAccount() {
+  try {
+    const payload = {
+      ...customForm.value,
+      username: customForm.value.username || customForm.value.email,
+      fetch_history: fetchHistory.value,
+    };
+    const data = await api.post('/accounts/add-custom', payload, { timeout: 60000 }) as any;
+    if (!data.success) throw new Error(data.error || '未知错误');
+    ui.success('其他邮箱添加成功！');
+    showCustomDialog.value = false;
+    resetCustomForm();
+    fetchHistory.value = false;
+    await mailStore.loadAccounts();
+    checkAllAccountsStatus();
+  } catch (e: any) {
+    ui.error('添加失败：' + (e.response?.data?.error || e.error || e.message || '网络错误'));
+  }
+}
+
+async function openReconnectDialog(account: any) {
   fetchHistory.value = false;
   if (account.provider === 'qq') {
     qqForm.value = { email: account.email || '', auth_code: '' };
@@ -580,6 +769,31 @@ function openReconnectDialog(account: any) {
   if (account.provider === 'icloud') {
     icloudForm.value = { email: account.email || '', auth_code: '' };
     showICloudDialog.value = true;
+    return;
+  }
+  if (account.provider === 'sina') {
+    sinaForm.value = { email: account.email || '', auth_code: '' };
+    showSinaDialog.value = true;
+    return;
+  }
+  if (account.provider === 'custom') {
+    try {
+      const config = await api.get(`/accounts/${account.id}/custom-config`) as any;
+      customForm.value = {
+        email: config.email || account.email || '',
+        username: config.username || account.email || '',
+        auth_code: '',
+        imap_host: config.imap_host || '',
+        imap_port: Number(config.imap_port || 993),
+        imap_ssl: config.imap_ssl || 'ssl',
+        smtp_host: config.smtp_host || '',
+        smtp_port: Number(config.smtp_port || 465),
+        smtp_ssl: config.smtp_ssl || 'ssl',
+      };
+      showCustomDialog.value = true;
+    } catch (e: any) {
+      ui.error(e?.error || e?.message || '读取邮箱配置失败');
+    }
   }
 }
 
@@ -708,8 +922,14 @@ async function reconnectAccount(account: any) {
     }
     return;
   }
-  if (account.provider === 'qq' || account.provider === 'netease' || account.provider === 'icloud') {
-    openReconnectDialog(account);
+  if (['qq', 'netease', 'icloud', 'sina', 'custom'].includes(account.provider)) {
+    await openReconnectDialog(account);
+    return;
+  }
+  const providerLabel = account.provider === 'outlook' ? 'Microsoft' : 'Google';
+  const { win: authWindow } = openAuthWindowSync(providerLabel);
+  if (!authWindow) {
+    ui.error(authWindowBlockedMessage(providerLabel));
     return;
   }
   try {
@@ -719,6 +939,7 @@ async function reconnectAccount(account: any) {
       ? (settings.outlook_redirect_uri || '')
       : (settings.gmail_redirect_uri || '');
     if (!redirectUri) {
+      closeAuthWindow(authWindow);
       ui.error(account.provider === 'outlook' ? '请先在设置页面配置 Microsoft 重定向 URI' : '请先在设置页面配置 Gmail 重定向 URI');
       return;
     }
@@ -727,15 +948,13 @@ async function reconnectAccount(account: any) {
       redirect_uri: redirectUri,
     }) as any;
     if (data.auth_url) {
-      // 新标签页打开 OAuth 授权页面（Google 等不支持在当前页跳转）
-      const providerLabel = account.provider === 'outlook' ? 'Microsoft' : 'Google';
-      const authWindow = window.open(data.auth_url, '_blank');
-      if (authWindow) {
-        authWindow.document.write(`<html><head><title>正在跳转...</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f7;color:#1d1d1f}</style></head><body><p>正在跳转到 ${providerLabel} 授权页面...</p></body></html>`);
-        authWindow.location.href = data.auth_url;
-      }
+      if (!navigateAuthWindow(authWindow, data.auth_url)) ui.error(authWindowBlockedMessage(providerLabel));
+    } else {
+      closeAuthWindow(authWindow);
+      ui.error('获取授权链接失败');
     }
   } catch (e) {
+    closeAuthWindow(authWindow);
     ui.error('获取授权链接失败');
   }
 }
@@ -1226,8 +1445,13 @@ async function reconnectAccount(account: any) {
 
 .toggle-switch.active .toggle-knob { transform: translateX(16px); }
 
-/* QQ/网易表单 */
+/* 授权码与通用邮箱表单 */
 .qq-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.dialog-wide { width: min(720px, calc(100vw - 32px)); }
+.custom-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }
+.custom-span-2 { grid-column: 1 / -1; }
+.form-section { font-size: var(--text-sm); font-weight: 700; color: var(--text-primary); padding-top: var(--space-2); border-top: 1px solid var(--border-color); }
+.server-row { display: grid; grid-template-columns: minmax(90px, 0.8fr) minmax(130px, 1.2fr); gap: var(--space-3); }
 .form-field { display: flex; flex-direction: column; gap: var(--space-2); }
 .field-label { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
 .field-hint { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: var(--space-1); }
@@ -1244,6 +1468,9 @@ async function reconnectAccount(account: any) {
   .sort-toggle { justify-content: center; }
   .toggle-btn { flex: 1; text-align: center; padding: 8px 16px; }
   .provider-grid { grid-template-columns: 1fr; }
+  .custom-form { grid-template-columns: 1fr; }
+  .custom-span-2 { grid-column: auto; }
+  .server-row { grid-template-columns: 1fr 1fr; }
   .edit-btn { opacity: 1; }
 }
 </style>

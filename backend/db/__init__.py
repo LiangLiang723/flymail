@@ -394,6 +394,7 @@ async def init_db():
                 remark VARCHAR(255) DEFAULT '',
                 group_name VARCHAR(255) DEFAULT '',
                 hide_email INTEGER DEFAULT 0,
+                sort_order INTEGER DEFAULT 0,
                 poll_interval_seconds INTEGER DEFAULT 10,
                 created_at REAL DEFAULT 0,
                 updated_at REAL DEFAULT 0
@@ -409,12 +410,14 @@ async def init_db():
                 subject VARCHAR(512) DEFAULT '',
                 from_addr VARCHAR(512) DEFAULT '',
                 to_addr VARCHAR(512) DEFAULT '',
+                cc LONGTEXT,
                 date VARCHAR(128) DEFAULT '',
                 is_read INTEGER DEFAULT 0,
                 is_starred INTEGER DEFAULT 0,
                 has_attachments INTEGER DEFAULT 0,
                 body_text LONGTEXT,
                 body_html LONGTEXT,
+                message_id VARCHAR(998) DEFAULT '',
                 body_checked INTEGER DEFAULT 0,
                 storage_path LONGTEXT,
                 cached_at REAL DEFAULT 0,
@@ -468,7 +471,19 @@ async def init_db():
                 is_read INTEGER DEFAULT 0,
                 created_at REAL DEFAULT 0,
                 type VARCHAR(64) DEFAULT 'new_mail',
-                message VARCHAR(1024) DEFAULT ''
+                message VARCHAR(1024) DEFAULT '',
+                message_cache_id VARCHAR(191) DEFAULT '',
+                message_uid INTEGER DEFAULT 0,
+                rfc_message_id VARCHAR(998) DEFAULT '',
+                subject VARCHAR(512) DEFAULT '',
+                from_addr VARCHAR(512) DEFAULT '',
+                to_addr VARCHAR(512) DEFAULT '',
+                cc LONGTEXT,
+                mail_date VARCHAR(128) DEFAULT '',
+                body_preview LONGTEXT,
+                has_attachments INTEGER DEFAULT 0,
+                batch_count INTEGER DEFAULT 1,
+                extra_json LONGTEXT
             )
         """)
     await db.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_uid)")
@@ -619,6 +634,85 @@ async def init_db():
         await db.execute("ALTER TABLE signatures ADD COLUMN user_uid VARCHAR(191) DEFAULT ''")
     except Exception as e:
         logger.debug("migration add signatures.user_uid ignored: %s", e)
+
+    for table, column, declaration in (
+        ("accounts", "sort_order", "INTEGER DEFAULT 0"),
+        ("cached_messages", "cc", "LONGTEXT"),
+        ("cached_messages", "message_id", "VARCHAR(998) DEFAULT ''"),
+        ("notifications", "message_cache_id", "VARCHAR(191) DEFAULT ''"),
+        ("notifications", "message_uid", "INTEGER DEFAULT 0"),
+        ("notifications", "rfc_message_id", "VARCHAR(998) DEFAULT ''"),
+        ("notifications", "subject", "VARCHAR(512) DEFAULT ''"),
+        ("notifications", "from_addr", "VARCHAR(512) DEFAULT ''"),
+        ("notifications", "to_addr", "VARCHAR(512) DEFAULT ''"),
+        ("notifications", "cc", "LONGTEXT"),
+        ("notifications", "mail_date", "VARCHAR(128) DEFAULT ''"),
+        ("notifications", "body_preview", "LONGTEXT"),
+        ("notifications", "has_attachments", "INTEGER DEFAULT 0"),
+        ("notifications", "batch_count", "INTEGER DEFAULT 1"),
+        ("notifications", "extra_json", "LONGTEXT"),
+    ):
+        try:
+            await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
+        except Exception as e:
+            logger.debug("migration add %s.%s ignored: %s", table, column, e)
+
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_notifications_msg ON notifications(user_uid, message_cache_id)")
+
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS contacts (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            user_uid VARCHAR(191) NOT NULL,
+            name VARCHAR(255) DEFAULT '',
+            phone VARCHAR(128) DEFAULT '',
+            company VARCHAR(255) DEFAULT '',
+            remark LONGTEXT,
+            group_name VARCHAR(255) DEFAULT '',
+            created_at REAL DEFAULT 0,
+            updated_at REAL DEFAULT 0
+        )
+    """)
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_uid)")
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS contact_emails (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            contact_id BIGINT NOT NULL,
+            email VARCHAR(320) NOT NULL,
+            is_primary INTEGER DEFAULT 0,
+            created_at REAL DEFAULT 0,
+            UNIQUE KEY uq_contact_email (contact_id, email)
+        )
+    """)
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_contact_emails_contact ON contact_emails(contact_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_contact_emails_email ON contact_emails(email)")
+
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS message_archive (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            user_uid VARCHAR(191) NOT NULL,
+            account_id VARCHAR(191) NOT NULL,
+            folder VARCHAR(255) NOT NULL,
+            uid INTEGER NOT NULL,
+            message_id VARCHAR(998) DEFAULT '',
+            subject VARCHAR(512) DEFAULT '',
+            from_addr VARCHAR(512) DEFAULT '',
+            to_addr VARCHAR(512) DEFAULT '',
+            cc LONGTEXT,
+            date VARCHAR(128) DEFAULT '',
+            size BIGINT DEFAULT 0,
+            eml_path LONGTEXT NOT NULL,
+            flags VARCHAR(512) DEFAULT '',
+            has_attachments INTEGER DEFAULT 0,
+            archived_at REAL DEFAULT 0,
+            is_deleted_on_server INTEGER DEFAULT 0,
+            deleted_at REAL DEFAULT 0,
+            UNIQUE KEY uq_archive_message (account_id, folder, uid)
+        )
+    """)
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_archive_user ON message_archive(user_uid)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_archive_account_folder ON message_archive(account_id, folder)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_archive_date ON message_archive(date)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_archive_deleted ON message_archive(user_uid, is_deleted_on_server)")
 
     await db.commit()
 
@@ -1516,8 +1610,8 @@ async def get_cached_message_detail(account_id: str, uid: int, folder: str):
     placeholders = ','.join('?' * len(aliases))
     db = await get_db()
     cursor = await db.execute(
-        f'''SELECT id, uid, subject, from_addr, to_addr, date, is_read, is_starred, folder,
-                   body_text, body_html, has_attachments, account_id, storage_path
+        f'''SELECT id, uid, subject, from_addr, to_addr, cc, date, is_read, is_starred, folder,
+                   body_text, body_html, has_attachments, message_id, account_id, storage_path
             FROM cached_messages
             WHERE account_id = ? AND uid = ? AND folder IN ({placeholders})
             ORDER BY date DESC LIMIT 1''',
@@ -1532,15 +1626,17 @@ async def get_cached_message_detail(account_id: str, uid: int, folder: str):
         'subject': row[2] or '',
         'from_addr': row[3] or '',
         'to_addr': row[4] or '',
-        'date': row[5] or '',
-        'is_read': bool(row[6]),
-        'is_starred': bool(row[7]),
-        'folder': row[8] or folder,
-        'body_text': row[9] or '',
-        'body_html': row[10] or '',
-        'has_attachments': bool(row[11]),
-        'account_id': row[12] or account_id,
-        'storage_path': row[13] or '',
+        'cc': row[5] or '',
+        'date': row[6] or '',
+        'is_read': bool(row[7]),
+        'is_starred': bool(row[8]),
+        'folder': row[9] or folder,
+        'body_text': row[10] or '',
+        'body_html': row[11] or '',
+        'has_attachments': bool(row[12]),
+        'message_id': row[13] or '',
+        'account_id': row[14] or account_id,
+        'storage_path': row[15] or '',
         'attachments': [],
     }
 
@@ -1690,6 +1786,19 @@ async def mark_pending_read_sync_failed(account_id: str, uid: int, folder: str, 
     await db.commit()
 
 
+async def mark_all_cached_messages_read(account_id: str, folder: str) -> int:
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''UPDATE cached_messages SET is_read = 1, cached_at = ?
+            WHERE account_id = ? AND folder IN ({placeholders}) AND is_read = 0''',
+        [time.time(), account_id] + aliases,
+    )
+    await db.commit()
+    return cursor.rowcount
+
+
 async def batch_update_cached_messages_read(account_id: str, uids: list[int], folder: str, is_read: bool) -> int:
     if not uids:
         return 0
@@ -1789,27 +1898,31 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
         body_checked = bool(getattr(msg, "body_checked", False) or body_text or body_html)
         cursor = await db.execute(
             '''INSERT INTO cached_messages
-               (id, account_id, user_uid, uid, folder, subject, from_addr, to_addr, date,
-                is_read, is_starred, has_attachments, body_text, body_html, body_checked, storage_path, cached_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (id, account_id, user_uid, uid, folder, subject, from_addr, to_addr, cc, date,
+                is_read, is_starred, has_attachments, body_text, body_html, message_id,
+                body_checked, storage_path, cached_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                subject = VALUES(subject),
                from_addr = VALUES(from_addr),
                to_addr = VALUES(to_addr),
+               cc = VALUES(cc),
                date = VALUES(date),
                is_read = VALUES(is_read),
                is_starred = VALUES(is_starred),
                has_attachments = VALUES(has_attachments),
                body_text = COALESCE(VALUES(body_text), cached_messages.body_text),
                body_html = COALESCE(VALUES(body_html), cached_messages.body_html),
+               message_id = CASE WHEN VALUES(message_id) <> '' THEN VALUES(message_id) ELSE cached_messages.message_id END,
                body_checked = GREATEST(VALUES(body_checked), COALESCE(cached_messages.body_checked, 0)),
                storage_path = COALESCE(VALUES(storage_path), cached_messages.storage_path),
                cached_at = VALUES(cached_at)''',
             (
                 message_id, msg.account_id, msg.user_uid, msg.uid, msg.folder, msg.subject,
-                msg.from_addr, msg.to_addr, msg.date, 1 if msg.is_read else 0,
+                msg.from_addr, msg.to_addr, msg.cc or '', msg.date, 1 if msg.is_read else 0,
                 1 if msg.is_starred else 0, 1 if msg.has_attachments else 0,
-                body_text, body_html, 1 if body_checked else 0, msg.storage_path or '', msg.cached_at or time.time(),
+                body_text, body_html, msg.message_id or '', 1 if body_checked else 0,
+                msg.storage_path or '', msg.cached_at or time.time(),
             ),
         )
         affected += cursor.rowcount
@@ -1935,16 +2048,43 @@ async def get_folder_filter_counts(user_uid: str, account_id: str, folder: str) 
 
 async def create_notification(notification: Notification) -> Notification:
     db = await get_db()
-    await db.execute('''INSERT INTO notifications (id, user_uid, account_id, provider, email, folder, is_read, created_at, type, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (notification.id, notification.user_uid, notification.account_id, notification.provider, notification.email, notification.folder, 1 if notification.is_read else 0, notification.created_at, notification.type, notification.message))
+    await db.execute(
+        """INSERT INTO notifications (
+             id, user_uid, account_id, provider, email, folder, is_read, created_at, type, message,
+             message_cache_id, message_uid, rfc_message_id, subject, from_addr, to_addr, cc,
+             mail_date, body_preview, has_attachments, batch_count, extra_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            notification.id, notification.user_uid, notification.account_id,
+            notification.provider, notification.email, notification.folder,
+            1 if notification.is_read else 0, notification.created_at,
+            notification.type, notification.message,
+            notification.message_cache_id, int(notification.message_uid or 0),
+            notification.rfc_message_id, notification.subject, notification.from_addr,
+            notification.to_addr, notification.cc, notification.mail_date,
+            notification.body_preview, 1 if notification.has_attachments else 0,
+            int(notification.batch_count or 1), notification.extra_json,
+        ),
+    )
     await db.commit()
     return notification
 
 
 async def get_notifications(user_uid: str, limit: int = 50) -> List[Notification]:
     db = await get_db()
-    cursor = await db.execute('SELECT id, user_uid, account_id, provider, email, folder, is_read, created_at, type, message FROM notifications WHERE user_uid = ? ORDER BY created_at DESC LIMIT ?', (user_uid, limit))
+    cursor = await db.execute(
+        "SELECT * FROM notifications WHERE user_uid = ? ORDER BY created_at DESC LIMIT ?",
+        (user_uid, limit),
+    )
     rows = await cursor.fetchall()
-    return [Notification(**dict(zip([d[0] for d in cursor.description], row))) for row in rows]
+    columns = [description[0] for description in cursor.description]
+    result = []
+    for row in rows:
+        data = dict(zip(columns, row))
+        data["is_read"] = bool(data.get("is_read"))
+        data["has_attachments"] = bool(data.get("has_attachments"))
+        result.append(Notification(**{key: value for key, value in data.items() if key in Notification.model_fields}))
+    return result
 
 
 async def mark_notification_read(notification_id: str, user_uid: str) -> bool:
@@ -2108,3 +2248,488 @@ async def deactivate_account(
     cursor = await db.execute(sql, params)
     await db.commit()
     return cursor.rowcount > 0
+
+
+# ==================== Upstream contacts ====================
+
+async def _fetch_emails_for_contacts(db, contact_ids: list[int]) -> dict[int, list[dict]]:
+    if not contact_ids:
+        return {}
+    placeholders = ",".join("?" * len(contact_ids))
+    cursor = await db.execute(
+        f"SELECT id, contact_id, email, is_primary FROM contact_emails WHERE contact_id IN ({placeholders}) ORDER BY is_primary DESC, id ASC",
+        contact_ids,
+    )
+    rows = await cursor.fetchall()
+    result: dict[int, list[dict]] = {int(contact_id): [] for contact_id in contact_ids}
+    for row in rows:
+        result.setdefault(int(row[1]), []).append(
+            {"id": int(row[0]), "email": row[2] or "", "is_primary": bool(row[3])}
+        )
+    return result
+
+
+async def get_contacts(user_uid: str, search: str = "") -> list[dict]:
+    db = await get_db()
+    if search:
+        like = f"%{search}%"
+        cursor = await db.execute(
+            """SELECT DISTINCT c.id, c.user_uid, c.name, c.phone, c.company,
+                              c.remark, c.group_name, c.created_at, c.updated_at
+               FROM contacts c LEFT JOIN contact_emails ce ON ce.contact_id = c.id
+               WHERE c.user_uid = ? AND (c.name LIKE ? OR ce.email LIKE ?)
+               ORDER BY c.name ASC, c.id ASC""",
+            (user_uid, like, like),
+        )
+    else:
+        cursor = await db.execute(
+            """SELECT id, user_uid, name, phone, company, remark, group_name, created_at, updated_at
+               FROM contacts WHERE user_uid = ? ORDER BY name ASC, id ASC""",
+            (user_uid,),
+        )
+    rows = await cursor.fetchall()
+    columns = [description[0] for description in cursor.description]
+    contacts = [dict(zip(columns, row)) for row in rows]
+    emails = await _fetch_emails_for_contacts(db, [int(item["id"]) for item in contacts])
+    for item in contacts:
+        item["emails"] = emails.get(int(item["id"]), [])
+    return contacts
+
+
+async def get_contact_by_id(contact_id: int, user_uid: str) -> Optional[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        """SELECT id, user_uid, name, phone, company, remark, group_name, created_at, updated_at
+           FROM contacts WHERE id = ? AND user_uid = ?""",
+        (contact_id, user_uid),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
+    columns = [description[0] for description in cursor.description]
+    contact = dict(zip(columns, row))
+    contact["emails"] = (await _fetch_emails_for_contacts(db, [contact_id])).get(contact_id, [])
+    return contact
+
+
+async def create_contact(
+    user_uid: str,
+    name: str,
+    emails: list[str],
+    phone: str = "",
+    company: str = "",
+    remark: str = "",
+    group_name: str = "",
+) -> dict:
+    db = await get_db()
+    now = time.time()
+    cursor = await db.execute(
+        """INSERT INTO contacts (user_uid, name, phone, company, remark, group_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (user_uid, name.strip(), phone.strip(), company.strip(), remark.strip(), group_name.strip(), now, now),
+    )
+    contact_id = int(cursor.lastrowid)
+    email_rows: list[dict] = []
+    seen: set[str] = set()
+    for email_value in emails:
+        normalized = (email_value or "").strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        is_primary = not email_rows
+        email_cursor = await db.execute(
+            "INSERT INTO contact_emails (contact_id, email, is_primary, created_at) VALUES (?, ?, ?, ?)",
+            (contact_id, normalized, 1 if is_primary else 0, now),
+        )
+        email_rows.append({"id": int(email_cursor.lastrowid), "email": normalized, "is_primary": is_primary})
+    await db.commit()
+    return {
+        "id": contact_id, "user_uid": user_uid, "name": name.strip(),
+        "phone": phone.strip(), "company": company.strip(), "remark": remark.strip(),
+        "group_name": group_name.strip(), "created_at": now, "updated_at": now,
+        "emails": email_rows,
+    }
+
+
+async def update_contact(
+    contact_id: int,
+    user_uid: str,
+    name: str,
+    emails: list[str],
+    phone: str = "",
+    company: str = "",
+    remark: str = "",
+    group_name: str = "",
+) -> bool:
+    db = await get_db()
+    cursor = await db.execute(
+        """UPDATE contacts SET name = ?, phone = ?, company = ?, remark = ?, group_name = ?, updated_at = ?
+           WHERE id = ? AND user_uid = ?""",
+        (name.strip(), phone.strip(), company.strip(), remark.strip(), group_name.strip(), time.time(), contact_id, user_uid),
+    )
+    if cursor.rowcount == 0:
+        return False
+    await db.execute("DELETE FROM contact_emails WHERE contact_id = ?", (contact_id,))
+    now = time.time()
+    seen: set[str] = set()
+    inserted = 0
+    for email_value in emails:
+        normalized = (email_value or "").strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        await db.execute(
+            "INSERT INTO contact_emails (contact_id, email, is_primary, created_at) VALUES (?, ?, ?, ?)",
+            (contact_id, normalized, 1 if inserted == 0 else 0, now),
+        )
+        inserted += 1
+    await db.commit()
+    return True
+
+
+async def delete_contact(contact_id: int, user_uid: str) -> bool:
+    db = await get_db()
+    owner_cursor = await db.execute(
+        "SELECT id FROM contacts WHERE id = ? AND user_uid = ?",
+        (contact_id, user_uid),
+    )
+    if not await owner_cursor.fetchone():
+        return False
+    await db.execute("DELETE FROM contact_emails WHERE contact_id = ?", (contact_id,))
+    cursor = await db.execute(
+        "DELETE FROM contacts WHERE id = ? AND user_uid = ?",
+        (contact_id, user_uid),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def upsert_contact_by_email(user_uid: str, name: str, email: str) -> tuple[dict, bool]:
+    db = await get_db()
+    normalized = (email or "").strip().lower()
+    cursor = await db.execute(
+        """SELECT c.id, c.user_uid, c.name, c.phone, c.company, c.remark,
+                  c.group_name, c.created_at, c.updated_at
+           FROM contacts c JOIN contact_emails ce ON ce.contact_id = c.id
+           WHERE c.user_uid = ? AND LOWER(ce.email) = ? LIMIT 1""",
+        (user_uid, normalized),
+    )
+    row = await cursor.fetchone()
+    if row:
+        columns = [description[0] for description in cursor.description]
+        contact = dict(zip(columns, row))
+        contact_id = int(contact["id"])
+        contact["emails"] = (await _fetch_emails_for_contacts(db, [contact_id])).get(contact_id, [])
+        return contact, False
+    return await create_contact(user_uid, name, [normalized]), True
+
+
+def _address_field_contains_email(field: str, email_value: str) -> bool:
+    from email.utils import getaddresses
+
+    normalized = (email_value or "").strip().lower()
+    return any(address.strip().lower() == normalized for _name, address in getaddresses([field or ""]))
+
+
+async def get_contact_stats(user_uid: str, email: str) -> dict:
+    normalized = (email or "").strip().lower()
+    if not normalized or "@" not in normalized:
+        return {"count": 0, "last_date": ""}
+    escaped = normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    like = f"%{escaped}%"
+    db = await get_db()
+    cursor = await db.execute(
+        """SELECT date, from_addr, to_addr, cc FROM cached_messages
+           WHERE user_uid = ? AND (
+             LOWER(from_addr) LIKE ? ESCAPE '\\' OR LOWER(to_addr) LIKE ? ESCAPE '\\' OR LOWER(cc) LIKE ? ESCAPE '\\'
+           )""",
+        (user_uid, like, like, like),
+    )
+    rows = await cursor.fetchall()
+    matched_dates = [
+        row[0] or "" for row in rows
+        if _address_field_contains_email(row[1] or "", normalized)
+        or _address_field_contains_email(row[2] or "", normalized)
+        or _address_field_contains_email(row[3] or "", normalized)
+    ]
+    return {"count": len(matched_dates), "last_date": max(matched_dates, default="")}
+
+
+# ==================== Upstream unified inbox ====================
+
+async def get_unified_inbox_messages(
+    user_uid: str,
+    account_ids: list[str],
+    page: int = 1,
+    page_size: int = 40,
+    account_filter: str = "",
+    read_filter: str = "",
+    attachment_filter: bool = False,
+) -> dict:
+    if not account_ids:
+        return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size}
+    placeholders = ",".join("?" * len(account_ids))
+    conditions = [
+        "m.user_uid = ?",
+        "UPPER(m.folder) = 'INBOX'",
+        f"m.account_id IN ({placeholders})",
+        "a.user_uid = ?",
+    ]
+    params: list[Any] = [user_uid, *account_ids, user_uid]
+    if account_filter and account_filter in account_ids:
+        conditions.append("m.account_id = ?")
+        params.append(account_filter)
+    if read_filter == "unread":
+        conditions.append("m.is_read = 0")
+    elif read_filter == "read":
+        conditions.append("m.is_read = 1")
+    if attachment_filter:
+        conditions.append("m.has_attachments = 1")
+    where = " AND ".join(conditions)
+    db = await get_db()
+    cursor = await db.execute(
+        f"""SELECT COUNT(*), COALESCE(SUM(CASE WHEN m.is_read = 0 THEN 1 ELSE 0 END), 0)
+            FROM cached_messages m JOIN accounts a ON a.id = m.account_id WHERE {where}""",
+        params,
+    )
+    total_row = await cursor.fetchone() or (0, 0)
+    offset = (page - 1) * page_size
+    cursor = await db.execute(
+        f"""SELECT m.id, m.uid, m.subject, m.from_addr, m.to_addr, m.cc, m.date,
+                   m.is_read, m.is_starred, m.folder, m.account_id, m.has_attachments
+            FROM cached_messages m JOIN accounts a ON a.id = m.account_id
+            WHERE {where} ORDER BY m.date DESC, m.uid DESC LIMIT ? OFFSET ?""",
+        [*params, page_size, offset],
+    )
+    rows = await cursor.fetchall()
+    messages = [
+        {
+            "id": row[0], "uid": int(row[1]), "subject": row[2] or "",
+            "from_addr": row[3] or "", "to_addr": row[4] or "", "cc": row[5] or "",
+            "date": row[6] or "", "is_read": bool(row[7]), "is_starred": bool(row[8]),
+            "folder": row[9], "account_id": row[10], "has_attachments": bool(row[11]),
+        }
+        for row in rows
+    ]
+    return {
+        "messages": messages,
+        "total": int(total_row[0] or 0),
+        "unread_total": int(total_row[1] or 0),
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+async def get_unified_inbox_filter_counts(user_uid: str, account_ids: list[str], account_filter: str = "") -> dict:
+    if not account_ids:
+        return {"all": 0, "unread": 0, "read": 0, "attachments": 0}
+    placeholders = ",".join("?" * len(account_ids))
+    conditions = [
+        "m.user_uid = ?",
+        "UPPER(m.folder) = 'INBOX'",
+        f"m.account_id IN ({placeholders})",
+        "a.user_uid = ?",
+    ]
+    params: list[Any] = [user_uid, *account_ids, user_uid]
+    if account_filter and account_filter in account_ids:
+        conditions.append("m.account_id = ?")
+        params.append(account_filter)
+    db = await get_db()
+    cursor = await db.execute(
+        f"""SELECT COUNT(*),
+                   COALESCE(SUM(CASE WHEN m.is_read = 0 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN m.is_read = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN m.has_attachments = 1 THEN 1 ELSE 0 END), 0)
+            FROM cached_messages m JOIN accounts a ON a.id = m.account_id
+            WHERE {' AND '.join(conditions)}""",
+        params,
+    )
+    row = await cursor.fetchone() or (0, 0, 0, 0)
+    return {
+        "all": int(row[0] or 0), "unread": int(row[1] or 0),
+        "read": int(row[2] or 0), "attachments": int(row[3] or 0),
+    }
+
+
+async def get_unified_inbox_stats(user_uid: str, account_ids: list[str]) -> dict:
+    if not account_ids:
+        return {"total_count": 0, "unread_count": 0}
+    placeholders = ",".join("?" * len(account_ids))
+    db = await get_db()
+    cursor = await db.execute(
+        f"""SELECT COALESCE(SUM(fs.total_count), 0), COALESCE(SUM(fs.unread_count), 0)
+            FROM folder_stats fs JOIN accounts a ON a.id = fs.account_id
+            WHERE a.user_uid = ? AND UPPER(fs.folder) = 'INBOX'
+              AND fs.account_id IN ({placeholders})""",
+        [user_uid, *account_ids],
+    )
+    row = await cursor.fetchone() or (0, 0)
+    return {"total_count": int(row[0] or 0), "unread_count": int(row[1] or 0)}
+
+
+# ==================== Upstream message archive ====================
+
+async def upsert_message_archive(archive: dict) -> bool:
+    db = await get_db()
+    now = time.time()
+    await db.execute(
+        """INSERT INTO message_archive
+           (user_uid, account_id, folder, uid, message_id, subject, from_addr,
+            to_addr, cc, date, size, eml_path, flags, has_attachments,
+            archived_at, is_deleted_on_server, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             message_id = VALUES(message_id), subject = VALUES(subject),
+             from_addr = VALUES(from_addr), to_addr = VALUES(to_addr), cc = VALUES(cc),
+             date = VALUES(date), size = VALUES(size), eml_path = VALUES(eml_path),
+             flags = VALUES(flags), has_attachments = VALUES(has_attachments),
+             archived_at = VALUES(archived_at)""",
+        (
+            archive["user_uid"], archive["account_id"], archive["folder"], int(archive["uid"]),
+            archive.get("message_id", ""), archive.get("subject", ""), archive.get("from_addr", ""),
+            archive.get("to_addr", ""), archive.get("cc", ""), archive.get("date", ""),
+            int(archive.get("size", 0) or 0), archive["eml_path"], archive.get("flags", ""),
+            1 if archive.get("has_attachments") else 0, now,
+            1 if archive.get("is_deleted_on_server") else 0,
+            float(archive.get("deleted_at", 0) or 0),
+        ),
+    )
+    await db.commit()
+    return True
+
+
+async def get_archived_uids(account_id: str, folder: str) -> dict[int, str]:
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT uid, eml_path FROM message_archive WHERE account_id = ? AND folder = ?",
+        (account_id, folder),
+    )
+    return {int(row[0]): row[1] for row in await cursor.fetchall()}
+
+
+async def mark_archive_deleted(account_id: str, folder: str, uids: list[int]) -> int:
+    if not uids:
+        return 0
+    db = await get_db()
+    placeholders = ",".join("?" * len(uids))
+    cursor = await db.execute(
+        f"""UPDATE message_archive SET is_deleted_on_server = 1, deleted_at = ?
+            WHERE account_id = ? AND folder = ? AND uid IN ({placeholders})""",
+        [time.time(), account_id, folder, *[int(uid) for uid in uids]],
+    )
+    await db.commit()
+    return cursor.rowcount
+
+
+async def get_archived_messages(
+    user_uid: str,
+    account_id: str = "",
+    folder: str = "",
+    page: int = 1,
+    page_size: int = 40,
+    deleted_filter: str = "",
+) -> dict:
+    db = await get_db()
+    conditions = ["user_uid = ?"]
+    params: list[Any] = [user_uid]
+    if account_id:
+        conditions.append("account_id = ?")
+        params.append(account_id)
+    if folder:
+        from services.backup import classify_folder_category
+
+        category = classify_folder_category(folder)
+        if category == "other":
+            conditions.append("folder = ?")
+            params.append(folder)
+        else:
+            cursor = await db.execute(
+                "SELECT DISTINCT folder FROM message_archive WHERE user_uid = ?" + (" AND account_id = ?" if account_id else ""),
+                (user_uid, account_id) if account_id else (user_uid,),
+            )
+            matching = [row[0] for row in await cursor.fetchall() if classify_folder_category(row[0]) == category]
+            if matching:
+                conditions.append(f"folder IN ({','.join('?' * len(matching))})")
+                params.extend(matching)
+            else:
+                conditions.append("1 = 0")
+    if deleted_filter == "deleted":
+        conditions.append("is_deleted_on_server = 1")
+    elif deleted_filter == "alive":
+        conditions.append("is_deleted_on_server = 0")
+    where = " AND ".join(conditions)
+    cursor = await db.execute(f"SELECT COUNT(*) FROM message_archive WHERE {where}", params)
+    total_row = await cursor.fetchone()
+    cursor = await db.execute(
+        f"SELECT * FROM message_archive WHERE {where} ORDER BY date DESC, uid DESC LIMIT ? OFFSET ?",
+        [*params, page_size, (page - 1) * page_size],
+    )
+    rows = await cursor.fetchall()
+    columns = [description[0] for description in cursor.description]
+    return {
+        "messages": [dict(zip(columns, row)) for row in rows],
+        "total": int((total_row or (0,))[0] or 0),
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+async def get_archived_message_by_uid(
+    user_uid: str,
+    account_id: str,
+    folder: str,
+    uid: int,
+) -> Optional[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        """SELECT * FROM message_archive
+           WHERE user_uid = ? AND account_id = ? AND folder = ? AND uid = ? LIMIT 1""",
+        (user_uid, account_id, folder, int(uid)),
+    )
+    row = await cursor.fetchone()
+    return _row_to_dict(cursor, row) if row else None
+
+
+async def get_archive_stats(user_uid: str) -> dict:
+    db = await get_db()
+    cursor = await db.execute(
+        """SELECT COUNT(*), COALESCE(SUM(size), 0),
+                  COALESCE(SUM(CASE WHEN is_deleted_on_server = 1 THEN 1 ELSE 0 END), 0),
+                  COALESCE(MAX(archived_at), 0)
+           FROM message_archive WHERE user_uid = ?""",
+        (user_uid,),
+    )
+    total = await cursor.fetchone() or (0, 0, 0, 0)
+    cursor = await db.execute(
+        """SELECT account_id, COUNT(*),
+                  COALESCE(SUM(CASE WHEN is_deleted_on_server = 1 THEN 1 ELSE 0 END), 0),
+                  COALESCE(MAX(archived_at), 0)
+           FROM message_archive WHERE user_uid = ? GROUP BY account_id""",
+        (user_uid,),
+    )
+    accounts = [
+        {"account_id": row[0], "count": int(row[1] or 0), "deleted_count": int(row[2] or 0), "last_archived": float(row[3] or 0)}
+        for row in await cursor.fetchall()
+    ]
+    return {
+        "total": int(total[0] or 0), "total_size": int(total[1] or 0),
+        "deleted_count": int(total[2] or 0), "last_archived": float(total[3] or 0),
+        "accounts": accounts,
+    }
+
+
+async def get_archive_folders(user_uid: str, account_id: str = "") -> list[dict]:
+    db = await get_db()
+    sql = """SELECT folder, COUNT(*),
+                    COALESCE(SUM(CASE WHEN is_deleted_on_server = 1 THEN 1 ELSE 0 END), 0)
+             FROM message_archive WHERE user_uid = ?"""
+    params: list[Any] = [user_uid]
+    if account_id:
+        sql += " AND account_id = ?"
+        params.append(account_id)
+    sql += " GROUP BY folder ORDER BY folder ASC"
+    cursor = await db.execute(sql, params)
+    return [
+        {"folder": row[0], "count": int(row[1] or 0), "deleted_count": int(row[2] or 0)}
+        for row in await cursor.fetchall()
+    ]

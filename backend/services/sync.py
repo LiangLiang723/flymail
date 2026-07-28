@@ -11,7 +11,9 @@
 """
 
 import asyncio
+import html
 import json
+import re
 import uuid
 import time
 from typing import Dict, Optional
@@ -22,12 +24,36 @@ logger = get_logger("sync")
 
 from fastapi import WebSocket
 
+from db import build_cached_message_id
 from db import create_notification
 from db import get_accounts
+from db import get_cached_message_detail
+from db import get_cached_messages_by_folder
+from db import get_max_cached_uid
 from db import list_account_folder_counts
 from models import Notification
 from providers.base import Credentials
 from providers.factory import ProviderFactory
+
+
+_SCRIPT_STYLE_RE = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def build_notification_preview(body_text: str = "", body_html: str = "", max_chars: int = 1000) -> str:
+    """构建第三方通知正文预览，移除 HTML 与多余空白并限制长度。"""
+    source = str(body_text or "").strip()
+    if not source and body_html:
+        cleaned = _SCRIPT_STYLE_RE.sub(" ", str(body_html))
+        cleaned = re.sub(r"<(br|/p|/div|/li|/tr)\b[^>]*>", "\n", cleaned, flags=re.IGNORECASE)
+        source = html.unescape(_HTML_TAG_RE.sub(" ", cleaned))
+    lines = []
+    for raw_line in source.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if line:
+            lines.append(line)
+    preview = "\n".join(lines).strip()
+    return preview[:max(0, int(max_chars or 0))]
 
 
 class MailSyncService:
@@ -162,41 +188,89 @@ class MailSyncService:
             "folder": folder,
         }), user_uid)
 
-    async def notify_clients(self, account_id: str, folder: str = "INBOX",
-                                provider: str = "", email: str = "", user_uid: str = ""):
-        """通知 WebSocket 客户端有新邮件，同时将通知持久化到数据库
+    async def notify_clients(
+        self,
+        account_id: str,
+        folder: str = "INBOX",
+        provider: str = "",
+        email: str = "",
+        user_uid: str = "",
+        items: list | None = None,
+    ):
+        """逐封持久化并推送新邮件通知，同时异步分发第三方渠道。"""
+        from services.notification_dispatch import dispatch as dispatch_notification
 
-        仅在 IDLE 检测到真正的新邮件时调用，缓存同步场景请用 refresh_clients。
-        只推送给该账号所属用户的客户端。
-        """
-        # 先持久化通知到数据库（获取数据库中的通知ID）
-        notification_id = str(uuid.uuid4())
-        try:
+        details = items or [{
+            "message_cache_id": "",
+            "uid": 0,
+            "subject": "",
+            "from_addr": "",
+            "to_addr": "",
+            "cc": "",
+            "mail_date": "",
+            "body_preview": "",
+            "has_attachments": False,
+            "rfc_message_id": "",
+        }]
+
+        for item in details:
+            notification_id = str(uuid.uuid4())
+            subject = str(item.get("subject") or "").strip()
+            message_text = subject or "收到新邮件"
             notification = Notification(
                 id=notification_id,
                 user_uid=user_uid or "default",
                 account_id=account_id,
                 provider=provider,
                 email=email,
-                folder=folder,
+                folder=item.get("folder") or folder,
                 is_read=False,
                 created_at=time.time(),
+                type="new_mail",
+                message=message_text,
+                message_cache_id=item.get("message_cache_id") or "",
+                message_uid=int(item.get("uid") or 0),
+                rfc_message_id=item.get("rfc_message_id") or "",
+                subject=subject,
+                from_addr=item.get("from_addr") or "",
+                to_addr=item.get("to_addr") or "",
+                cc=item.get("cc") or "",
+                mail_date=item.get("mail_date") or "",
+                body_preview=item.get("body_preview") or "",
+                has_attachments=bool(item.get("has_attachments")),
+                batch_count=1,
             )
-            await create_notification(notification)
-        except Exception as e:
-            logger.warning("通知持久化失败: %s", e)
-            # 持久化失败时仍用UUID作为ID，前端可正常显示，只是刷新后丢失
+            try:
+                await create_notification(notification)
+            except Exception as exc:
+                logger.warning("通知持久化失败: %s", exc)
 
-        # 广播消息（带上数据库中的通知ID，前端标记已读时需要）
-        message = json.dumps({
-            "type": "new_mail",
-            "notification_id": notification_id,
-            "account_id": account_id,
-            "folder": folder,
-            "provider": provider,
-            "email": email,
-        })
-        await self._broadcast(message, user_uid)
+            payload = {
+                "type": "new_mail",
+                "notification_id": notification_id,
+                "user_uid": user_uid or "default",
+                "account_id": account_id,
+                "folder": notification.folder,
+                "provider": provider,
+                "email": email,
+                "message_cache_id": notification.message_cache_id,
+                "message_uid": notification.message_uid,
+                "rfc_message_id": notification.rfc_message_id,
+                "subject": notification.subject,
+                "from_addr": notification.from_addr,
+                "to_addr": notification.to_addr,
+                "cc": notification.cc,
+                "mail_date": notification.mail_date,
+                "body_preview": notification.body_preview,
+                "has_attachments": notification.has_attachments,
+                "batch_count": 1,
+                "message": message_text,
+            }
+            await self._broadcast(json.dumps(payload), user_uid)
+            try:
+                await dispatch_notification(payload)
+            except Exception as exc:
+                logger.debug("notification dispatch hook failed: %s", exc)
 
     async def notify_schedule_result(
         self,
@@ -409,10 +483,12 @@ class MailSyncService:
         from providers.outlook.receiver import _create_outlook_ssl_context
 
         if account.provider == "gmail":
+            from providers.gmail import config as gmail_config
             return {
                 "host": GMAIL_IMAP_HOST, "port": GMAIL_IMAP_PORT,
                 "email": credentials.extra.get("email", ""),
                 "auth_type": "xoauth2", "auth_credential": credentials.access_token,
+                "proxy_url": gmail_config.proxy_url_from_extra(credentials.extra),
             }
         elif account.provider == "qq":
             return {
@@ -440,9 +516,67 @@ class MailSyncService:
     def _poll_interval(account) -> int:
         return min(3600, max(5, int(getattr(account, "poll_interval_seconds", 10) or 10)))
 
+    async def _load_new_mail_notification_items(
+        self,
+        account,
+        folder: str,
+        previous_max_uid: int,
+        new_count: int,
+    ) -> list[dict]:
+        """从本地缓存加载本轮新增邮件的通知明细。"""
+        page_size = min(200, max(50, int(new_count or 0) * 3))
+        result = await get_cached_messages_by_folder(
+            account.user_uid,
+            account.id,
+            folder,
+            page=1,
+            page_size=page_size,
+        )
+        candidates = [
+            row for row in result.get("messages", [])
+            if int(row.get("uid") or 0) > int(previous_max_uid or 0)
+        ]
+        candidates.sort(key=lambda row: int(row.get("uid") or 0), reverse=True)
+        if new_count > 0:
+            candidates = candidates[:new_count]
+
+        items: list[dict] = []
+        for row in candidates:
+            uid = int(row.get("uid") or 0)
+            if uid <= 0:
+                continue
+            detail = await get_cached_message_detail(account.id, uid, row.get("folder") or folder)
+            if not detail:
+                continue
+            actual_folder = detail.get("folder") or folder
+            items.append({
+                "account_id": account.id,
+                "folder": actual_folder,
+                "uid": uid,
+                "message_cache_id": build_cached_message_id(account.id, actual_folder, uid),
+                "subject": detail.get("subject") or "",
+                "from_addr": detail.get("from_addr") or "",
+                "to_addr": detail.get("to_addr") or "",
+                "cc": detail.get("cc") or "",
+                "mail_date": detail.get("date") or "",
+                "body_preview": build_notification_preview(
+                    detail.get("body_text") or "",
+                    detail.get("body_html") or "",
+                ),
+                "has_attachments": bool(detail.get("has_attachments")),
+                "rfc_message_id": detail.get("message_id") or "",
+            })
+        return items
+
     async def _handle_new_mail(self, account, folder: str):
         """处理新邮件：同步缓存 + 推送通知 + 刷新列表"""
         logger.info("账号 %s 文件夹 %s 检测到新邮件", account.email, folder)
+        previous_max_uid = 0
+        try:
+            previous_max_uid = await get_max_cached_uid(account.user_uid, account.id, folder)
+        except Exception as exc:
+            logger.debug("读取同步前最大 UID 失败: %s", exc)
+
         try:
             from services.mail_cache import sync_recent_folder_to_cache
             new_count = await sync_recent_folder_to_cache(account, folder)
@@ -455,10 +589,21 @@ class MailSyncService:
 
         if folder.upper() == "INBOX" and new_count > 0:
             logger.info("账号 %s 发送新邮件通知: new_count=%d", account.email, new_count)
+            items = []
+            try:
+                items = await self._load_new_mail_notification_items(
+                    account,
+                    folder,
+                    previous_max_uid,
+                    new_count,
+                )
+            except Exception as exc:
+                logger.warning("加载新邮件通知明细失败: %s", exc)
             await self.notify_clients(
                 account.id, folder,
                 provider=account.provider, email=account.email,
                 user_uid=account.user_uid,
+                items=items or None,
             )
 
         await self.refresh_clients(account.id, folder, user_uid=account.user_uid)

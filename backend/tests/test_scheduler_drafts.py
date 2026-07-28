@@ -61,6 +61,21 @@ def _load_scheduler_module():
                 sys.modules[name] = value
 
 
+class SchedulerUrlTest(unittest.TestCase):
+    def test_redacts_database_password_from_jobstore_url(self):
+        scheduler, _ = _load_scheduler_module()
+
+        redacted = scheduler._redact_jobstore_url(
+            "mysql+pymysql://flymail:secret-password@127.0.0.1:3306/flymail?charset=utf8mb4"
+        )
+
+        self.assertEqual(
+            redacted,
+            "mysql+pymysql://flymail:***@127.0.0.1:3306/flymail?charset=utf8mb4",
+        )
+        self.assertNotIn("secret-password", redacted)
+
+
 class SchedulerDraftTest(unittest.IsolatedAsyncioTestCase):
     async def test_scheduled_send_deletes_source_draft_and_refreshes_counts(self):
         scheduler, outgoing_stub = _load_scheduler_module()

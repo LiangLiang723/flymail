@@ -56,3 +56,11 @@ ProviderFactory.register("icloud", ICloudAuthProvider, ICloudReceiver, ICloudSen
 # 注册 Microsoft/Outlook 邮箱 Provider
 from .outlook import OutlookAuthProvider, OutlookReceiver, OutlookSender
 ProviderFactory.register("outlook", OutlookAuthProvider, OutlookReceiver, OutlookSender)
+
+# 注册新浪邮箱 Provider
+from .sina import SinaAuthProvider, SinaReceiver, SinaSender
+ProviderFactory.register("sina", SinaAuthProvider, SinaReceiver, SinaSender)
+
+# 注册自定义标准 IMAP/SMTP Provider
+from .custom import CustomAuthProvider, CustomReceiver, CustomSender
+ProviderFactory.register("custom", CustomAuthProvider, CustomReceiver, CustomSender)

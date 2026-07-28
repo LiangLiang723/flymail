@@ -130,3 +130,21 @@ async def async_load_settings() -> Dict[str, Any]:
 async def async_save_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
     """异步保存设置，将同步文件 I/O 放到线程池执行，不阻塞事件循环"""
     return await asyncio.to_thread(save_settings, settings)
+
+
+async def get_gmail_proxy_settings(user_uid: str) -> Dict[str, Any]:
+    """读取当前用户的 Gmail HTTP 代理配置，供通知渠道复用。"""
+    if not user_uid:
+        return {"gmail_proxy_enabled": False, "gmail_proxy_url": ""}
+    from db import get_user_settings
+
+    settings = await get_user_settings(
+        user_uid,
+        ["gmail_proxy_enabled", "gmail_proxy_url"],
+    )
+    enabled = bool(settings.get("gmail_proxy_enabled", False))
+    proxy_url = str(settings.get("gmail_proxy_url", "") or "").strip() if enabled else ""
+    return {
+        "gmail_proxy_enabled": enabled and bool(proxy_url),
+        "gmail_proxy_url": proxy_url,
+    }

@@ -8,7 +8,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.utils import formatdate
+from email.utils import formatdate, make_msgid
 from typing import Optional
 from ..base import MailSender, Credentials, SendResult
 from providers.ipv4 import IPv4SMTP
@@ -49,8 +49,7 @@ class ICloudSender(MailSender):
         """同步建立 SMTP 连接（在线程池中运行，使用 IPv4 强制子类 + STARTTLS）"""
         conn = IPv4SMTP(self.SMTP_HOST, self.SMTP_PORT, timeout=self.TIMEOUT)
         conn.ehlo()  # 发送 EHLO 获取服务器支持的功能
-        # 安全修复 S8：传入安全 SSL context，验证证书和主机名
-        # 旧代码 conn.starttls() 不传 context，使用不验证证书的默认 context，存在 MITM 风险
+        # 传入安全 SSL context，验证证书和主机名，降低 MITM 风险
         ssl_ctx = ssl.create_default_context()
         conn.starttls(context=ssl_ctx)
         conn.ehlo()  # STARTTLS 后需要再次 EHLO
@@ -92,6 +91,8 @@ class ICloudSender(MailSender):
             msg["Cc"] = ", ".join(cc) if isinstance(cc, list) else cc
         msg["Subject"] = subject
         msg["Date"] = formatdate(localtime=True)
+        # Message-ID 是邮件标准头，缺少会导致部分邮箱判定为垃圾邮件
+        msg["Message-ID"] = make_msgid(idstring=self.email_addr)
         if in_reply_to:
             msg["In-Reply-To"] = in_reply_to
             msg["References"] = in_reply_to

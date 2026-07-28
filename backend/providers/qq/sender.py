@@ -5,7 +5,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.utils import formatdate
+from email.utils import formatdate, make_msgid
 from typing import Optional
 from ..base import MailSender, Credentials, SendResult
 from providers.ipv4 import IPv4SMTP_SSL
@@ -95,6 +95,7 @@ class QQSender(MailSender):
             msg["Cc"] = ", ".join(cc) if isinstance(cc, list) else cc
         msg["Subject"] = subject
         msg["Date"] = formatdate(localtime=True)
+        msg["Message-ID"] = make_msgid(idstring=self.email_addr)
         if in_reply_to:
             msg["In-Reply-To"] = in_reply_to
             msg["References"] = in_reply_to

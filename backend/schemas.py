@@ -21,6 +21,8 @@ class SettingsResponse(BaseModel):
     gmail_client_secret: str = Field(description="Gmail OAuth 客户端密钥（脱敏，仅显示首尾4位）")
     gmail_redirect_uri: str = Field(description="Gmail OAuth 回调地址")
     has_credentials: bool = Field(description="是否已配置完整的 Gmail 凭据")
+    gmail_proxy_enabled: bool = Field(default=False, description="当前用户是否启用 Gmail HTTP 代理")
+    gmail_proxy_url: str = Field(default="", description="当前用户的 Gmail HTTP 代理地址")
     outlook_client_id: str = Field(default="", description="Microsoft OAuth 客户端ID（完整）")
     outlook_client_secret: str = Field(default="", description="Microsoft OAuth 客户端密钥（脱敏，仅显示首尾4位）")
     outlook_redirect_uri: str = Field(default="", description="Microsoft OAuth 回调地址")
@@ -40,9 +42,22 @@ class SettingsUpdateRequest(BaseModel):
     gmail_client_id: Optional[str] = Field(default=None, max_length=500, description="Gmail OAuth 客户端ID")
     gmail_client_secret: Optional[str] = Field(default=None, max_length=500, description="Gmail OAuth 客户端密钥")
     gmail_redirect_uri: Optional[str] = Field(default=None, max_length=500, description="Gmail OAuth 回调地址")
+    gmail_proxy_enabled: Optional[bool] = Field(default=None, description="是否启用 Gmail HTTP 代理")
+    gmail_proxy_url: Optional[str] = Field(default=None, max_length=500, description="Gmail HTTP 代理地址")
     outlook_client_id: Optional[str] = Field(default=None, max_length=500, description="Microsoft OAuth 客户端ID")
     outlook_client_secret: Optional[str] = Field(default=None, max_length=500, description="Microsoft OAuth 客户端密钥")
     outlook_redirect_uri: Optional[str] = Field(default=None, max_length=500, description="Microsoft OAuth 回调地址")
+
+
+class ProxyTestRequest(BaseModel):
+    proxy_url: str = Field(min_length=1, max_length=500, description="HTTP 代理地址")
+
+
+class ProxyTestResponse(BaseModel):
+    success: bool = Field(description="代理是否可用")
+    message: str = Field(description="测试结果")
+    latency_ms: int = Field(default=0, description="探测耗时毫秒")
+    target: str = Field(default="", description="实际探测目标")
 
 
 class AuthUrlResponse(BaseModel):
@@ -58,6 +73,20 @@ class AuthUrlRequest(BaseModel):
 class AuthCodeAccountRequest(BaseModel):
     email: str = Field(description="邮箱地址")
     auth_code: str = Field(description="邮箱授权码或应用专用密码")
+    is_exmail: bool = Field(default=False, description="是否为腾讯企业邮箱")
+
+
+class CustomAccountRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, description="邮箱地址")
+    username: str = Field(default="", max_length=320, description="登录用户名，空值时使用邮箱地址")
+    auth_code: str = Field(min_length=1, max_length=2048, description="授权码或登录密码")
+    imap_host: str = Field(min_length=1, max_length=253, description="IMAP 服务器主机")
+    imap_port: int = Field(default=993, ge=1, le=65535, description="IMAP 端口")
+    imap_ssl: str = Field(default="ssl", pattern=r"^(ssl|starttls)$", description="IMAP 加密方式")
+    smtp_host: str = Field(min_length=1, max_length=253, description="SMTP 服务器主机")
+    smtp_port: int = Field(default=465, ge=1, le=65535, description="SMTP 端口")
+    smtp_ssl: str = Field(default="ssl", pattern=r"^(ssl|starttls)$", description="SMTP 加密方式")
+    fetch_history: bool = Field(default=False, description="是否同步历史邮件")
 
 
 class AccountInfo(BaseModel):
@@ -68,6 +97,7 @@ class AccountInfo(BaseModel):
     remark: str = Field(description="备注名")
     group_name: str = Field(description="分组名称")
     hide_email: bool = Field(description="是否隐藏邮箱地址")
+    sort_order: int = Field(default=0, description="排序序号")
     poll_interval_seconds: int = Field(default=10, description="新邮件后台轮询间隔（秒）")
     created_at: float = Field(description="创建时间戳")
 
@@ -157,6 +187,7 @@ class MessageItem(BaseModel):
     subject: str = Field(default="", description="邮件主题")
     from_addr: str = Field(default="", description="发件人")
     to_addr: str = Field(default="", description="收件人")
+    cc: str = Field(default="", description="抄送人")
     date: str = Field(default="", description="邮件日期")
     is_read: bool = Field(default=False, description="是否已读")
     is_starred: bool = Field(default=False, description="是否星标")
@@ -165,7 +196,10 @@ class MessageItem(BaseModel):
     body_html: str = Field(default="", description="HTML 正文")
     attachments: List[AttachmentItem] = Field(default=[], description="附件列表")
     has_attachments: bool = Field(default=False, description="是否包含附件")
+    message_id: str = Field(default="", description="RFC Message-ID")
     account_id: str = Field(default="", description="账号ID")
+    account_email: str = Field(default="", description="账号邮箱")
+    account_provider: str = Field(default="", description="邮箱平台")
 
 
 class MessageListResponse(BaseModel):
@@ -177,6 +211,7 @@ class MessageListResponse(BaseModel):
     account_id: str = Field(default="", description="账号ID")
     error: str = Field(default="", description="错误信息")
     reconnecting: bool = Field(default=False, description="邮箱连接异常时是否正在重连")
+    no_accounts: bool = Field(default=False, description="聚合收件箱是否未选择账号")
     filter_counts: dict = Field(default={}, description="筛选计数")
 
 
@@ -207,6 +242,23 @@ class BatchMarkReadRequest(BaseModel):
 class BatchMarkReadResponse(BaseModel):
     success: bool = Field(description="是否成功")
     marked: int = Field(description="成功标记数量")
+
+
+class MarkAllReadRequest(BaseModel):
+    account_ids: List[str] = Field(description="账号ID列表")
+    folder: str = Field(default="INBOX", description="文件夹路径")
+
+
+class MarkAllReadAccountResult(BaseModel):
+    account_id: str = Field(description="账号ID")
+    email: str = Field(description="邮箱地址")
+    marked: int = Field(description="标记数量")
+
+
+class MarkAllReadResponse(BaseModel):
+    success: bool = Field(description="是否成功")
+    results: List[MarkAllReadAccountResult] = Field(description="各账号结果")
+    total_marked: int = Field(description="总标记数量")
 
 
 class BatchDeleteRequest(BaseModel):
@@ -261,6 +313,25 @@ class UploadAttachmentResponse(BaseModel):
     filename: str = Field(description="原始文件名")
     size: int = Field(description="文件大小（字节）")
     path: str = Field(description="服务端临时附件路径")
+    source: str = Field(default="local", description="来源：local 或 nas")
+
+
+class RegisterNasAttachmentRequest(BaseModel):
+    path: str = Field(description="授权目录内文件路径")
+
+
+class SaveAttachmentToNasRequest(BaseModel):
+    account_id: str = Field(default="", description="账号ID")
+    folder: str = Field(default="INBOX", description="邮件文件夹")
+    target_dir: str = Field(description="目标授权目录")
+    filename: str = Field(default="", description="保存文件名")
+
+
+class SaveAttachmentToNasResponse(BaseModel):
+    success: bool = Field(default=True, description="是否成功")
+    path: str = Field(description="保存路径")
+    filename: str = Field(description="文件名")
+    size: int = Field(description="文件大小")
 
 
 class SignatureSettingsRequest(BaseModel):
@@ -299,6 +370,22 @@ class SignatureListResponse(BaseModel):
     signatures: List[SignatureTemplateItem] = Field(description="签名模板列表")
 
 
+class UnifiedSettingsRequest(BaseModel):
+    account_ids: List[str] = Field(default=[], max_length=100, description="参与聚合的账号ID")
+
+
+class UnifiedSettingsAccount(BaseModel):
+    id: str
+    email: str
+    provider: str
+    selected: bool
+
+
+class UnifiedSettingsResponse(BaseModel):
+    account_ids: List[str]
+    accounts: List[UnifiedSettingsAccount]
+
+
 class ScheduledMessagesResponse(BaseModel):
     jobs: List[Dict[str, Any]] = Field(description="待执行的定时发送任务列表")
 
@@ -313,6 +400,17 @@ class NotificationItem(BaseModel):
     time: float = Field(description="通知时间")
     type: str = Field(default="new_mail", description="通知类型")
     message: str = Field(default="", description="通知描述文本")
+    message_cache_id: str = Field(default="", description="缓存邮件ID")
+    message_uid: int = Field(default=0, description="IMAP UID")
+    rfc_message_id: str = Field(default="", description="RFC Message-ID")
+    subject: str = Field(default="", description="邮件主题")
+    from_addr: str = Field(default="", description="发件人")
+    to_addr: str = Field(default="", description="收件人")
+    cc: str = Field(default="", description="抄送")
+    mail_date: str = Field(default="", description="邮件日期")
+    body_preview: str = Field(default="", description="正文摘要")
+    has_attachments: bool = Field(default=False, description="是否有附件")
+    batch_count: int = Field(default=1, description="批量数量")
 
 
 class NotificationListResponse(BaseModel):
@@ -335,3 +433,50 @@ class NotificationClearResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: str = Field(description="错误信息")
+
+
+class ContactEmailItem(BaseModel):
+    id: int = Field(default=0)
+    email: str
+    is_primary: bool = Field(default=False)
+
+
+class ContactItem(BaseModel):
+    id: int
+    name: str = Field(default="")
+    emails: List[ContactEmailItem] = Field(default=[])
+    phone: str = Field(default="")
+    company: str = Field(default="")
+    remark: str = Field(default="")
+    group_name: str = Field(default="")
+
+
+class ContactListResponse(BaseModel):
+    contacts: List[ContactItem]
+
+
+class ContactSearchResponse(BaseModel):
+    results: List[ContactItem]
+
+
+class ContactCreateRequest(BaseModel):
+    name: str = Field(default="", max_length=255)
+    emails: List[str] = Field(default=[], max_length=20)
+    phone: str = Field(default="", max_length=128)
+    company: str = Field(default="", max_length=255)
+    remark: str = Field(default="", max_length=2000)
+    group_name: str = Field(default="", max_length=255)
+
+
+class ContactUpdateRequest(ContactCreateRequest):
+    id: int = Field(default=0)
+
+
+class QuickAddContactRequest(BaseModel):
+    name: str = Field(default="", max_length=255)
+    email: str = Field(min_length=3, max_length=320)
+
+
+class ContactStatsResponse(BaseModel):
+    count: int = Field(default=0)
+    last_date: str = Field(default="")

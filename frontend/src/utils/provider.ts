@@ -29,12 +29,22 @@ export function providerIcon(provider: string): string {
     netease: NETEASE_ICON_SVG,
     icloud: ICLOUD_ICON_SVG,
     outlook: OUTLOOK_ICON_SVG,
+    custom: DEFAULT_ICON_SVG,
+    sina: DEFAULT_ICON_SVG,
   };
   return map[provider] || DEFAULT_ICON_SVG;
 }
 
 /** 获取邮箱平台名称 */
 export function providerName(provider: string): string {
-  const map: Record<string, string> = { gmail: 'Gmail', outlook: 'Microsoft', qq: 'QQ邮箱', netease: '网易邮箱', icloud: 'iCloud邮箱' };
+  const map: Record<string, string> = {
+    gmail: 'Gmail',
+    outlook: 'Microsoft',
+    qq: 'QQ邮箱',
+    netease: '网易邮箱',
+    icloud: 'iCloud邮箱',
+    sina: '新浪邮箱',
+    custom: '其他邮箱',
+  };
   return map[provider] || provider;
 }

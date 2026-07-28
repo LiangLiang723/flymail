@@ -1,8 +1,46 @@
+import api from './api'
+
 export function extractName(addr: string): string {
-  if (!addr) return 'Unknown'
+  if (!addr) return '未知'
   const match = addr.match(/^(.+?)\s*<.*>$/)
   if (match) return match[1].replace(/"/g, '').trim()
   return addr.split('@')[0]
+}
+
+export function extractEmails(addrStr: string): string[] {
+  if (!addrStr) return []
+  return addrStr.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || []
+}
+
+export interface AddressItem {
+  name: string
+  email: string
+}
+
+export function parseAddressList(addrStr: string): AddressItem[] {
+  if (!addrStr || !addrStr.trim()) return []
+  const result: AddressItem[] = []
+  const regex = /(?:"?([^"<]*?)"?\s*<([^>]+)>)|([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(addrStr)) !== null) {
+    if (match[2]) {
+      const name = match[1].trim().replace(/"/g, '')
+      const email = match[2].trim().toLowerCase()
+      result.push({ name: name || email.split('@')[0], email })
+    } else if (match[3]) {
+      const email = match[3].toLowerCase()
+      result.push({ name: email.split('@')[0], email })
+    }
+  }
+  return result
+}
+
+export function formatAddressList(addrStr: string): string {
+  return parseAddressList(addrStr).map((address) => {
+    return address.name === address.email.split('@')[0]
+      ? address.email
+      : `${address.name} <${address.email}>`
+  }).join('；')
 }
 
 export function getInitial(addr: string): string {
@@ -91,6 +129,25 @@ export function downloadAttachment(params: {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
+}
+
+export async function saveAttachmentToNas(params: {
+  messageId: string
+  accountId: string
+  folder: string
+  partNumber: number
+  targetDir: string
+  filename?: string
+}): Promise<{ success: boolean; path: string; filename: string; size: number }> {
+  return await api.post(
+    `/messages/${params.messageId}/attachments/${params.partNumber}/save-to-nas`,
+    {
+      account_id: params.accountId,
+      folder: params.folder,
+      target_dir: params.targetDir,
+      filename: params.filename || '',
+    },
+  ) as any
 }
 
 export function getFolderCount(folder: { name?: string; path?: string; unread_count?: number; total_count?: number }): number {

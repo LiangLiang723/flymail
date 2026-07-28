@@ -5,8 +5,8 @@ from typing import Dict, List, Optional
 
 from ..base import Credentials, Folder, MessageList
 from ..base_imap import BaseIMAPReceiver
-from ..ipv4 import IPv4IMAP4_SSL
-from .config import GMAIL_IMAP_HOST, GMAIL_IMAP_PORT
+from ..ipv4 import IPv4IMAP4_SSL, ProxyIMAP4_SSL
+from . import config as gmail_config
 from utils.logger import get_logger
 
 logger = get_logger("gmail")
@@ -24,7 +24,15 @@ class GmailReceiver(BaseIMAPReceiver):
         self._conn = await asyncio.to_thread(self._connect_imap, credentials)
 
     def _connect_imap(self, credentials: Credentials) -> imaplib.IMAP4_SSL:
-        conn = IPv4IMAP4_SSL(GMAIL_IMAP_HOST, GMAIL_IMAP_PORT)
+        proxy_url = gmail_config.proxy_url_from_extra(credentials.extra)
+        if proxy_url:
+            conn = ProxyIMAP4_SSL(
+                gmail_config.GMAIL_IMAP_HOST,
+                gmail_config.GMAIL_IMAP_PORT,
+                proxy_url=proxy_url,
+            )
+        else:
+            conn = IPv4IMAP4_SSL(gmail_config.GMAIL_IMAP_HOST, gmail_config.GMAIL_IMAP_PORT)
         try:
             auth_string = f"user={credentials.extra.get('email', '')}\x01auth=Bearer {credentials.access_token}\x01\x01"
             conn.authenticate("XOAUTH2", lambda _: auth_string.encode("utf-8"))
@@ -161,7 +169,7 @@ class GmailReceiver(BaseIMAPReceiver):
         status, msg_data = self._conn.uid(
             "FETCH",
             uid_set,
-            "(FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)])",
+            self._LIST_FETCH_ITEMS,
         )
         if status != "OK":
             return MessageList(messages=[], total=total, unread_total=unread_total, page=page, page_size=page_size)

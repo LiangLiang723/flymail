@@ -37,6 +37,7 @@ from schemas import (
     AccountTestResponse,
     AccountUpdateRequest,
     AuthCodeAccountRequest,
+    CustomAccountRequest,
     AuthUrlRequest,
     AuthUrlResponse,
     DeleteResponse,
@@ -56,12 +57,14 @@ from config import GATEWAY_PREFIX
 _AUTH_CODE_EMAIL_SUFFIXES = {
     "icloud": ("@icloud.com", "@me.com", "@mac.com"),
     "netease": ("@163.com", "@126.com", "@188.com", "@yeah.net"),
+    "sina": ("@sina.com", "@sina.cn", "@2008.sina.com", "@vip.sina.com", "@vip.sina.cn"),
 }
 
 # 授权码类邮箱的后缀验证错误提示
 _AUTH_CODE_SUFFIX_ERRORS = {
     "icloud": "请输入icloud.com、me.com或mac.com邮箱地址",
     "netease": "请输入163、126、188或yeah.net邮箱地址",
+    "sina": "请输入新浪邮箱地址",
 }
 
 # ==================== 内部辅助函数 ====================
@@ -114,12 +117,17 @@ async def _add_auth_code_account(request: Request, provider: str, body: AuthCode
         if provider == "qq":
             from providers.qq.auth import QQAuthProvider
             credentials = QQAuthProvider.create_credentials(email_addr, auth_code)
+            if body.is_exmail:
+                credentials.extra["is_exmail"] = True
         elif provider == "icloud":
             from providers.icloud.auth import ICloudAuthProvider
             credentials = ICloudAuthProvider.create_credentials(email_addr, auth_code)
         elif provider == "netease":
             from providers.netease.auth import NeteaseAuthProvider
             credentials = NeteaseAuthProvider.create_credentials(email_addr, auth_code)
+        elif provider == "sina":
+            from providers.sina.auth import SinaAuthProvider
+            credentials = SinaAuthProvider.create_credentials(email_addr, auth_code)
         else:
             raise AppError(400, f"不支持的平台: {provider}")
 
@@ -130,7 +138,7 @@ async def _add_auth_code_account(request: Request, provider: str, body: AuthCode
             "access_token": auth_code,
             "refresh_token": "",
             "expires_at": 0,
-            "extra": {"email": email_addr},
+            "extra": credentials.extra,
         })
         existing = next((item for item in await get_accounts(uid) if item.email == email_addr and item.provider == provider), None)
         if existing:
@@ -149,6 +157,7 @@ async def _add_auth_code_account(request: Request, provider: str, body: AuthCode
                     "remark": existing.remark,
                     "group_name": existing.group_name,
                     "hide_email": existing.hide_email,
+                    "sort_order": existing.sort_order,
                     "poll_interval_seconds": existing.poll_interval_seconds,
                     "created_at": existing.created_at,
                 }
@@ -164,7 +173,7 @@ async def _add_auth_code_account(request: Request, provider: str, body: AuthCode
                 "access_token": auth_code,
                 "refresh_token": "",
                 "expires_at": 0,
-                "extra": {"email": email_addr},
+                "extra": credentials.extra,
             }),
             status="connected",
             created_at=time.time(),
@@ -188,6 +197,7 @@ async def _add_auth_code_account(request: Request, provider: str, body: AuthCode
                 "remark": "",
                 "group_name": "",
                 "hide_email": False,
+                "sort_order": account.sort_order,
                 "poll_interval_seconds": account.poll_interval_seconds,
                 "created_at": account.created_at,
             }
@@ -233,6 +243,7 @@ async def list_accounts(request: Request):
             "remark": acc.remark,
             "group_name": acc.group_name,
             "hide_email": acc.hide_email,
+            "sort_order": acc.sort_order,
             "poll_interval_seconds": acc.poll_interval_seconds,
             "created_at": acc.created_at,
             "reauth_needed": acc.id in sync_service.reauth_account_ids,
@@ -316,6 +327,124 @@ async def add_icloud_account(request: Request, body: AuthCodeAccountRequest = Bo
 async def add_netease_account(request: Request, body: AuthCodeAccountRequest = Body(description="网易邮箱授权码账号信息")):
     """使用授权码添加网易邮箱账号"""
     return await _add_auth_code_account(request, "netease", body)
+
+
+@router.post("/add-sina", response_model=AccountAddResponse, summary="添加新浪邮箱账号")
+async def add_sina_account(request: Request, body: AuthCodeAccountRequest = Body(description="新浪邮箱授权码账号信息")):
+    return await _add_auth_code_account(request, "sina", body)
+
+
+@router.post("/add-custom", response_model=AccountAddResponse, summary="添加自定义邮箱账号")
+async def add_custom_account(request: Request, body: CustomAccountRequest = Body(description="自定义邮箱配置信息")):
+    """测试加密 IMAP 与 SMTP 后，幂等添加或重新连接自定义邮箱。"""
+    uid = await get_uid(request)
+    email_addr = body.email.strip().lower()
+    username = body.username.strip() or email_addr
+    auth_code = body.auth_code.strip()
+    if "@" not in email_addr or not auth_code:
+        raise AppError(400, "邮箱地址或密码/授权码格式不正确")
+
+    from providers.custom.auth import CustomAuthProvider
+    from providers.custom.security import validate_server_config
+
+    try:
+        imap_host, imap_port, imap_ssl, _ = validate_server_config(
+            body.imap_host, body.imap_port, body.imap_ssl
+        )
+        smtp_host, smtp_port, smtp_ssl, _ = validate_server_config(
+            body.smtp_host, body.smtp_port, body.smtp_ssl
+        )
+    except ValueError as exc:
+        raise AppError(400, str(exc)) from exc
+
+    server_config = {
+        "username": username,
+        "imap_host": imap_host,
+        "imap_port": imap_port,
+        "imap_ssl": imap_ssl,
+        "smtp_host": smtp_host,
+        "smtp_port": smtp_port,
+        "smtp_ssl": smtp_ssl,
+    }
+    credentials = CustomAuthProvider.create_credentials(email_addr, auth_code, server_config)
+
+    receiver = ProviderFactory.get_receiver("custom")
+    try:
+        await receiver.connect(credentials)
+        await receiver.fetch_folders()
+    except Exception as exc:
+        logger.warning("自定义邮箱 IMAP 测试失败 email=%s host=%s error_type=%s", email_addr, imap_host, type(exc).__name__)
+        raise AppError(400, "IMAP 连接、TLS 校验或登录失败，请检查配置") from exc
+    finally:
+        await _safe_disconnect(receiver)
+
+    sender = ProviderFactory.get_sender("custom")
+    try:
+        await sender.connect(credentials)
+    except Exception as exc:
+        logger.warning("自定义邮箱 SMTP 测试失败 email=%s host=%s error_type=%s", email_addr, smtp_host, type(exc).__name__)
+        raise AppError(400, "SMTP 连接、TLS 校验或登录失败，请检查配置") from exc
+    finally:
+        await _safe_disconnect(sender)
+
+    creds_json = json.dumps({
+        "access_token": auth_code,
+        "refresh_token": "",
+        "expires_at": 0,
+        "extra": credentials.extra,
+    })
+    existing = next(
+        (item for item in await get_accounts(uid) if item.email.lower() == email_addr and item.provider == "custom"),
+        None,
+    )
+    if existing:
+        await activate_account(existing.id, uid, credentials_json=creds_json, status="connected")
+        account = existing
+        account.status = "connected"
+        account.credentials_json = creds_json
+    else:
+        account = Account(
+            id=str(uuid.uuid4()), user_uid=uid, email=email_addr, provider="custom",
+            credentials_json=creds_json, status="connected",
+            created_at=time.time(), updated_at=time.time(),
+        )
+        await create_account(account)
+
+    create_background_task(sync_service.add_account(account.id), name="add_custom_account_imap")
+    create_background_task(initial_sync(account.id), name="custom_initial_sync")
+    if body.fetch_history:
+        create_background_task(schedule_history_sync(account.id), name="custom_history_sync")
+    return {
+        "success": True,
+        "account": {
+            "id": account.id, "email": account.email, "provider": account.provider,
+            "status": "connected", "remark": account.remark, "group_name": account.group_name,
+            "hide_email": account.hide_email, "sort_order": account.sort_order,
+            "poll_interval_seconds": account.poll_interval_seconds, "created_at": account.created_at,
+        },
+    }
+
+
+@router.get("/{account_id}/custom-config", summary="获取自定义邮箱非敏感配置")
+async def get_custom_account_config(account_id: str, request: Request):
+    uid = await get_uid(request)
+    account = next((item for item in await get_accounts(uid) if item.id == account_id), None)
+    if not account or account.provider != "custom":
+        raise AppError(404, "Custom account not found")
+    try:
+        extra = json.loads(account.credentials_json or "{}").get("extra", {})
+    except (TypeError, json.JSONDecodeError):
+        extra = {}
+    return {
+        "email": account.email,
+        "username": extra.get("username", account.email),
+        "imap_host": extra.get("imap_host", ""),
+        "imap_port": int(extra.get("imap_port", 993) or 993),
+        "imap_ssl": extra.get("imap_ssl", "ssl"),
+        "smtp_host": extra.get("smtp_host", ""),
+        "smtp_port": int(extra.get("smtp_port", 465) or 465),
+        "smtp_ssl": extra.get("smtp_ssl", "ssl"),
+    }
 
 
 @router.delete("/{account_id}", response_model=DeleteResponse, summary="删除邮箱账号")

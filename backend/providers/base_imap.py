@@ -35,6 +35,11 @@ class BaseIMAPReceiver(MailReceiver):
     对于使用 self.conn 的子类（QQ/网易/iCloud），需添加 _conn 属性别名。
     """
 
+    _LIST_FETCH_ITEMS = (
+        '(FLAGS INTERNALDATE BODYSTRUCTURE '
+        'BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO CC REPLY-TO DATE MESSAGE-ID)])'
+    )
+
     # 子类可覆盖：iCloud/Outlook 的 IMAP 服务器要求 flags 用括号包裹
     _flags_parenthesized = False
 
@@ -119,6 +124,53 @@ class BaseIMAPReceiver(MailReceiver):
 
     # ---- 批量解析 ----
 
+    @staticmethod
+    def _extract_message_uid(message_id: str) -> str:
+        value = str(message_id or "").strip()
+        if ":" in value:
+            value = value.rsplit(":", 1)[-1]
+        if "_" in value:
+            value = value.rsplit("_", 1)[-1]
+        return value
+
+    @staticmethod
+    def _extract_bodystructure_text(response_text: str) -> str:
+        match = re.search(r"BODYSTRUCTURE\s*", response_text or "", re.IGNORECASE)
+        if not match:
+            return ""
+        start = match.end()
+        if start >= len(response_text) or response_text[start] != "(":
+            return ""
+        depth = 0
+        in_quote = False
+        index = start
+        while index < len(response_text):
+            char = response_text[index]
+            if char == '"' and (index == 0 or response_text[index - 1] != "\\"):
+                in_quote = not in_quote
+            elif not in_quote:
+                if char == "(":
+                    depth += 1
+                elif char == ")":
+                    depth -= 1
+                    if depth == 0:
+                        return response_text[start:index + 1]
+            index += 1
+        return ""
+
+    @staticmethod
+    def _bodystructure_indicates_attachments(bodystructure: str) -> bool:
+        if not bodystructure:
+            return False
+        upper = bodystructure.upper()
+        if '"ATTACHMENT"' in upper or '"FILENAME"' in upper:
+            return True
+        if re.search(r'\("APPLICATION"', upper):
+            return True
+        if re.search(r'\("(AUDIO|VIDEO)"', upper) and '"NAME"' in upper:
+            return True
+        return False
+
     def _parse_batch_fetch_response(self, msg_data, folder: str) -> List[Message]:
         """解析批量 UID FETCH 返回的数据
 
@@ -153,18 +205,28 @@ class BaseIMAPReceiver(MailReceiver):
                 flags_match = re.search(r'FLAGS\s*\(([^)]*)\)', flags_text)
                 is_read = bool(flags_match and "\\Seen" in flags_match.group(1))
                 internal_date = self._parse_internal_date(flags_text)
+                has_attachments = self._bodystructure_indicates_attachments(
+                    self._extract_bodystructure_text(flags_text)
+                )
 
                 if header_bytes:
                     msg = email.message_from_bytes(header_bytes)
+                    raw_message_id = (msg.get("Message-ID") or msg.get("Message-Id") or "").strip()
+                    if raw_message_id and not raw_message_id.startswith("<"):
+                        raw_message_id = f"<{raw_message_id.strip('<>')}>"
                     messages.append(Message(
                         id=str(uid),
                         uid=uid,
                         subject=self._decode_header(msg.get("Subject", "")),
                         from_addr=self._decode_header(msg.get("From", "")),
                         to_addr=self._decode_header(msg.get("To", "")),
+                        cc=self._decode_header(msg.get("Cc", "")),
+                        reply_to=self._decode_header(msg.get("Reply-To", "")),
                         date=self._parse_date(msg.get("Date", ""), fallback=internal_date),
                         is_read=is_read,
                         folder=folder,
+                        has_attachments=has_attachments,
+                        message_id=raw_message_id,
                     ))
                 i = j  # 跳过已处理的 bytes 元素
             else:
@@ -254,8 +316,7 @@ class BaseIMAPReceiver(MailReceiver):
         解析完整邮件内容，包括正文（纯文本/HTML）、内嵌图片（cid 替换）、附件列表。
         使用 BODY.PEEK[] 避免隐式设置 \\Seen 标志。
         """
-        # 提取纯 UID：兼容旧格式 account_id_uid（取下划线后部分）
-        uid = message_id.rsplit("_", 1)[-1] if "_" in message_id else message_id
+        uid = self._extract_message_uid(message_id)
         # 规范化文件夹路径（Outlook 需要映射）
         folder = self._normalize_folder(folder)
         # IMAP 协议要求先 SELECT 文件夹才能 FETCH 邮件
@@ -284,7 +345,12 @@ class BaseIMAPReceiver(MailReceiver):
         subject = self._decode_header(msg.get("Subject", ""))
         from_addr = self._decode_header(msg.get("From", ""))
         to_addr = self._decode_header(msg.get("To", ""))
+        cc = self._decode_header(msg.get("Cc", ""))
+        reply_to = self._decode_header(msg.get("Reply-To", ""))
         date_str = msg.get("Date", "")
+        raw_message_id = (msg.get("Message-ID") or msg.get("Message-Id") or "").strip()
+        if raw_message_id and not raw_message_id.startswith("<"):
+            raw_message_id = f"<{raw_message_id.strip('<>')}>"
 
         body_text = ""
         body_html = ""
@@ -352,12 +418,15 @@ class BaseIMAPReceiver(MailReceiver):
             subject=subject,
             from_addr=from_addr,
             to_addr=to_addr,
+            cc=cc,
+            reply_to=reply_to,
             date=self._parse_date(date_str, fallback=internal_date),
             body_text=body_text,
             body_html=body_html,
             folder=folder,
             attachments=attachments,
             has_attachments=len(attachments) > 0,
+            message_id=raw_message_id,
         )
 
     async def search_messages(self, folder: str, keyword: str, page: int = 1, page_size: int = 20) -> MessageList:
@@ -400,10 +469,7 @@ class BaseIMAPReceiver(MailReceiver):
             return MessageList(messages=[], total=total, unread_total=unread_total, page=page, page_size=page_size)
 
         uid_set = b",".join(page_uids)
-        status, msg_data = self._conn.uid(
-            'FETCH', uid_set,
-            '(FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)])'
-        )
+        status, msg_data = self._conn.uid('FETCH', uid_set, self._LIST_FETCH_ITEMS)
         if status != 'OK':
             return MessageList(messages=[], total=total, unread_total=unread_total, page=page, page_size=page_size)
 
@@ -426,7 +492,7 @@ class BaseIMAPReceiver(MailReceiver):
         提取与 fetch_message_detail 中 part_index 一致的 part 数据。
         这样保证"列表显示的附件"和"下载的数据"来自同一个 MIME part。
         """
-        uid = message_id.rsplit("_", 1)[-1] if "_" in message_id else message_id
+        uid = self._extract_message_uid(message_id)
         folder = self._normalize_folder(folder)
 
         status, _ = self._conn.select(self._quote_mailbox(folder), readonly=True)
@@ -466,6 +532,25 @@ class BaseIMAPReceiver(MailReceiver):
             if part_number == 0:
                 return msg.get_payload(decode=True)
 
+        return None
+
+    async def fetch_raw_email(self, folder: str, uid: int) -> Optional[bytes]:
+        """获取完整 MIME 源码，用于 EML 备份，不改变已读状态。"""
+        if not self._conn:
+            raise ConnectionError("Not connected")
+        return await asyncio.to_thread(self._fetch_raw_email_sync, folder, uid)
+
+    def _fetch_raw_email_sync(self, folder: str, uid: int) -> Optional[bytes]:
+        folder = self._normalize_folder(folder)
+        status, _ = self._conn.select(self._quote_mailbox(folder), readonly=True)
+        if status != "OK":
+            return None
+        status, msg_data = self._conn.uid("FETCH", str(int(uid)), "(BODY.PEEK[])")
+        if status != "OK":
+            return None
+        for item in msg_data:
+            if isinstance(item, tuple) and len(item) == 2:
+                return item[1]
         return None
 
     # ---- 增量同步 ----
@@ -532,8 +617,7 @@ class BaseIMAPReceiver(MailReceiver):
             return []
         # UID 按降序排列（最新的在前），用逗号拼接成 UID 集合
         uid_set = ",".join(str(u) for u in sorted(uids, reverse=True))
-        status, msg_data = self._conn.uid('FETCH', uid_set,
-            '(FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)])')
+        status, msg_data = self._conn.uid('FETCH', uid_set, self._LIST_FETCH_ITEMS)
         if status != 'OK':
             return []
         messages = self._parse_batch_fetch_response(msg_data, folder)
@@ -856,7 +940,7 @@ class BaseIMAPReceiver(MailReceiver):
             except Exception as e:
                 if "IMAP 连接已断开" in str(e):
                     raise
-                logger.warning("NOOP 轮询异常: %s", e)
+                logger.debug("NOOP 轮询异常: %s", e)
                 break
 
         return False
@@ -875,6 +959,5 @@ class BaseIMAPReceiver(MailReceiver):
         except Exception as e:
             # 连接断开时，标记 _conn 为 None，让上层 _idle_loop 触发重连
             self._conn = None
-            # STATUS 失败是预期的瞬态错误（连接断开/token 过期），用 WARNING 而非 ERROR
-            logger.warning("STATUS 命令失败（连接断开，等待重连）: %s", e)
+            logger.debug("STATUS 命令失败（连接断开，等待重连）: %s", e)
         return -1

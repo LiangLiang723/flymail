@@ -1,6 +1,6 @@
 # FlyMail
 
-FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮箱账号管理、历史邮件后台同步、断点续传、附件与内嵌图片缓存，以及本地持久化存储。
+FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮箱账号管理、聚合收件箱、历史邮件后台同步、联系人、邮件备份、第三方通知、附件与内嵌图片缓存，以及本地持久化存储。
 
 感谢原作者 [DinDing1/FlyMail](https://github.com/DinDing1/FlyMail)。当前仓库已经基于现有版本重构为独立的 Docker 多用户版本，不再依赖飞牛应用中心运行环境。
 
@@ -11,13 +11,18 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 - 管理员创建用户、重置密码、启用/禁用用户
 - 普通用户可自行修改密码
 - 用户之间邮箱数据相互隔离
-- 多邮箱账号管理
-- 历史邮件后台同步
-- 同步任务进度查看、暂停、继续、重试、手动刷新
-- 从上次断点继续拉取，不从头重跑
-- 下载并缓存历史邮件中的附件和内嵌图片
-- MySQL 存储业务数据
-- 本地 `data/` 目录持久化文件
+- Gmail、Outlook、QQ、网易、iCloud、新浪邮箱账号管理
+- 通用 IMAP/SMTP 邮箱接入，支持 SSL 或 STARTTLS，并拒绝回环、内网、链路本地等非公网服务器地址
+- 聚合收件箱、跨邮箱筛选和一键全部已读
+- 联系人管理、写信联系人自动补全、回复与转发收件人处理
+- 历史邮件后台同步，以及同步任务暂停、继续、重试和断点恢复
+- 下载并缓存邮件正文、附件和内嵌图片
+- 本机临时附件与 NAS 授权目录附件双通道，支持附件保存到 NAS
+- 邮件导出 PDF、PWA 安装壳和移动端适配
+- 邮件本地备份，默认写入 `/data/flymail/backup`；也可选择显式挂载到 `/data` 下的授权目录，并在新邮件同步后自动归档
+- 站内通知、WebSocket 实时推送，以及 Bark、Telegram、企业微信、钉钉、飞书和通用 Webhook 通知
+- Gmail 用户级 HTTP CONNECT 代理，覆盖 OAuth、令牌刷新、IMAP、SMTP、IDLE，并可由 Telegram/Webhook 复用
+- MySQL 存储业务数据，本地 `data/` 目录持久化配置、缓存、附件和日志
 
 ## 目录说明
 
@@ -37,7 +42,9 @@ FLYMAIL_BASE_PATH=
 FLYMAIL_ADMIN_USERNAME=admin
 FLYMAIL_ADMIN_PASSWORD=change_me_please
 FLYMAIL_SESSION_SECRET=replace_with_a_long_random_secret
-DATABASE_URL=mysql://flymail:change_me@127.0.0.1:3306/flymail?charset=utf8mb4
+MYSQL_DATABASE=flymail
+MYSQL_USER=flymail
+MYSQL_PASSWORD=flymail
 FLYMAIL_HTTP_PROXY=
 FLYMAIL_HTTPS_PROXY=
 FLYMAIL_ALL_PROXY=
@@ -50,8 +57,10 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 - `FLYMAIL_BASE_PATH`: 可选，反向代理子路径，例如 `/mail`
 - `FLYMAIL_ADMIN_USERNAME`: 首次启动时初始化的管理员用户名
 - `FLYMAIL_ADMIN_PASSWORD`: 首次启动时初始化的管理员密码
-- `FLYMAIL_SESSION_SECRET`: 会话签名密钥，建议至少 16 位
-- `DATABASE_URL`: MySQL 连接串
+- `FLYMAIL_SESSION_SECRET`: 会话签名密钥，必须至少 16 位；推荐使用 `openssl rand -hex 32` 生成
+- `MYSQL_DATABASE`: 镜像内置 MySQL 的数据库名，默认 `flymail`
+- `MYSQL_USER`: 镜像内置 MySQL 的业务账号，默认 `flymail`
+- `MYSQL_PASSWORD`: 镜像内置 MySQL 的业务账号密码，默认 `flymail`，正式部署请修改
 - `FLYMAIL_DATA_PATH`: 可选，Docker 数据目录映射的宿主机路径，默认 `./data`
 - `FLYMAIL_HTTP_PROXY`: 可选，HTTP 出站代理
 - `FLYMAIL_HTTPS_PROXY`: 可选，HTTPS 出站代理，Gmail/Google OAuth 建议配置这个
@@ -60,18 +69,21 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 注意：
 
-- 如果数据库密码中包含 `%`、`@`、`:`、`/` 等特殊字符，需要做 URL 编码。
-- 如果服务器直连 Google / Microsoft 不通，可以在 `.env` 中配置代理变量，然后执行 `docker compose up -d --force-recreate` 让容器重新加载环境变量。
+- MySQL 仅监听容器内的 `127.0.0.1:3306`，不会映射到宿主机。
+- 如果服务器整体出站网络需要代理，可以在 `.env` 中配置代理变量，然后执行 `docker compose up -d --force-recreate` 让容器重新加载环境变量。
+- Gmail 还可以在“设置”页面按当前用户配置 HTTP CONNECT 代理。该配置会写入当前用户的 Gmail 账号凭据，不会影响其他用户；代理 URL 可包含用户名和密码，但不会写入日志。
+- Telegram 和 Webhook 通知可以选择复用当前用户的 Gmail 代理。
 - `.env` 不会提交到 Git，请在本地自行维护。
 
 ## Docker 部署
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `wangjinjing/flymail:latest` 本地镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.1` 单容器镜像
+- 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
-- 将 `${FLYMAIL_DATA_PATH:-./data}` 映射到容器内 `/app/data`
+- 将 `${FLYMAIL_DATA_PATH:-./data}` 映射到容器内唯一持久化目录 `/data`
 
 ### 1. 准备 `.env`
 
@@ -110,7 +122,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t wangjinjing/flymail:latest -t wangjinjing/flymail:1.0.0 .
+docker build -t benxianyu/flymail:0.0.1 .
 ```
 
 登录 Docker Hub：
@@ -122,15 +134,14 @@ docker login
 推送镜像：
 
 ```bash
-docker push wangjinjing/flymail:latest
-docker push wangjinjing/flymail:1.0.0
+docker push benxianyu/flymail:0.0.1
 ```
 
 ## 数据存储
 
-### MySQL
+### `/data/mysql`
 
-业务数据保存在你自己的 MySQL 中，主要包括：
+镜像内置 MySQL 的业务数据保存在 `/data/mysql`，主要包括：
 
 - 用户
 - 邮箱账号
@@ -140,15 +151,16 @@ docker push wangjinjing/flymail:1.0.0
 - 签名
 - 历史同步任务
 
-### 本地 `data/` 目录
+### `/data/flymail`
 
-文件类数据保存在本地 `data/` 目录，适合直接映射到 Docker volume。当前按用途拆分为子目录：
+文件类数据保存在 `/data/flymail`，与 MySQL 数据一起通过 `/data` 统一持久化。当前按用途拆分为子目录：
 
-- `data/files/uploads/`: 写信时上传的临时附件，默认每周一 02:00 自动清理
-- `data/files/download/`: 历史邮件附件、图片与内嵌图片
-- `data/logs/`: 运行日志
+- `/data/flymail/config/`: 应用配置、通知设置及运行时密钥文件
+- `/data/flymail/files/uploads/`: 写信时上传的临时附件，默认每周一 02:00 自动清理
+- `/data/flymail/files/download/`: 历史邮件附件、图片与内嵌图片
+- `/data/flymail/logs/`: 运行日志
 
-附件会按邮件年月继续分目录，便于本地直接查看和归档。
+附件会按邮件年月继续分目录，便于本地直接查看。邮件备份默认写入 `/data/flymail/backup`；额外 NAS 目录必须先映射到容器 `/data` 下并显式授权。服务器端删除邮件时，本地 `.eml` 备份会保留并标记删除状态。
 
 ## 历史邮件同步
 
@@ -172,6 +184,20 @@ docker push wangjinjing/flymail:1.0.0
 “继续”和“重试”都会尽量从上次断点恢复，不会默认从头重跑；如果执行“重置同步”，才会先删除本地记录后重新同步。同步管理页的已同步邮件数只按本地摘要缓存计算，打开邮件补全正文和附件不会改变这个数量。
 
 同步管理页右上角的“刷新进度”只重新读取本地任务状态和文件夹进度，不会连接 IMAP，也不会拉取官方邮件。“刷新同步”会启动后台同步任务；任务按文件夹执行三步：先每页 50 封拉取最近邮件，遇到本地已缓存 UID 就停止最近补新；再只补全本地正文为空且尚未检查过的邮件详情；最后按官方未读 UID 集合同步本地已读/未读状态。`cached_messages.body_checked` 用来标记正文为空的邮件已经和官方详情比对过，避免正文真实为空的邮件每次都重复拉取详情。
+
+## 第三方邮箱与 Gmail 代理
+
+账号管理页中的“其他邮箱”支持填写邮箱地址、登录用户名、IMAP/SMTP 主机、端口和加密方式。添加前会同时验证收件和发件连接。为避免服务端请求伪造，通用邮箱只允许解析到公网地址的服务器，且不允许明文连接；需要访问内网自建邮件服务器时，当前版本不会放行。
+
+新浪邮箱使用客户端授权码接入。Gmail 和 Outlook 继续使用 OAuth；QQ、网易、iCloud、新浪和通用邮箱使用授权码、应用专用密码或邮箱服务商允许的客户端密码。
+
+Gmail 的用户级代理仅支持 `http://` HTTP CONNECT 代理，可在设置页即时测试。代理认证信息、邮箱授权码、OAuth 令牌和数据库密码不得写入日志。
+
+## 聚合收件箱、联系人与通知
+
+聚合收件箱可由每个用户独立选择参与聚合的邮箱账号，并支持跨账号查看、筛选和全部已读。联系人同样按用户隔离，可从邮件详情快速添加，并在写信时提供地址自动补全。
+
+通知中心保存新邮件、定时发送和备份结果。第三方通知可配置 Bark、Telegram 或 Webhook；Webhook 会自动适配企业微信、钉钉、飞书或通用 JSON。图片通知可使用随仓库提供的 `flymail-imgbed/` Cloudflare 图床模板，图床需由部署者单独配置和部署。
 
 ## 邮箱账号禁用与删除
 
@@ -232,6 +258,10 @@ docker push wangjinjing/flymail:1.0.0
 - 管理自己的邮箱账号与邮件数据
 
 每个用户的数据默认彼此隔离。
+
+## 邮件备份
+
+备份页允许用户开启备份、选择邮箱账号和备份目录。默认目录为 `/data/flymail/backup`，无需额外宿主机权限。手动备份会返回归档结果；开启自动备份后，新同步到本地的 UID 会批量归档为 `.eml`。需要使用其他 NAS 目录时，必须由部署者将该目录额外挂载到容器 `/data` 下，并加入授权路径列表；FlyMail 不会自动扩大宿主机目录权限。
 
 ## 本地开发
 
