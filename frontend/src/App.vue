@@ -334,14 +334,14 @@ watch(currentView, (value) => {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
-  background: #f5f7fb;
+  background: var(--bg-secondary);
   overflow: hidden;
 }
 
 .sidebar {
   padding: 24px 18px;
-  background: #fff;
-  border-right: 1px solid #e8edf3;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
   overflow-y: auto;
   min-width: 0;
 }
@@ -364,7 +364,7 @@ watch(currentView, (value) => {
 }
 
 .brand-subtitle {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -385,13 +385,18 @@ watch(currentView, (value) => {
   text-align: left;
   padding: 0 14px;
   background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
 }
 
+.nav-item:hover {
+  background: var(--bg-hover);
+}
+
 .nav-item.active {
-  background: #1677ff;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--text-on-accent);
 }
 
 .main {
@@ -416,7 +421,7 @@ watch(currentView, (value) => {
 
 .topbar p {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .topbar-actions {
@@ -431,8 +436,8 @@ watch(currentView, (value) => {
   padding: 0 14px;
   border: 0;
   border-radius: 10px;
-  background: #e9eef5;
-  color: #0f172a;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -444,8 +449,8 @@ watch(currentView, (value) => {
   height: 20px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #dc2626;
-  color: #fff;
+  background: var(--color-danger);
+  color: var(--text-on-accent);
   font-size: 11px;
   line-height: 20px;
 }
@@ -464,8 +469,8 @@ watch(currentView, (value) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  box-shadow: -12px 0 36px rgba(15, 23, 42, 0.18);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-xl);
 }
 
 .notification-header {
@@ -473,26 +478,26 @@ watch(currentView, (value) => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #e8edf3;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .notification-header h3 { margin: 0 0 4px; }
-.notification-header span { color: #64748b; font-size: 13px; }
-.notification-header button { border: 0; background: transparent; font-size: 28px; cursor: pointer; }
-.notification-tools { display: flex; justify-content: flex-end; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #e8edf3; }
-.notification-tools button { border: 0; background: transparent; color: #1677ff; cursor: pointer; }
-.notification-tools .danger-text { color: #dc2626; }
+.notification-header span { color: var(--text-secondary); font-size: 13px; }
+.notification-header button { border: 0; background: transparent; color: var(--text-primary); font-size: 28px; cursor: pointer; }
+.notification-tools { display: flex; justify-content: flex-end; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border-color); }
+.notification-tools button { border: 0; background: transparent; color: var(--color-accent); cursor: pointer; }
+.notification-tools .danger-text { color: var(--color-danger); }
 .notification-list { flex: 1; overflow-y: auto; }
-.notification-empty { flex: 1; display: grid; place-items: center; color: #64748b; }
-.notification-item { width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; padding: 14px 16px; border: 0; border-bottom: 1px solid #edf1f5; background: #fff; text-align: left; cursor: pointer; }
-.notification-item:hover { background: #f8fafc; }
-.notification-item.unread { background: #f3f8ff; }
+.notification-empty { flex: 1; display: grid; place-items: center; color: var(--text-secondary); }
+.notification-item { width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); text-align: left; cursor: pointer; }
+.notification-item:hover { background: var(--bg-hover); }
+.notification-item.unread { background: var(--bg-active); }
 .notification-dot { width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: transparent; }
-.notification-item.unread .notification-dot { background: #1677ff; }
+.notification-item.unread .notification-dot { background: var(--color-accent); }
 .notification-content { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .notification-content strong, .notification-content small, .notification-content em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notification-content small, .notification-content em { color: #64748b; font-size: 12px; font-style: normal; }
-.notification-item time { color: #94a3b8; font-size: 11px; white-space: nowrap; }
+.notification-content small, .notification-content em { color: var(--text-secondary); font-size: 12px; font-style: normal; }
+.notification-item time { color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
 
 .content {
   flex: 1;
@@ -531,18 +536,18 @@ watch(currentView, (value) => {
 }
 
 .btn-secondary {
-  background: #e9eef5;
-  color: #0f172a;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .btn-primary {
-  background: #1677ff;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--text-on-accent);
 }
 
 .btn-danger {
-  background: #dc2626;
-  color: #fff;
+  background: var(--color-danger);
+  color: var(--text-on-accent);
 }
 
 .toast-container {
@@ -559,24 +564,24 @@ watch(currentView, (value) => {
   min-width: 220px;
   padding: 12px 14px;
   border-radius: 10px;
-  color: #fff;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-lg);
 }
 
 .toast-success {
-  background: #16a34a;
+  background: var(--color-success);
 }
 
 .toast-error {
-  background: #dc2626;
+  background: var(--color-danger);
 }
 
 .toast-warning {
-  background: #d97706;
+  background: var(--color-warning);
 }
 
 .toast-info {
-  background: #2563eb;
+  background: var(--color-accent);
 }
 
 .confirm-overlay {
@@ -592,23 +597,23 @@ watch(currentView, (value) => {
 
 .confirm-dialog {
   width: min(100%, 420px);
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 14px;
   padding: 20px;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-xl);
 }
 
 .confirm-title {
   margin: 0;
   font-size: 18px;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .confirm-message {
   margin: 10px 0 0;
   font-size: 14px;
   line-height: 1.6;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .confirm-actions {
@@ -628,7 +633,7 @@ watch(currentView, (value) => {
 
   .sidebar {
     border-right: none;
-    border-bottom: 1px solid #e8edf3;
+    border-bottom: 1px solid var(--border-color);
     padding: 18px 16px 14px;
     overflow: visible;
   }
@@ -676,12 +681,12 @@ watch(currentView, (value) => {
     padding: 0 14px;
     white-space: nowrap;
     border-radius: 999px;
-    background: #f1f5f9;
+    background: var(--bg-tertiary);
   }
 
   .nav-item.active {
-    background: #1677ff;
-    color: #fff;
+    background: var(--color-accent);
+    color: var(--text-on-accent);
   }
 
   .topbar {

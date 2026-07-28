@@ -8,6 +8,39 @@
       </button>
     </div>
 
+    <div class="provider-card appearance-card">
+      <div class="storage-card-body">
+        <div class="storage-heading">
+          <div>
+            <h3 class="storage-title">外观</h3>
+            <p class="storage-desc">默认跟随浏览器，也可以固定使用浅色或深色模式。</p>
+          </div>
+        </div>
+        <div class="appearance-options" role="radiogroup" aria-label="外观模式">
+          <button
+            v-for="option in themeOptions"
+            :key="option.value"
+            class="appearance-option"
+            :class="{ active: themePreference === option.value }"
+            type="button"
+            role="radio"
+            :aria-checked="themePreference === option.value"
+            @click="setThemePreference(option.value)"
+          >
+            <span class="appearance-preview" :class="`appearance-preview-${option.value}`" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </span>
+            <span class="appearance-option-copy">
+              <strong>{{ option.label }}</strong>
+              <small>{{ option.description }}</small>
+            </span>
+            <span class="appearance-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="provider-card">
       <div class="storage-card-body">
         <div class="storage-heading">
@@ -537,6 +570,7 @@
 import { ref, onMounted } from 'vue';
 import About from './About.vue';
 import api from '../utils/api';
+import { themeController, type ThemePreference } from '../utils/theme';
 
 // ==================== 教程数据 ====================
 
@@ -686,6 +720,18 @@ interface SettingsForm {
   outlook_client_id: string;
   outlook_client_secret: string;
   outlook_redirect_uri: string;
+}
+
+const themePreference = ref<ThemePreference>(themeController.getPreference());
+const themeOptions: Array<{ value: ThemePreference; label: string; description: string }> = [
+  { value: 'system', label: '跟随浏览器', description: '随系统外观自动切换' },
+  { value: 'light', label: '浅色', description: '始终使用浅色界面' },
+  { value: 'dark', label: '深色', description: '始终使用深色界面' },
+];
+
+function setThemePreference(value: ThemePreference) {
+  themePreference.value = value;
+  themeController.setPreference(value);
 }
 
 const weekdayOptions = [
@@ -879,7 +925,7 @@ onMounted(() => {
   height: 30px;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--bg-card);
   color: var(--text-secondary);
   font-size: 22px;
   line-height: 1;
@@ -920,6 +966,14 @@ onMounted(() => {
 
 .gmail-toggle:hover {
   background: linear-gradient(135deg, #FFECEC 0%, #FFE5E5 100%);
+}
+
+:root.dark .gmail-toggle {
+  background: linear-gradient(135deg, rgba(234, 67, 53, 0.16) 0%, rgba(234, 67, 53, 0.1) 100%);
+}
+
+:root.dark .gmail-toggle:hover {
+  background: linear-gradient(135deg, rgba(234, 67, 53, 0.24) 0%, rgba(234, 67, 53, 0.16) 100%);
 }
 
 .gmail-toggle-left {
@@ -1041,6 +1095,115 @@ onMounted(() => {
   font-size: var(--text-sm);
   color: var(--text-tertiary);
   line-height: 1.5;
+}
+
+.appearance-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.appearance-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-color-strong);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.appearance-option:hover {
+  border-color: var(--color-accent);
+  background: var(--bg-hover);
+}
+
+.appearance-option.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-lighter);
+  box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+.appearance-preview {
+  width: 44px;
+  height: 34px;
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-color-strong);
+  border-radius: 8px;
+  background: #f5f5f7;
+  box-shadow: var(--shadow-sm);
+}
+
+.appearance-preview span:first-child {
+  background: #e8e8ed;
+}
+
+.appearance-preview span:last-child {
+  margin: 7px 6px;
+  border-radius: 3px;
+  background: #ffffff;
+}
+
+.appearance-preview-dark {
+  background: #111214;
+}
+
+.appearance-preview-dark span:first-child {
+  background: #2c2c2e;
+}
+
+.appearance-preview-dark span:last-child {
+  background: #1c1c1e;
+}
+
+.appearance-preview-system {
+  grid-template-columns: 1fr 1fr;
+}
+
+.appearance-preview-system span:first-child {
+  background: linear-gradient(90deg, #e8e8ed 0 45%, #ffffff 45% 100%);
+}
+
+.appearance-preview-system span:last-child {
+  margin: 0;
+  border-radius: 0;
+  background: linear-gradient(90deg, #2c2c2e 0 45%, #1c1c1e 45% 100%);
+}
+
+.appearance-option-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.appearance-option-copy strong {
+  font-size: var(--text-sm);
+}
+
+.appearance-option-copy small {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.appearance-check {
+  margin-left: auto;
+  color: transparent;
+  font-weight: 700;
+}
+
+.appearance-option.active .appearance-check {
+  color: var(--color-accent);
 }
 
 .cleanup-form {
@@ -1351,6 +1514,12 @@ onMounted(() => {
   color: #F9A825;
 }
 
+:root.dark .guide-tip {
+  background: rgba(255, 159, 10, 0.14);
+  border-color: rgba(255, 159, 10, 0.32);
+  color: #FFD27A;
+}
+
 /* ==================== 图片预览弹窗 ==================== */
 
 .img-preview-overlay {
@@ -1377,7 +1546,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: white;
+  background: var(--bg-card);
   border: none;
   cursor: pointer;
   display: flex;
@@ -1439,6 +1608,9 @@ onMounted(() => {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+  .appearance-options {
+    grid-template-columns: 1fr;
+  }
   .settings-page {
     padding: var(--space-4);
   }

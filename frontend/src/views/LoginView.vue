@@ -58,16 +58,16 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f6fb;
+  background: var(--bg-secondary);
   padding: 24px;
 }
 
 .login-card {
   width: min(420px, 100%);
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 16px;
   padding: 32px;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-xl);
 }
 
 .login-brand {
@@ -89,7 +89,7 @@ async function submit() {
 
 .login-brand p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .login-form {
@@ -106,14 +106,16 @@ async function submit() {
 
 .field span {
   font-size: 14px;
-  color: #334155;
+  color: var(--text-primary);
 }
 
 .field input {
   height: 44px;
-  border: 1px solid #dbe2ea;
+  border: 1px solid var(--border-color-strong);
   border-radius: 10px;
   padding: 0 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -125,7 +127,7 @@ async function submit() {
 }
 
 .btn-primary {
-  background: #1677ff;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--text-on-accent);
 }
 </style>

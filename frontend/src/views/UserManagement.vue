@@ -247,7 +247,7 @@ onMounted(loadUsers);
 
 .header p {
   margin: 8px 0 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .filters {
@@ -268,10 +268,12 @@ onMounted(loadUsers);
 .filters input,
 .filters select {
   height: 40px;
-  border: 1px solid #dbe2ea;
+  border: 1px solid var(--border-color-strong);
   border-radius: 10px;
   padding: 0 12px;
   min-width: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .modal-overlay {
@@ -287,10 +289,10 @@ onMounted(loadUsers);
 
 .modal-card {
   width: min(100%, 420px);
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-header,
@@ -323,7 +325,7 @@ onMounted(loadUsers);
 .field span {
   display: block;
   margin-bottom: 6px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -331,11 +333,13 @@ onMounted(loadUsers);
 .password-field input {
   width: 100%;
   height: 40px;
-  border: 1px solid #dbe2ea;
+  border: 1px solid var(--border-color-strong);
   border-radius: 8px;
   padding: 0 12px;
   min-width: 0;
   box-sizing: border-box;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .password-field {
@@ -376,13 +380,14 @@ onMounted(loadUsers);
 .user-table-wrap {
   overflow-x: auto;
   border-radius: 14px;
-  background: #fff;
+  background: var(--bg-primary);
 }
 
 .user-table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   min-width: 720px;
 }
 
@@ -390,7 +395,7 @@ onMounted(loadUsers);
 .user-table td {
   text-align: left;
   padding: 14px 12px;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .actions {
@@ -401,7 +406,7 @@ onMounted(loadUsers);
 
 .empty {
   text-align: center !important;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .btn {
@@ -413,18 +418,18 @@ onMounted(loadUsers);
 }
 
 .btn-primary {
-  background: #1677ff;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--text-on-accent);
 }
 
 .btn-secondary {
-  background: #eef2f7;
-  color: #0f172a;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .btn-danger {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--color-danger-light);
+  color: var(--color-danger);
 }
 
 @media (max-width: 960px) {

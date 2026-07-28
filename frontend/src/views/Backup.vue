@@ -1272,7 +1272,7 @@ function downloadAttachment(att: BackupAttachment) {
   width: 100%;
   max-width: 420px;
   max-height: 60vh;
-  background: #fff;
+  background: var(--bg-primary);
   border-radius: 14px 14px 0 0;
   overflow: hidden;
   display: flex;
@@ -1282,14 +1282,14 @@ function downloadAttachment(att: BackupAttachment) {
   width: 36px;
   height: 5px;
   border-radius: 3px;
-  background: #d1d1d6;
+  background: var(--border-color-strong);
   margin: 8px auto 4px;
   }
   .sheet-title {
   padding: 8px 20px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #8e8e93;
+  color: var(--text-secondary);
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1306,7 +1306,7 @@ function downloadAttachment(att: BackupAttachment) {
   width: 100%;
   padding: 13px 20px;
   border: none;
-  background: #fff;
+  background: var(--bg-primary);
   font-size: 17px;
   color: var(--text-primary, #1d1d1f);
   text-align: left;
@@ -1314,11 +1314,11 @@ function downloadAttachment(att: BackupAttachment) {
   font-family: inherit;
   transition: background 0.15s;
   }
-  .sheet-item:active { background: #f2f2f7; }
+  .sheet-item:active { background: var(--bg-hover); }
   .sheet-item.active { color: var(--accent-blue, #007aff); font-weight: 500; }
-  .sheet-item + .sheet-item { border-top: 0.5px solid #e5e5ea; }
+  .sheet-item + .sheet-item { border-top: 0.5px solid var(--border-color); }
   .sheet-folder-name { flex: 1; }
-  .sheet-folder-count { font-size: 15px; color: #8e8e93; margin-right: 8px; }
+  .sheet-folder-count { font-size: 15px; color: var(--text-secondary); margin-right: 8px; }
 
   /* 弹出层动画 */
   .sheet-enter-active, .sheet-leave-active { transition: all 0.3s ease; }

@@ -90,6 +90,61 @@
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
   --transition-slow: 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* 兼容现有页面的变量别名 */
+  --color-primary: var(--color-accent);
+  --accent-blue: var(--color-accent);
+  --border-primary: var(--border-color);
+  --border-secondary: var(--border-color-strong);
+  --bg-control-hover: #D1D1D6;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+
+  color-scheme: light;
+}
+
+:root.dark {
+  --color-accent: #0A84FF;
+  --color-accent-hover: #409CFF;
+  --color-accent-light: rgba(10, 132, 255, 0.22);
+  --color-accent-lighter: rgba(10, 132, 255, 0.12);
+
+  --color-success: #30D158;
+  --color-success-light: rgba(48, 209, 88, 0.16);
+  --color-danger: #FF453A;
+  --color-danger-light: rgba(255, 69, 58, 0.16);
+  --color-warning: #FF9F0A;
+  --color-warning-light: rgba(255, 159, 10, 0.16);
+
+  --bg-primary: #1C1C1E;
+  --bg-secondary: #111214;
+  --bg-tertiary: #2C2C2E;
+  --bg-sidebar: rgba(28, 28, 30, 0.9);
+  --bg-header: rgba(28, 28, 30, 0.82);
+  --bg-card: #1C1C1E;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(10, 132, 255, 0.18);
+
+  --text-primary: #F5F5F7;
+  --text-secondary: #A1A1A6;
+  --text-tertiary: #737378;
+  --text-on-accent: #FFFFFF;
+  --text-link: #409CFF;
+
+  --border-color: rgba(255, 255, 255, 0.09);
+  --border-color-strong: rgba(255, 255, 255, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.48);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.28);
+
+  --bg-control-hover: #3A3A3C;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+
+  color-scheme: dark;
 }
 
 /* ============================================
@@ -175,7 +230,7 @@ a:hover {
 }
 
 .btn-secondary:hover {
-  background: #D1D1D6;
+  background: var(--bg-control-hover);
 }
 
 /* 危险按钮 */
@@ -479,12 +534,12 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* 选择高亮 */
