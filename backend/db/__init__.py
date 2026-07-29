@@ -999,6 +999,7 @@ async def list_account_folder_counts(account_id: str) -> List[dict]:
         for row in rows
     }
     result = []
+    core_keys = {item[0] for item in CORE_FOLDER_DEFINITIONS}
     for key, default_path, display_name, _aliases in CORE_FOLDER_DEFINITIONS:
         result.append(by_key.get(key) or {
             "folder_key": key,
@@ -1009,6 +1010,18 @@ async def list_account_folder_counts(account_id: str) -> List[dict]:
             "cached_count": 0,
             "updated_at": 0,
         })
+    custom_folders = []
+    for key, item in by_key.items():
+        if key in core_keys:
+            continue
+        custom_item = dict(item)
+        decoded_name = _decode_imap_modified_utf7_path(custom_item.get("folder_path") or "").strip()
+        custom_item["display_name"] = decoded_name or custom_item.get("display_name") or custom_item.get("folder_path") or ""
+        custom_folders.append(custom_item)
+    custom_folders.sort(
+        key=lambda item: ((item.get("display_name") or "").lower(), (item.get("folder_path") or "").lower()),
+    )
+    result.extend(custom_folders)
     return result
 
 

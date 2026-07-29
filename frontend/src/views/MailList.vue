@@ -644,7 +644,7 @@ function handleWsMessage(data: any) {
           pageCache.clear();
         } else {
           pageCache.clear();
-          loadMessages();
+          loadMessages(true);
         }
       }
       if (!data.folder_counts) {
@@ -656,7 +656,7 @@ function handleWsMessage(data: any) {
     if (!data.account_id || data.account_id === mailStore.currentAccountId) {
       pageCache.clear();
       mailStore.loadFolderCounts();
-      loadMessages();
+      loadMessages(true);
       rebuilding.value = false;
       syncing.value = false;
       syncProgress.value = '';
@@ -677,7 +677,7 @@ function handleWsMessage(data: any) {
         if (rebuilding.value) return; // 重建同步中不干扰
         mailStore.reauthAccountIds.delete(data.account_id);
         pageCache.clear();
-        loadMessages();
+        loadMessages(true);
         mailStore.loadFolderCounts();
       }
     }
@@ -843,7 +843,7 @@ onActivated(async () => {
     loadMessages();
     return;
   }
-  loadMessages();
+  loadMessages(true);
   mailStore.loadFolderCounts();
 });
 
@@ -965,8 +965,8 @@ async function onDeleteMessage() {
 }
 
 /** 加载邮件列表（带竞态保护：只接受最新请求的结果） */
-async function loadMessages() {
-  messages.value = [];
+async function loadMessages(preserveVisible = false) {
+  if (!preserveVisible) messages.value = [];
   if (!mailStore.currentAccountId) {
     resetVisibleListState();
     loading.value = false;
@@ -1000,7 +1000,7 @@ async function loadMessages() {
     const nextTotalPages = Math.max(1, Math.ceil(nextTotal / pageSize));
     if (currentPage.value > nextTotalPages && nextTotal > 0) {
       currentPage.value = nextTotalPages;
-      return await loadMessages();
+      return await loadMessages(preserveVisible);
     }
     saveCurrentPageCache(data);
     totalMessages.value = nextTotal;

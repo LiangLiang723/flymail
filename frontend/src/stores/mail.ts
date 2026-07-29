@@ -60,12 +60,24 @@ export const useMailStore = defineStore('mail', () => {
   const composeDraft = ref<any>(null);
   let folderCountRequestVersion = 0;
 
-  const folders = computed(() => CORE_FOLDERS.map((folder) => ({
-    name: folder.name,
-    path: folderPaths.value[folder.name] || folder.defaultPath,
-    unread_count: folderCounts.value[folder.name]?.unread_count || 0,
-    total_count: folderCounts.value[folder.name]?.total_count || 0,
-  })));
+  const folders = computed(() => {
+    const coreNames = new Set(CORE_FOLDERS.map((folder) => folder.name));
+    const coreFolders = CORE_FOLDERS.map((folder) => ({
+      name: folder.name,
+      path: folderPaths.value[folder.name] || folder.defaultPath,
+      unread_count: folderCounts.value[folder.name]?.unread_count || 0,
+      total_count: folderCounts.value[folder.name]?.total_count || 0,
+    }));
+    const customFolders = Object.entries(folderPaths.value)
+      .filter(([name]) => !coreNames.has(name))
+      .map(([name, path]) => ({
+        name,
+        path,
+        unread_count: folderCounts.value[name]?.unread_count || 0,
+        total_count: folderCounts.value[name]?.total_count || 0,
+      }));
+    return [...coreFolders, ...customFolders];
+  });
 
   const currentFolderName = computed(() => {
     const folder = folders.value.find((item: any) => item.path === currentFolder.value);

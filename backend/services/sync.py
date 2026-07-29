@@ -1043,6 +1043,20 @@ class MailSyncService:
         """
         try:
             folders = await receiver.fetch_folders()
+            if account.provider == "custom":
+                idle_folders = ["INBOX"]
+                seen = {"inbox"}
+                for folder in folders:
+                    folder_path = str(getattr(folder, "path", "") or "").strip()
+                    if not folder_path:
+                        continue
+                    folder_key = folder_path.lower()
+                    if folder_key in seen:
+                        continue
+                    seen.add(folder_key)
+                    idle_folders.append(folder_path)
+                return idle_folders
+
             # 英文路径关键词（匹配 IMAP path）
             sent_path_kw = {"sent", "sent messages", "sent items"}
             draft_path_kw = {"drafts", "draft"}
@@ -1081,6 +1095,21 @@ class MailSyncService:
         - QQ: Sent Messages, Drafts, Junk, Deleted Messages
         - iCloud: Sent Messages, Drafts, Junk, Deleted Messages
         """
+        if account.provider == "custom":
+            rows = await list_account_folder_counts(account.id)
+            folders = ["INBOX"]
+            seen = {"inbox"}
+            for item in rows:
+                folder_path = str(item.get("folder_path") or "").strip()
+                if not folder_path or not item.get("updated_at"):
+                    continue
+                folder_key = folder_path.lower()
+                if folder_key in seen:
+                    continue
+                seen.add(folder_key)
+                folders.append(folder_path)
+            return folders
+
         folder_map = {
             "gmail": ["INBOX", "[Gmail]/Sent Mail", "[Gmail]/Drafts", "[Gmail]/Spam", "[Gmail]/Trash"],
             "outlook": ["INBOX", "Sent", "Sent Items", "Drafts", "Junk", "Junk Email", "Deleted", "Deleted Items"],
