@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import sys
 import types
@@ -340,7 +341,92 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
         token_stub.ensure_token.assert_not_awaited()
         factory.get_receiver.assert_not_called()
 
-    async def test_incremental_sync_fills_missing_when_remote_total_exceeds_cache(self):
+    async def test_missing_summary_sync_fetches_newest_uids_first_and_reports_each_batch(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="custom",
+        )
+        receiver = AsyncMock()
+        receiver.fetch_new_message_uids.return_value = list(range(1, 251))
+        receiver.fetch_unseen_uids.return_value = [200, 99]
+        receiver.fetch_messages_by_uids.side_effect = lambda folder, uids: [_message(uid) for uid in uids]
+        receiver.disconnect = AsyncMock()
+        token_stub = types.ModuleType("services.token")
+        token_stub.ensure_token = AsyncMock(return_value=object())
+        upsert_messages = AsyncMock()
+        update_stats = AsyncMock()
+        on_batch = AsyncMock()
+
+        with (
+            patch.dict(sys.modules, {"services.token": token_stub}),
+            patch.object(mail_cache, "ProviderFactory") as factory,
+            patch.object(mail_cache, "_resolve_remote_folder", AsyncMock(return_value="OA")),
+            patch.object(mail_cache, "get_cached_uids", AsyncMock(return_value=set(range(201, 251)))),
+            patch.object(mail_cache, "upsert_cached_messages", upsert_messages),
+            patch.object(mail_cache, "upsert_folder_stats", update_stats),
+            patch.object(mail_cache, "schedule_archive_for_new_uids", AsyncMock()),
+        ):
+            factory.get_receiver.return_value = receiver
+            added = await mail_cache.sync_missing_message_summaries(
+                account,
+                "OA",
+                batch_size=100,
+                on_batch=on_batch,
+            )
+
+        self.assertEqual(added, 200)
+        self.assertEqual(
+            [call.args[1] for call in receiver.fetch_messages_by_uids.await_args_list],
+            [list(range(200, 100, -1)), list(range(100, 0, -1))],
+        )
+        first_cached_batch = upsert_messages.await_args_list[0].args[0]
+        self.assertEqual([message.uid for message in first_cached_batch], list(range(200, 100, -1)))
+        receiver.fetch_message_detail.assert_not_awaited()
+        self.assertEqual(on_batch.await_args_list[0].args, (100, 200))
+        self.assertEqual(on_batch.await_args_list[1].args, (200, 200))
+        update_stats.assert_awaited_with("account-1", "OA", 250, 2)
+
+    async def test_summary_sync_does_not_wait_for_account_wide_lock(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="custom",
+        )
+        receiver = AsyncMock()
+        receiver.disconnect = AsyncMock()
+        token_stub = types.ModuleType("services.token")
+        token_stub.ensure_token = AsyncMock(return_value=object())
+        account_lock = mail_cache._get_lock(account.id)
+        await account_lock.acquire()
+
+        try:
+            with (
+                patch.dict(sys.modules, {"services.token": token_stub}),
+                patch.object(mail_cache, "ProviderFactory") as factory,
+                patch.object(mail_cache, "_resolve_remote_folder", AsyncMock(return_value="OA")),
+                patch.object(
+                    mail_cache,
+                    "_sync_missing_message_summaries_with_receiver",
+                    AsyncMock(return_value=1),
+                ) as sync_summaries,
+            ):
+                factory.get_receiver.return_value = receiver
+                added = await asyncio.wait_for(
+                    mail_cache.sync_missing_message_summaries(account, "OA"),
+                    timeout=0.2,
+                )
+        finally:
+            account_lock.release()
+
+        self.assertEqual(added, 1)
+        sync_summaries.assert_awaited_once()
+
+    async def test_incremental_sync_does_not_start_historical_gap_fill(self):
         mail_cache = _load_mail_cache_module()
         account = Account(
             id="account-1",
@@ -360,12 +446,12 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
             patch.object(mail_cache, "upsert_folder_stats", AsyncMock()),
             patch.object(mail_cache, "get_cached_count", AsyncMock(return_value=593)),
             patch.object(mail_cache, "get_cached_messages_by_folder", AsyncMock(return_value={"messages": []})),
-            patch.object(mail_cache, "_sync_missing_messages_with_receiver", AsyncMock(return_value=1)) as fill_missing,
+            patch.object(mail_cache, "_sync_missing_message_summaries_with_receiver", AsyncMock(return_value=1)) as fill_missing,
         ):
             added = await mail_cache._do_sync(receiver, account, "Sent Messages")
 
-        self.assertEqual(added, 1)
-        fill_missing.assert_awaited_once_with(receiver, account, "Sent Messages")
+        self.assertEqual(added, 0)
+        fill_missing.assert_not_awaited()
 
 
 if __name__ == "__main__":

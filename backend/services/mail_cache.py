@@ -12,7 +12,7 @@
 import asyncio
 import base64
 import time
-from typing import Dict, List
+from typing import Awaitable, Callable, Dict, List
 
 from db import (
     get_cached_message_detail,
@@ -34,6 +34,7 @@ logger = get_logger("cache")
 
 # 每个账号的同步锁，防止同一账号并发同步（IMAP 连接不能并发操作）
 _sync_locks: Dict[str, asyncio.Lock] = {}
+_summary_sync_locks: Dict[tuple[str, str], asyncio.Lock] = {}
 
 
 def _get_lock(account_id: str) -> asyncio.Lock:
@@ -52,9 +53,18 @@ async def try_acquire_sync_lock(account_id: str) -> asyncio.Lock | None:
     return lock
 
 
+def _get_summary_sync_lock(account_id: str, folder: str) -> asyncio.Lock:
+    key = (account_id, folder or "INBOX")
+    if key not in _summary_sync_locks:
+        _summary_sync_locks[key] = asyncio.Lock()
+    return _summary_sync_locks[key]
+
+
 def remove_sync_lock(account_id: str):
     """清理指定账号的同步锁（账号删除时调用，防止内存泄漏）"""
     _sync_locks.pop(account_id, None)
+    for key in [key for key in _summary_sync_locks if key[0] == account_id]:
+        _summary_sync_locks.pop(key, None)
 
 
 async def schedule_archive_for_new_uids(account: Account, folder: str, uids: list[int]) -> None:
@@ -508,19 +518,10 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
         if purged > 0:
             logger.info("清理过期缓存: 账号=%s, 文件夹=%s, 删除 %d 封", account.email, folder, purged)
 
-    filled_missing = 0
-    if not force_full and total_count > 0:
-        try:
-            cached_count = await get_cached_count(account.id, folder)
-            if cached_count < total_count:
-                filled_missing = await _sync_missing_messages_with_receiver(receiver, account, folder)
-        except Exception as e:
-            logger.debug("补全缺失缓存失败: %s", e)
-
     if total_count >= 0:
         await upsert_folder_stats(account.id, folder, total_count, unread_count)
 
-    return (len(messages) if messages else 0) + filled_missing
+    return len(messages) if messages else 0
 
 
 async def _cache_messages_with_details(receiver, account: Account, folder: str, messages: List[Message], unseen_uids: set[int] | None) -> int:
@@ -625,12 +626,123 @@ async def _sync_missing_messages_with_receiver(receiver, account: Account, folde
     return total_filled
 
 
-async def sync_missing_messages(account: Account, folder: str) -> int:
-    """补全缓存中缺失的邮件（对比 IMAP 全量 UID 与缓存 UID，拉取差异部分）
+async def _sync_missing_message_summaries_with_receiver(
+    receiver,
+    account: Account,
+    folder: str,
+    *,
+    batch_size: int = 100,
+    on_batch: Callable[[int, int], Awaitable[None]] | None = None,
+) -> int:
+    """Fill missing summaries using an already-connected receiver."""
+    imap_uids = set(await receiver.fetch_new_message_uids(folder, since_uid=0))
+    if not imap_uids:
+        await upsert_folder_stats(account.id, folder, 0, 0)
+        return 0
 
-    当 _do_sync 检测到缓存行数少于 IMAP 总数时调用。
-    增量同步基于 max_uid 只能发现更大的新 UID，无法发现中间遗漏的邮件，
-    此函数通过全量 UID 对比解决该问题。
+    cached_uids = await get_cached_uids(account.id, folder)
+    missing_uids = sorted(imap_uids - cached_uids, reverse=True)
+    unseen_uids = None
+    unread_count = 0
+    try:
+        unseen_uids = set(await receiver.fetch_unseen_uids(folder))
+        unread_count = len(unseen_uids)
+    except Exception as exc:
+        logger.debug("摘要补全获取未读 UID 失败: %s", exc)
+        stats = await get_folder_stats(account.id, folder)
+        unread_count = int(stats.get("unread_count", 0) or 0)
+
+    total_missing = len(missing_uids)
+    if total_missing == 0:
+        await upsert_folder_stats(account.id, folder, len(imap_uids), unread_count)
+        return 0
+
+    batch_size = max(1, int(batch_size or 100))
+    total_filled = 0
+    logger.info(
+        "摘要补全开始: 账号=%s, 文件夹=%s, IMAP=%d封, 缓存=%d封, 缺失=%d封",
+        account.email,
+        folder,
+        len(imap_uids),
+        len(cached_uids),
+        total_missing,
+    )
+
+    for start in range(0, total_missing, batch_size):
+        batch = missing_uids[start:start + batch_size]
+        try:
+            messages = await receiver.fetch_messages_by_uids(folder, batch)
+            messages = [message for message in messages if message.uid > 0]
+            if unseen_uids is not None:
+                for message in messages:
+                    message.is_read = message.uid not in unseen_uids
+            for message in messages:
+                message.folder = folder
+            if messages:
+                await upsert_cached_messages(_messages_to_cached(messages, account))
+                total_filled += len(messages)
+            await upsert_folder_stats(account.id, folder, len(imap_uids), unread_count)
+            if on_batch is not None:
+                await on_batch(total_filled, total_missing)
+            logger.info(
+                "摘要补全进度: 账号=%s, 文件夹=%s, 已补全=%d/%d",
+                account.email,
+                folder,
+                total_filled,
+                total_missing,
+            )
+        except Exception as exc:
+            logger.warning(
+                "摘要补全批次失败: 账号=%s, 文件夹=%s, UIDs=%s, 错误=%s",
+                account.email,
+                folder,
+                batch[:5],
+                exc,
+            )
+
+    return total_filled
+
+
+async def sync_missing_message_summaries(
+    account: Account,
+    folder: str,
+    *,
+    batch_size: int = 100,
+    on_batch: Callable[[int, int], Awaitable[None]] | None = None,
+) -> int:
+    """Fill missing message summaries newest-first without downloading bodies or attachments."""
+    lock = _get_summary_sync_lock(account.id, folder)
+    async with lock:
+        receiver = None
+        try:
+            from services.token import ensure_token
+
+            credentials = await ensure_token(account)
+            receiver = ProviderFactory.get_receiver(account.provider)
+            await receiver.connect(credentials)
+            folder = await _resolve_remote_folder(receiver, folder)
+            return await _sync_missing_message_summaries_with_receiver(
+                receiver,
+                account,
+                folder,
+                batch_size=batch_size,
+                on_batch=on_batch,
+            )
+        except Exception as exc:
+            logger.warning("摘要补全失败: 账号=%s, 文件夹=%s, 错误=%s", account.email, folder, exc)
+            return 0
+        finally:
+            if receiver:
+                try:
+                    await receiver.disconnect()
+                except Exception as exc:
+                    logger.debug("摘要补全后断开连接失败: %s", exc)
+
+
+async def sync_missing_messages(account: Account, folder: str) -> int:
+    """显式补全缺失邮件的正文与附件。
+
+    普通列表刷新只补齐摘要；发送后缓存等确实需要完整内容的流程才调用本函数。
     """
     lock = _get_lock(account.id)
     # 等待锁释放，避免与正在进行的同步冲突

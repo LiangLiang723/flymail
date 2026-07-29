@@ -90,6 +90,7 @@ router = APIRouter(tags=["邮件"])
 ensure_data_dirs()
 
 _REMOTE_PAGE_REFRESHING: set[tuple[str, str, int, int]] = set()
+_MISSING_SUMMARY_REFRESHING: set[tuple[str, str]] = set()
 ZERO_COUNT_RECHECK_SECONDS = 300
 REMOTE_PAGE_FETCH_TIMEOUT_SECONDS = 45
 
@@ -383,6 +384,35 @@ async def _fetch_remote_page_to_cache(
         if _is_outlook_connection_error(account, str(exc)):
             return None, _OUTLOOK_RECONNECTING_MSG
         return None, str(exc)
+
+
+async def _run_missing_summary_sync(account: Account, folder: str, user_uid: str) -> None:
+    key = (account.id, folder or "INBOX")
+    try:
+        from services.mail_cache import sync_missing_message_summaries
+
+        async def _notify_batch(_completed: int, _total: int) -> None:
+            await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
+
+        await sync_missing_message_summaries(
+            account,
+            folder,
+            on_batch=_notify_batch,
+        )
+    finally:
+        _MISSING_SUMMARY_REFRESHING.discard(key)
+
+
+def _schedule_missing_summary_sync(account: Account, folder: str, user_uid: str) -> bool:
+    key = (account.id, folder or "INBOX")
+    if key in _MISSING_SUMMARY_REFRESHING:
+        return False
+    _MISSING_SUMMARY_REFRESHING.add(key)
+    create_background_task(
+        _run_missing_summary_sync(account, folder, user_uid),
+        name="refresh_missing_summaries",
+    )
+    return True
 
 
 def _refresh_remote_page_in_background(
@@ -715,13 +745,33 @@ async def list_messages(
             return local_data
         if local_data.get("messages"):
             if account.status != "offline" and not sync_service.is_account_suspended(account.id):
-                _refresh_remote_page_in_background(
-                    user_uid=user_uid,
-                    account=account,
-                    folder=folder,
-                    page=page,
-                    page_size=page_size,
-                )
+                if page > 1:
+                    result, error = await _fetch_remote_page_to_cache(
+                        user_uid=user_uid,
+                        account=account,
+                        folder=folder,
+                        page=page,
+                        page_size=page_size,
+                    )
+                    if result:
+                        local_filter_counts = await get_folder_filter_counts(user_uid, account.id, folder)
+                        return _build_remote_list_response(
+                            result,
+                            account.id,
+                            _remote_filter_counts(result, local_filter_counts),
+                        )
+                    if error == _OUTLOOK_RECONNECTING_MSG:
+                        local_data["reconnecting"] = True
+                    if error:
+                        local_data["error"] = error
+                else:
+                    _refresh_remote_page_in_background(
+                        user_uid=user_uid,
+                        account=account,
+                        folder=folder,
+                        page=page,
+                        page_size=page_size,
+                    )
             if folder_stats.get("updated_at"):
                 _apply_remote_filter_counts(local_data, folder_stats)
             return local_data
@@ -900,11 +950,7 @@ async def refresh_messages(
 
         result, remote_folder = await _with_outlook_retry(account, _refresh_remote)
         await _cache_remote_page(account, remote_folder, result)
-        from services.mail_cache import sync_missing_messages
-        create_background_task(
-            sync_missing_messages(account, remote_folder),
-            name="refresh_missing_messages",
-        )
+        _schedule_missing_summary_sync(account, remote_folder, user_uid)
         await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
     except Exception as exc:
         logger.warning("refresh messages failed: account=%s folder=%s error=%s", account.email, folder, exc)

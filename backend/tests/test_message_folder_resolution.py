@@ -3,13 +3,13 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from providers.base import Folder
+from providers.base import Folder, Message, MessageList
 
 
 def _load_messages_route_module():
@@ -141,6 +141,7 @@ def _load_messages_route_module():
 
     mail_cache_stub = types.ModuleType("services.mail_cache")
     mail_cache_stub.sync_missing_messages = AsyncMock(return_value=1)
+    mail_cache_stub.sync_missing_message_summaries = AsyncMock(return_value=1)
 
     token_stub = types.ModuleType("services.token")
     token_stub.ensure_token = object()
@@ -276,10 +277,25 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             is_account_suspended=lambda _account_id: False,
             refresh_clients=AsyncMock(),
         )
-        mail_cache_stub = types.ModuleType("services.mail_cache")
-        mail_cache_stub.sync_missing_messages = AsyncMock(return_value=1)
-        previous_mail_cache = sys.modules.get("services.mail_cache")
-        sys.modules["services.mail_cache"] = mail_cache_stub
+        messages._schedule_missing_summary_sync = Mock(return_value=True)
+
+        await messages.refresh_messages(
+            request=object(),
+            folder="Sent",
+            page_size=50,
+            account_id="account-1",
+        )
+
+        messages._schedule_missing_summary_sync.assert_called_once_with(
+            account,
+            "Sent Messages",
+            "user-1",
+        )
+        messages.sync_service.refresh_clients.assert_awaited_once_with("account-1", "Sent", user_uid="user-1")
+
+    async def test_missing_summary_sync_is_deduplicated_per_folder(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(id="account-1", email="user@example.com")
         background_tasks = []
 
         def capture_background_task(coro, name=""):
@@ -288,25 +304,107 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             return types.SimpleNamespace(add_done_callback=lambda _callback: None)
 
         messages.create_background_task = capture_background_task
+        messages._MISSING_SUMMARY_REFRESHING.clear()
 
-        try:
-            await messages.refresh_messages(
-                request=object(),
-                folder="Sent",
-                page_size=50,
-                account_id="account-1",
-            )
-        finally:
-            if previous_mail_cache is None:
-                sys.modules.pop("services.mail_cache", None)
-            else:
-                sys.modules["services.mail_cache"] = previous_mail_cache
+        first = messages._schedule_missing_summary_sync(account, "OA", "user-1")
+        second = messages._schedule_missing_summary_sync(account, "OA", "user-1")
 
-        mail_cache_stub.sync_missing_messages.assert_called_once_with(account, "Sent Messages")
-        mail_cache_stub.sync_missing_messages.assert_not_awaited()
+        self.assertTrue(first)
+        self.assertFalse(second)
         self.assertEqual(len(background_tasks), 1)
-        self.assertEqual(background_tasks[0][1], "refresh_missing_messages")
-        messages.sync_service.refresh_clients.assert_awaited_once_with("account-1", "Sent", user_uid="user-1")
+        self.assertEqual(background_tasks[0][1], "refresh_missing_summaries")
+        messages._MISSING_SUMMARY_REFRESHING.clear()
+
+    async def test_missing_summary_sync_notifies_each_batch_and_clears_dedup(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(id="account-1", email="user@example.com")
+        mail_cache_stub = types.ModuleType("services.mail_cache")
+
+        async def sync_summaries(_account, _folder, *, on_batch):
+            await on_batch(100, 125)
+            await on_batch(125, 125)
+            return 125
+
+        mail_cache_stub.sync_missing_message_summaries = AsyncMock(side_effect=sync_summaries)
+        messages.sync_service = types.SimpleNamespace(refresh_clients=AsyncMock())
+        messages._MISSING_SUMMARY_REFRESHING.add(("account-1", "OA"))
+
+        with patch.dict(sys.modules, {"services.mail_cache": mail_cache_stub}):
+            await messages._run_missing_summary_sync(account, "OA", "user-1")
+
+        mail_cache_stub.sync_missing_message_summaries.assert_awaited_once()
+        self.assertEqual(messages.sync_service.refresh_clients.await_count, 2)
+        self.assertNotIn(("account-1", "OA"), messages._MISSING_SUMMARY_REFRESHING)
+
+    async def test_incomplete_later_page_fetches_remote_before_returning_partial_cache(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="custom",
+            status="connected",
+        )
+        remote_message = Message(
+            id="remote-60",
+            uid=60,
+            subject="remote page",
+            from_addr="from@example.com",
+            to_addr="to@example.com",
+            date="2026-07-01T00:00:00Z",
+            folder="OA",
+        )
+        remote_result = MessageList(
+            messages=[remote_message],
+            total=100,
+            unread_total=0,
+            page=2,
+            page_size=50,
+        )
+
+        messages._get_account = AsyncMock(return_value=("user-1", account))
+        messages._load_local_messages = AsyncMock(return_value={
+            "messages": [{"id": "stale-local", "uid": 5, "folder": "OA"}],
+            "total": 51,
+            "unread_total": 0,
+            "page": 2,
+            "page_size": 50,
+            "filter_counts": {"all": 51, "unread": 0, "read": 51, "attachments": 0},
+        })
+        messages._get_effective_folder_stats = AsyncMock(return_value={
+            "updated_at": 1,
+            "total_count": 100,
+            "unread_count": 0,
+        })
+        messages._fetch_remote_page_to_cache = AsyncMock(return_value=(remote_result, ""))
+        messages.get_folder_filter_counts = AsyncMock(return_value={
+            "all": 51,
+            "unread": 0,
+            "read": 51,
+            "attachments": 0,
+        })
+        messages.sync_service = types.SimpleNamespace(
+            is_account_suspended=lambda _account_id: False,
+        )
+
+        response = await messages.list_messages(
+            request=object(),
+            folder="OA",
+            page=2,
+            page_size=50,
+            account_id="account-1",
+            read_filter="",
+            attachment_filter=False,
+        )
+
+        self.assertEqual(response["messages"][0]["uid"], 60)
+        messages._fetch_remote_page_to_cache.assert_awaited_once_with(
+            user_uid="user-1",
+            account=account,
+            folder="OA",
+            page=2,
+            page_size=50,
+        )
 
     async def test_resolves_netease_sent_folder_by_display_name(self):
         messages = _load_messages_route_module()
