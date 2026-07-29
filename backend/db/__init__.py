@@ -2169,8 +2169,35 @@ async def create_signature(sig: Signature) -> Signature:
     return sig
 
 
+HISTORY_SYNC_STALE_SECONDS = 600
+HISTORY_SYNC_STALE_ERROR = "同步任务超过 10 分钟没有进度，已标记为失败，可重试"
+
+
 def _history_job_row_to_dict(columns: list[str], row) -> dict[str, Any]:
     return dict(zip(columns, row))
+
+
+async def _normalize_history_sync_job_staleness(job: dict[str, Any]) -> dict[str, Any]:
+    if job.get("status") not in {"pending", "running"}:
+        return job
+    now = time.time()
+    if now - float(job.get("updated_at") or 0) <= HISTORY_SYNC_STALE_SECONDS:
+        return job
+
+    await update_history_sync_job(
+        job["id"],
+        status="failed",
+        error_message=HISTORY_SYNC_STALE_ERROR,
+        finished_at=now,
+    )
+    normalized = dict(job)
+    normalized.update(
+        status="failed",
+        error_message=HISTORY_SYNC_STALE_ERROR,
+        updated_at=now,
+        finished_at=now,
+    )
+    return normalized
 
 
 async def get_history_sync_job(account_id: str, job_type: str = "history_sync") -> Optional[dict]:
@@ -2190,15 +2217,7 @@ async def get_history_sync_job(account_id: str, job_type: str = "history_sync") 
         return None
     columns = [description[0] for description in cursor.description]
     job = _history_job_row_to_dict(columns, row)
-    if job.get("status") in {"pending", "running"} and time.time() - float(job.get("updated_at") or 0) > 600:
-        await update_history_sync_job(
-            job["id"],
-            status="failed",
-            error_message="同步任务超过 10 分钟没有进度，已标记为失败，可重试",
-            finished_at=time.time(),
-        )
-        return await get_history_sync_job(account_id, job_type=job_type)
-    return job
+    return await _normalize_history_sync_job_staleness(job)
 
 
 async def list_history_sync_jobs(user_uid: str, job_type: str | None = None) -> List[dict]:
@@ -2225,7 +2244,11 @@ async def list_history_sync_jobs(user_uid: str, job_type: str | None = None) -> 
         )
     rows = await cursor.fetchall()
     columns = [description[0] for description in cursor.description]
-    return [_history_job_row_to_dict(columns, row) for row in rows]
+    jobs = []
+    for row in rows:
+        job = _history_job_row_to_dict(columns, row)
+        jobs.append(await _normalize_history_sync_job_staleness(job))
+    return jobs
 
 
 async def activate_account(
