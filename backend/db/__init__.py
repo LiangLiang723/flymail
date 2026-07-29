@@ -368,6 +368,25 @@ async def get_db() -> MySQLConnection:
     return _db_instance
 
 
+async def _widen_mail_address_columns(db) -> None:
+    """将可能包含大量收件人的地址字段升级为 LONGTEXT。"""
+    for table in ("cached_messages", "notifications", "message_archive"):
+        cursor = await db.execute(
+            """
+            SELECT DATA_TYPE
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = ?
+              AND column_name = 'to_addr'
+            """,
+            (table,),
+        )
+        row = await cursor.fetchone()
+        if not row or str(row[0]).lower() == "longtext":
+            continue
+        await db.execute(f"ALTER TABLE {table} MODIFY COLUMN to_addr LONGTEXT")
+
+
 async def init_db():
     """初始化数据库表和索引。"""
     db = await get_db()
@@ -409,7 +428,7 @@ async def init_db():
                 folder VARCHAR(255) NOT NULL,
                 subject VARCHAR(512) DEFAULT '',
                 from_addr VARCHAR(512) DEFAULT '',
-                to_addr VARCHAR(512) DEFAULT '',
+                to_addr LONGTEXT,
                 cc LONGTEXT,
                 date VARCHAR(128) DEFAULT '',
                 is_read INTEGER DEFAULT 0,
@@ -477,7 +496,7 @@ async def init_db():
                 rfc_message_id VARCHAR(998) DEFAULT '',
                 subject VARCHAR(512) DEFAULT '',
                 from_addr VARCHAR(512) DEFAULT '',
-                to_addr VARCHAR(512) DEFAULT '',
+                to_addr LONGTEXT,
                 cc LONGTEXT,
                 mail_date VARCHAR(128) DEFAULT '',
                 body_preview LONGTEXT,
@@ -696,7 +715,7 @@ async def init_db():
             message_id VARCHAR(998) DEFAULT '',
             subject VARCHAR(512) DEFAULT '',
             from_addr VARCHAR(512) DEFAULT '',
-            to_addr VARCHAR(512) DEFAULT '',
+            to_addr LONGTEXT,
             cc LONGTEXT,
             date VARCHAR(128) DEFAULT '',
             size BIGINT DEFAULT 0,
@@ -714,6 +733,7 @@ async def init_db():
     await db.execute("CREATE INDEX IF NOT EXISTS idx_archive_date ON message_archive(date)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_archive_deleted ON message_archive(user_uid, is_deleted_on_server)")
 
+    await _widen_mail_address_columns(db)
     await db.commit()
 
 async def get_accounts(user_uid: str) -> List[Account]:
