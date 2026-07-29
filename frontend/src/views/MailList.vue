@@ -117,7 +117,14 @@
           <button class="btn-icon mobile-filter-toggle" :class="{ active: hasActiveFilter }" @click="showMobileFilters = !showMobileFilters">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           </button>
-          <button class="btn-icon" @click="refreshLatestPage" title="刷新当前文件夹最新邮件" :disabled="syncing || rebuilding || !mailStore.currentAccountId">
+          <button
+            class="btn-icon refresh-button"
+            :class="{ 'is-refreshing': refreshingLatest }"
+            @click="refreshLatestPage"
+            :title="refreshingLatest ? '正在刷新当前文件夹最新邮件' : '刷新当前文件夹最新邮件'"
+            :aria-busy="refreshingLatest"
+            :disabled="refreshingLatest || syncing || rebuilding || !mailStore.currentAccountId"
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 6.36 18.36L1 14"/>
             </svg>
@@ -476,6 +483,7 @@ const currentFolderUnreadCount = computed(() => {
   return folder?.unread_count || 0;
 });
 const syncing = ref(false);
+const refreshingLatest = ref(false);
 const rebuilding = ref(false);
 const syncProgress = ref('');
 
@@ -925,7 +933,8 @@ function openCompose() {
 }
 
 async function refreshLatestPage() {
-  if (syncing.value || rebuilding.value || !mailStore.currentAccountId) return;
+  if (refreshingLatest.value || syncing.value || rebuilding.value || !mailStore.currentAccountId) return;
+  refreshingLatest.value = true;
   syncing.value = true;
   try {
     const params: Record<string, string | number> = {
@@ -942,6 +951,7 @@ async function refreshLatestPage() {
     console.error('刷新邮件失败:', e);
     uiStore.error('刷新邮件失败');
   } finally {
+    refreshingLatest.value = false;
     syncing.value = false;
   }
 }
@@ -1784,6 +1794,14 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 .btn-icon:active {
   background: rgba(0, 122, 255, 0.1);
   color: var(--accent-blue);
+}
+
+.refresh-button svg {
+  transform-origin: center;
+}
+
+.refresh-button.is-refreshing svg {
+  animation: spin 0.8s linear infinite;
 }
 
 /* 重建同步按钮旋转动画 */
@@ -3184,6 +3202,10 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   .btn-icon,
   .compose-entry-btn {
     transition: none;
+  }
+
+  .refresh-button.is-refreshing svg {
+    animation: none;
   }
 }
 

@@ -31,3 +31,15 @@ test('mail view keeps the toolbar inside the list card without a permanent previ
   assert.ok(toolbarStart > listStart, 'list toolbar should stay inside the mail list container');
   assert.doesNotMatch(source, /mail-preview-pane/);
 });
+
+test('manual refresh animates only while the latest page request is active', async () => {
+  const source = await readSource('src/views/MailList.vue');
+
+  assert.match(source, /class="btn-icon refresh-button"/);
+  assert.match(source, /:class="\{ 'is-refreshing': refreshingLatest \}"/);
+  assert.match(source, /const refreshingLatest = ref\(false\)/);
+  assert.match(source, /refreshingLatest\.value = true/);
+  assert.match(source, /finally \{\s*refreshingLatest\.value = false;/s);
+  assert.match(source, /\.refresh-button\.is-refreshing svg\s*\{[^}]*animation: spin 0\.8s linear infinite;/s);
+  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.refresh-button\.is-refreshing svg\s*\{\s*animation: none;/);
+});
