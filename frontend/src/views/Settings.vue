@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-page">
+  <div class="settings-page ui-page">
     <div class="settings-header">
       <h2>设置</h2>
       <button class="about-trigger" type="button" @click="showAbout = true">
@@ -895,7 +895,7 @@ onMounted(() => {
   position: fixed;
   inset: 0;
   z-index: 9000;
-  background: rgba(15, 23, 42, 0.36);
+  background: var(--ui-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -909,7 +909,7 @@ onMounted(() => {
   overflow: hidden;
   border-radius: 8px;
   background: var(--bg-secondary);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--ui-shadow-lg);
 }
 
 .about-modal :deep(.about-page) {
@@ -942,11 +942,11 @@ onMounted(() => {
 }
 
 .hero-icon {
-  background: white;
+  background: var(--ui-text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(234, 67, 53, 0.1);
+  box-shadow: var(--ui-shadow-xs);
   flex-shrink: 0;
 }
 
@@ -958,22 +958,14 @@ onMounted(() => {
   justify-content: space-between;
   padding: var(--space-4) var(--space-5);
   border: none;
-  background: linear-gradient(135deg, #FFF5F5 0%, #FFF0F0 100%);
+  background: var(--ui-danger-soft);
   cursor: pointer;
   font-family: inherit;
   transition: background var(--transition-fast);
 }
 
 .gmail-toggle:hover {
-  background: linear-gradient(135deg, #FFECEC 0%, #FFE5E5 100%);
-}
-
-:root.dark .gmail-toggle {
-  background: linear-gradient(135deg, rgba(234, 67, 53, 0.16) 0%, rgba(234, 67, 53, 0.1) 100%);
-}
-
-:root.dark .gmail-toggle:hover {
-  background: linear-gradient(135deg, rgba(234, 67, 53, 0.24) 0%, rgba(234, 67, 53, 0.16) 100%);
+  background: color-mix(in srgb, var(--ui-danger) 18%, var(--ui-surface-1));
 }
 
 .gmail-toggle-left {
@@ -986,11 +978,11 @@ onMounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: white;
+  background: var(--ui-text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(234, 67, 53, 0.1);
+  box-shadow: var(--ui-shadow-xs);
   flex-shrink: 0;
 }
 
@@ -1139,30 +1131,30 @@ onMounted(() => {
   flex: 0 0 auto;
   border: 1px solid var(--border-color-strong);
   border-radius: 8px;
-  background: #f5f5f7;
+  background: var(--ui-preview-light-canvas);
   box-shadow: var(--shadow-sm);
 }
 
 .appearance-preview span:first-child {
-  background: #e8e8ed;
+  background: var(--ui-preview-light-sidebar);
 }
 
 .appearance-preview span:last-child {
   margin: 7px 6px;
   border-radius: 3px;
-  background: #ffffff;
+  background: var(--ui-preview-light-surface);
 }
 
 .appearance-preview-dark {
-  background: #111214;
+  background: var(--ui-preview-dark-canvas);
 }
 
 .appearance-preview-dark span:first-child {
-  background: #2c2c2e;
+  background: var(--ui-preview-dark-sidebar);
 }
 
 .appearance-preview-dark span:last-child {
-  background: #1c1c1e;
+  background: var(--ui-preview-dark-surface);
 }
 
 .appearance-preview-system {
@@ -1170,13 +1162,13 @@ onMounted(() => {
 }
 
 .appearance-preview-system span:first-child {
-  background: linear-gradient(90deg, #e8e8ed 0 45%, #ffffff 45% 100%);
+  background: linear-gradient(90deg, var(--ui-preview-light-sidebar) 0 45%, var(--ui-preview-light-surface) 45% 100%);
 }
 
 .appearance-preview-system span:last-child {
   margin: 0;
   border-radius: 0;
-  background: linear-gradient(90deg, #2c2c2e 0 45%, #1c1c1e 45% 100%);
+  background: linear-gradient(90deg, var(--ui-preview-dark-sidebar) 0 45%, var(--ui-preview-dark-surface) 45% 100%);
 }
 
 .appearance-option-copy {
@@ -1294,8 +1286,8 @@ onMounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #EBF5FF 0%, #E8F0FE 100%);
-  color: #4285F4;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1368,7 +1360,7 @@ onMounted(() => {
 .guide-tab.active {
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--ui-shadow-xs);
 }
 
 /* 教程内容 */
@@ -1472,7 +1464,7 @@ onMounted(() => {
 
 .step-img-wrap:hover {
   border-color: var(--color-accent);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--ui-shadow-sm);
   transform: translateY(-2px);
 }
 
@@ -1500,24 +1492,18 @@ onMounted(() => {
   gap: var(--space-2);
   margin-top: var(--space-5);
   padding: var(--space-3) var(--space-4);
-  background: #FFF8E1;
+  background: var(--ui-warning-soft);
   border-radius: 8px;
   font-size: var(--text-xs);
-  color: #795500;
+  color: var(--ui-warning);
   line-height: 1.6;
-  border: 1px solid #FFE082;
+  border: 1px solid color-mix(in srgb, var(--ui-warning) 30%, var(--ui-border));
 }
 
 .guide-tip svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #F9A825;
-}
-
-:root.dark .guide-tip {
-  background: rgba(255, 159, 10, 0.14);
-  border-color: rgba(255, 159, 10, 0.32);
-  color: #FFD27A;
+  color: var(--ui-warning);
 }
 
 /* ==================== 图片预览弹窗 ==================== */
@@ -1525,7 +1511,7 @@ onMounted(() => {
 .img-preview-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--ui-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1552,7 +1538,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--ui-shadow-sm);
   color: var(--text-secondary);
   transition: all 0.15s ease;
 }
@@ -1566,7 +1552,7 @@ onMounted(() => {
   max-width: 90vw;
   max-height: 90vh;
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--ui-shadow-lg);
 }
 
 /* 动画 */
@@ -1672,8 +1658,8 @@ onMounted(() => {
   padding: 8px 20px;
   border: none;
   border-radius: 6px;
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
   font-size: 14px;
   cursor: pointer;
   transition: opacity 0.15s;

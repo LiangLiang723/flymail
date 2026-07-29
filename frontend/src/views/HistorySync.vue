@@ -1,5 +1,5 @@
 <template>
-  <div class="history-sync-page">
+  <div class="history-sync-page ui-page">
     <div class="page-header">
       <div>
         <h2 class="page-title">同步管理</h2>
@@ -444,8 +444,8 @@ onBeforeUnmount(() => {
 }
 
 .progress-summary {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.18);
+  background: var(--ui-accent-soft);
+  border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--ui-border));
 }
 
 .progress-label {
@@ -476,8 +476,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
   border-radius: 12px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.14);
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 24%, var(--ui-border));
   color: var(--text-primary);
 }
 
@@ -485,9 +485,9 @@ onBeforeUnmount(() => {
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-4);
   border-radius: 12px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #b91c1c;
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, var(--ui-border));
+  color: var(--ui-danger);
   word-break: break-word;
 }
 
@@ -504,28 +504,28 @@ onBeforeUnmount(() => {
 
 .status-idle,
 .status-completed {
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
+  background: var(--ui-success-soft);
+  color: var(--ui-success);
 }
 
 .status-pending {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
 }
 
 .status-running {
-  background: rgba(59, 130, 246, 0.12);
-  color: #1d4ed8;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 
 .status-paused {
-  background: rgba(107, 114, 128, 0.14);
-  color: #374151;
+  background: var(--ui-fill-muted);
+  color: var(--ui-text-2);
 }
 
 .status-failed {
-  background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
 }
 
 @keyframes pulse {

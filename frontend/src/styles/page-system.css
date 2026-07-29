@@ -1,0 +1,614 @@
+/* Authenticated page system: shared surfaces, hierarchy and dark-mode corrections. */
+
+.ui-page {
+  min-width: 0;
+  min-height: 0;
+  color: var(--ui-text-1) !important;
+  background: var(--ui-canvas) !important;
+  font-family: var(--ui-font-family);
+}
+
+.ui-page:not(.ui-page--edge) {
+  padding: clamp(16px, 2.2vw, 28px) !important;
+}
+
+.ui-page h1,
+.ui-page h2,
+.ui-page h3,
+.ui-page h4 {
+  color: var(--ui-text-1) !important;
+  font-optical-sizing: auto;
+}
+
+.ui-page h2 {
+  font-size: var(--ui-text-xl) !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.ui-page p,
+.ui-page small,
+.ui-page .page-subtitle,
+.ui-page .dialog-desc,
+.ui-page .field-hint,
+.ui-page .empty-desc,
+.ui-page .empty-hint {
+  color: var(--ui-text-2) !important;
+}
+
+.ui-page .page-header,
+.ui-page .unified-header,
+.ui-page .settings-header,
+.ui-page > header,
+.ui-page .toolbar,
+.ui-page .backup-toolbar,
+.ui-page .compose-toolbar {
+  border-color: var(--ui-border) !important;
+  background: transparent !important;
+}
+
+.ui-page .card,
+.ui-page .about-card,
+.ui-page .account-card,
+.ui-page .job-card,
+.ui-page .provider-card,
+.ui-page .settings-card,
+.ui-page .state-card,
+.ui-page .schedule-card,
+.ui-page .stats-card,
+.ui-page .meta-card,
+.ui-page .backup-notice,
+.ui-page .header-banner {
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+  box-shadow: var(--ui-shadow-xs) !important;
+}
+
+.ui-page .card:hover,
+.ui-page .account-card:hover,
+.ui-page .provider-card:hover {
+  border-color: var(--ui-border-strong) !important;
+  box-shadow: var(--ui-shadow-sm) !important;
+}
+
+.ui-page .divider,
+.ui-page .detail-divider,
+.ui-page .toolbar-divider,
+.ui-page .step-line {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-border) !important;
+}
+
+.ui-page a,
+.ui-page .hint-link,
+.ui-page .repo-link,
+.ui-page .inline-link {
+  color: var(--ui-accent) !important;
+}
+
+/* Mail and backup share the same three-pane visual language. */
+.mail-view,
+.backup-page {
+  overflow: hidden !important;
+}
+
+.mail-view .mail-shell,
+.backup-page .backup-content {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-surface-1) !important;
+  box-shadow: var(--ui-shadow-xs) !important;
+  overflow: hidden;
+}
+
+.mail-view .folder-sidebar,
+.backup-page .account-tabs {
+  border-color: var(--ui-border) !important;
+  background: color-mix(in srgb, var(--ui-surface-2) 72%, transparent) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .folder-sidebar-header,
+.mail-view .list-toolbar,
+.mail-view .detail-header,
+.backup-page .list-toolbar,
+.backup-page .detail-header,
+.backup-page .backup-toolbar {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .account-switcher-item,
+.mail-view .folder-nav-item,
+.backup-page .account-tab,
+.mail-view .mail-item,
+.backup-page .mail-item,
+.unified-page .message-row {
+  border-color: var(--ui-border) !important;
+  background: transparent !important;
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .account-switcher-item:hover,
+.mail-view .folder-nav-item:hover,
+.backup-page .account-tab:hover,
+.mail-view .mail-item:hover,
+.backup-page .mail-item:hover,
+.unified-page .message-row:hover {
+  background: var(--ui-fill-hover) !important;
+}
+
+.mail-view .account-switcher-item.active,
+.mail-view .folder-nav-item.active,
+.backup-page .account-tab.active,
+.mail-view .mail-item.selected,
+.backup-page .mail-item.selected,
+.unified-page .message-row.unread {
+  border-color: color-mix(in srgb, var(--ui-accent) 22%, var(--ui-border)) !important;
+  background: var(--ui-fill-selected) !important;
+}
+
+.mail-view .mail-list,
+.mail-view .mail-detail,
+.backup-page .archive-list,
+.backup-page .archive-detail,
+.unified-page .message-list {
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .mail-subject,
+.mail-view .mail-from,
+.mail-view .detail-subject,
+.mail-view .meta-from,
+.backup-page .mail-subject,
+.backup-page .mail-from,
+.backup-page .detail-subject,
+.unified-page .sender,
+.unified-page .summary {
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .mail-date,
+.mail-view .account-email,
+.mail-view .detail-meta,
+.mail-view .list-count,
+.backup-page .mail-date,
+.backup-page .account-email,
+.backup-page .archive-meta,
+.unified-page .state-card,
+.unified-page .empty-inline {
+  color: var(--ui-text-2) !important;
+}
+
+.mail-view .detail-body,
+.mail-view .detail-content,
+.backup-page .detail-body,
+.backup-page .detail-content {
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .attachment-item,
+.backup-page .attachment-item,
+.compose-page .attachment-item {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-2) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.mail-view .pagination,
+.backup-page .pagination,
+.unified-page .pagination {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-2) !important;
+}
+
+.mail-view .reauth-banner,
+.mail-view .sync-status,
+.backup-page .backup-notice {
+  border-color: color-mix(in srgb, var(--ui-warning) 30%, var(--ui-border)) !important;
+  background: var(--ui-warning-soft) !important;
+  color: var(--ui-warning) !important;
+}
+
+.mail-view .search-input,
+.unified-page .select {
+  background: var(--ui-surface-2) !important;
+}
+
+/* Unified inbox */
+.unified-page {
+  overflow-y: auto !important;
+}
+
+.unified-page .settings-card,
+.unified-page .filter-bar {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+}
+
+.unified-page .filter-chip {
+  background: var(--ui-fill-muted) !important;
+  color: var(--ui-text-2) !important;
+}
+
+.unified-page .filter-chip.active {
+  background: var(--ui-fill-selected) !important;
+  color: var(--ui-accent) !important;
+}
+
+/* Composer */
+.compose-page {
+  overflow: hidden !important;
+  background: var(--ui-surface-1) !important;
+}
+
+.compose-page .compose-toolbar {
+  min-height: 58px;
+  border-bottom: 1px solid var(--ui-border) !important;
+  background: var(--ui-surface-floating) !important;
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+}
+
+.compose-page .compose-form,
+.compose-page .editor-row,
+.compose-page .attachments-section {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.compose-page .form-row,
+.compose-page .tag-input,
+.compose-page .scheduled-item,
+.compose-page .sig-preset-card,
+.compose-page .sig-user-item {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.compose-page .form-row:focus-within,
+.compose-page .tag-input:focus-within {
+  border-color: var(--ui-accent) !important;
+  box-shadow: 0 0 0 3px var(--ui-focus-ring) !important;
+}
+
+.compose-page .tag {
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, transparent) !important;
+  background: var(--ui-accent-soft) !important;
+  color: var(--ui-accent) !important;
+}
+
+.compose-page .sig-panel,
+.compose-page .contact-suggestions,
+.tiptap-editor .dropdown-menu,
+.tiptap-editor .emoji-picker {
+  border: 1px solid var(--ui-border-strong) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-surface-floating) !important;
+  color: var(--ui-text-1) !important;
+  box-shadow: var(--ui-shadow-md) !important;
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+}
+
+.compose-page .drop-overlay {
+  background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-scrim)) !important;
+  color: var(--ui-text-inverse) !important;
+}
+
+/* Tiptap */
+.tiptap-editor,
+.tiptap-editor .editor-content,
+.tiptap-editor .editor-toolbar {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.tiptap-editor .editor-toolbar {
+  background: var(--ui-surface-2) !important;
+}
+
+.tiptap-editor .toolbar-btn,
+.tiptap-editor .dropdown-item,
+.tiptap-editor .emoji-btn,
+.tiptap-editor .emoji-tab {
+  color: var(--ui-text-2) !important;
+}
+
+.tiptap-editor .toolbar-btn:hover,
+.tiptap-editor .toolbar-btn.active,
+.tiptap-editor .dropdown-item:hover,
+.tiptap-editor .emoji-btn:hover,
+.tiptap-editor .emoji-tab.active {
+  background: var(--ui-fill-selected) !important;
+  color: var(--ui-accent) !important;
+}
+
+.tiptap-editor .editor-content :deep(*) {
+  color: inherit;
+}
+
+/* Accounts */
+.account-page {
+  overflow-y: auto !important;
+}
+
+.account-page .toolbar,
+.account-page .section-header {
+  border-color: var(--ui-border) !important;
+}
+
+.account-page .sort-toggle,
+.account-page .toggle-switch,
+.account-page .delete-job {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-2) !important;
+}
+
+.account-page .toggle-btn {
+  background: transparent !important;
+  color: var(--ui-text-2) !important;
+}
+
+.account-page .toggle-btn.active,
+.account-page .provider-card.active {
+  border-color: color-mix(in srgb, var(--ui-accent) 34%, var(--ui-border)) !important;
+  background: var(--ui-fill-selected) !important;
+  color: var(--ui-accent) !important;
+}
+
+.account-page .account-status,
+.account-page .group-tag,
+.account-page .meta-provider {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-fill-muted) !important;
+  color: var(--ui-text-2) !important;
+}
+
+.account-page .dialog,
+.account-page .dialog-wide {
+  background: var(--ui-surface-floating) !important;
+}
+
+/* Settings and notification settings */
+.settings-page,
+.notify-page,
+.history-sync-page,
+.user-page,
+.about-page {
+  overflow-y: auto !important;
+}
+
+.settings-page .provider-card,
+.settings-page .card-body,
+.settings-page .guide-panel,
+.settings-page .guide-body,
+.settings-page .about-modal,
+.notify-page .card,
+.notify-page .state-card {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.settings-page .appearance-option,
+.settings-page .guide-tab,
+.settings-page .guide-step,
+.settings-page .gmail-toggle,
+.settings-page .guide-toggle,
+.notify-page .toggle-row,
+.notify-page .check-row {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-2) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.settings-page .appearance-option:hover,
+.settings-page .guide-tab:hover,
+.settings-page .gmail-toggle:hover,
+.settings-page .guide-toggle:hover {
+  background: var(--ui-fill-hover) !important;
+}
+
+.settings-page .appearance-option.active,
+.settings-page .guide-tab.active {
+  border-color: color-mix(in srgb, var(--ui-accent) 36%, var(--ui-border)) !important;
+  background: var(--ui-fill-selected) !important;
+  color: var(--ui-accent) !important;
+}
+
+.settings-page .about-modal-overlay,
+.settings-page .img-preview-overlay {
+  background: var(--ui-scrim) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Sync */
+.history-sync-page .job-card,
+.history-sync-page .clear-job-row,
+.history-sync-page .progress-item,
+.history-sync-page .error-box {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.history-sync-page .progress-item {
+  background: var(--ui-surface-2) !important;
+}
+
+.history-sync-page .status-badge,
+.history-sync-page .progress-value {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-fill-muted) !important;
+  color: var(--ui-text-2) !important;
+}
+
+.history-sync-page .status-running,
+.history-sync-page .status-completed {
+  background: var(--ui-success-soft) !important;
+  color: var(--ui-success) !important;
+}
+
+.history-sync-page .status-failed {
+  background: var(--ui-danger-soft) !important;
+  color: var(--ui-danger) !important;
+}
+
+.history-sync-page .status-paused,
+.history-sync-page .status-pending {
+  background: var(--ui-warning-soft) !important;
+  color: var(--ui-warning) !important;
+}
+
+/* Contacts */
+.contact-page {
+  background: var(--ui-surface-1) !important;
+}
+
+.contact-page .contact-sidebar,
+.contact-page .contact-detail,
+.contact-page .sidebar-header,
+.contact-page .detail-header {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.contact-page .contact-sidebar {
+  background: color-mix(in srgb, var(--ui-surface-2) 70%, transparent) !important;
+}
+
+.contact-page .contact-item,
+.contact-page .detail-section,
+.contact-page .remark-box,
+.contact-page .email-row,
+.contact-page .state-box {
+  border-color: var(--ui-border) !important;
+  background: transparent !important;
+  color: var(--ui-text-1) !important;
+}
+
+.contact-page .contact-item:hover {
+  background: var(--ui-fill-hover) !important;
+}
+
+.contact-page .contact-item.active {
+  background: var(--ui-fill-selected) !important;
+}
+
+.contact-page .dialog,
+.contact-page .dialog-backdrop {
+  color: var(--ui-text-1) !important;
+}
+
+/* Users */
+.user-page .filters,
+.user-page .user-table-wrap,
+.user-page .modal-card {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.user-page .user-table,
+.user-page .user-table th,
+.user-page .user-table td {
+  border-color: var(--ui-border) !important;
+  background: transparent !important;
+  color: var(--ui-text-1) !important;
+}
+
+.user-page .user-table th {
+  background: var(--ui-surface-2) !important;
+  color: var(--ui-text-2) !important;
+}
+
+.user-page .user-table tr:hover td {
+  background: var(--ui-fill-hover) !important;
+}
+
+/* About */
+.about-page .about-card {
+  padding: clamp(18px, 2.4vw, 26px) !important;
+}
+
+.about-page .pill,
+.about-page .ver {
+  border: 1px solid var(--ui-border) !important;
+  background: var(--ui-fill-muted) !important;
+  color: var(--ui-text-2) !important;
+}
+
+/* NAS picker */
+.nas-overlay {
+  background: var(--ui-scrim) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.nas-modal,
+.nas-head,
+.nas-nav,
+.nas-list,
+.nas-foot {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-1) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.nas-row,
+.nas-path,
+.nas-empty {
+  border-color: var(--ui-border) !important;
+  background: transparent !important;
+  color: var(--ui-text-1) !important;
+}
+
+.nas-row:hover,
+.nas-row.selected {
+  background: var(--ui-fill-selected) !important;
+}
+
+.nas-close,
+.nas-btns button {
+  border-color: var(--ui-border) !important;
+  color: var(--ui-text-1) !important;
+}
+
+@media (max-width: 768px) {
+  .ui-page:not(.ui-page--edge) {
+    padding: 16px !important;
+  }
+
+  .mail-view .mail-shell,
+  .backup-page .backup-content,
+  .contact-page {
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .compose-page .compose-toolbar,
+  .compose-page .sig-panel,
+  .compose-page .contact-suggestions,
+  .tiptap-editor .dropdown-menu,
+  .tiptap-editor .emoji-picker {
+    background: var(--ui-surface-1) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

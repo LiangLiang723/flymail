@@ -1,5 +1,5 @@
 <template>
-  <section class="notify-page">
+  <section class="notify-page ui-page">
     <header>
       <div>
         <h2>第三方通知</h2>
@@ -171,10 +171,10 @@ onMounted(load);
 </script>
 
 <style scoped>
-.notify-page { height: 100%; overflow-y: auto; padding: 24px; background: var(--bg-secondary, #f5f7fb); }
+.notify-page { height: 100%; overflow-y: auto; padding: 24px; background: var(--ui-canvas); }
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
-h2 { margin: 0 0 6px; } header p { margin: 0; color: var(--text-tertiary, #64748b); }
-.card, .state-card { max-width: 920px; margin: 0 auto 16px; padding: 18px; border: 1px solid var(--border-color, #e2e8f0); border-radius: 12px; background: var(--bg-primary, #fff); }
-.overview-card { margin-top: 0; }.card-title, .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.card-title div, .toggle-row span { display: flex; flex-direction: column; gap: 4px; }.card small, .toggle-row small { color: var(--text-tertiary, #64748b); font-weight: 400; }.grid { display: grid; gap: 14px; margin-bottom: 14px; }.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.field { display: flex; flex-direction: column; gap: 6px; }.field span { font-size: 13px; font-weight: 600; }.field input, .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--border-color, #dbe2ea); border-radius: 8px; background: var(--bg-primary, #fff); color: var(--text-primary, #0f172a); box-sizing: border-box; }.check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--text-secondary, #475569); }.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }.deploy-link { color: var(--color-accent, #1677ff); text-decoration: none; }.danger { color: var(--color-danger, #dc2626); }.state-card { display: flex; justify-content: center; min-height: 140px; align-items: center; color: var(--text-tertiary, #64748b); }
+h2 { margin: 0 0 6px; } header p { margin: 0; color: var(--ui-text-3); }
+.card, .state-card { max-width: 920px; margin: 0 auto 16px; padding: 18px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface-1); }
+.overview-card { margin-top: 0; }.card-title, .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.card-title div, .toggle-row span { display: flex; flex-direction: column; gap: 4px; }.card small, .toggle-row small { color: var(--ui-text-3); font-weight: 400; }.grid { display: grid; gap: 14px; margin-bottom: 14px; }.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.field { display: flex; flex-direction: column; gap: 6px; }.field span { font-size: 13px; font-weight: 600; }.field input, .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--ui-border-strong); border-radius: 8px; background: var(--ui-surface-1); color: var(--ui-text-1); box-sizing: border-box; }.check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-2); }.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }.deploy-link { color: var(--ui-accent); text-decoration: none; }.danger { color: var(--ui-danger); }.state-card { display: flex; justify-content: center; min-height: 140px; align-items: center; color: var(--ui-text-3); }
 @media (max-width: 760px) { .notify-page { padding: 12px; } header { flex-direction: column; }.grid.two, .grid.three { grid-template-columns: 1fr; } }
 </style>

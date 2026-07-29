@@ -1,5 +1,5 @@
 <template>
-  <div class="compose-page" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+  <div class="compose-page ui-page ui-page--edge" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
     <!-- 拖拽上传遮罩 -->
     <div v-if="isDragging" class="drop-overlay">
       <div class="drop-hint">
@@ -1020,8 +1020,8 @@ function formatSize(bytes: number): string {
   position: absolute;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 122, 255, 0.08);
-  border: 2px dashed var(--accent-blue, #007AFF);
+  background: var(--ui-accent-soft);
+  border: 2px dashed var(--ui-accent);
   border-radius: var(--border-radius-lg, 8px);
   display: flex;
   align-items: center;
@@ -1033,7 +1033,7 @@ function formatSize(bytes: number): string {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
   font-size: var(--text-base);
   font-weight: 500;
 }
@@ -1074,9 +1074,9 @@ function formatSize(bytes: number): string {
 }
 
 .toolbar-btn.primary {
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
-  border-color: var(--accent-blue, #007AFF);
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
+  border-color: var(--ui-accent);
 }
 
 .toolbar-btn.primary:hover {
@@ -1084,9 +1084,9 @@ function formatSize(bytes: number): string {
 }
 
 .toolbar-btn.danger:hover {
-  background: #ff3b30;
-  color: #fff;
-  border-color: #ff3b30;
+  background: var(--ui-danger);
+  color: var(--ui-text-inverse);
+  border-color: var(--ui-danger);
 }
 
 .toolbar-spacer {
@@ -1135,7 +1135,7 @@ function formatSize(bytes: number): string {
 }
 
 .form-input:focus {
-  border-color: var(--accent-blue, #007AFF);
+  border-color: var(--ui-accent);
 }
 
 .form-select {
@@ -1167,7 +1167,7 @@ function formatSize(bytes: number): string {
 }
 
 .tag-input:focus-within {
-  border-color: var(--accent-blue, #007AFF);
+  border-color: var(--ui-accent);
 }
 
 .tag {
@@ -1175,8 +1175,8 @@ function formatSize(bytes: number): string {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
   border-radius: 4px;
   font-size: 12px;
 }
@@ -1184,7 +1184,7 @@ function formatSize(bytes: number): string {
 .tag-remove {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ui-text-inverse-muted);
   cursor: pointer;
   font-size: 14px;
   padding: 0 2px;
@@ -1192,7 +1192,7 @@ function formatSize(bytes: number): string {
 }
 
 .tag-remove:hover {
-  color: #fff;
+  color: var(--ui-text-inverse);
 }
 
 .contact-suggestions {
@@ -1209,7 +1209,7 @@ function formatSize(bytes: number): string {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--bg-primary);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--ui-shadow-md);
 }
 
 .contact-suggestions button {
@@ -1252,7 +1252,7 @@ function formatSize(bytes: number): string {
 .text-btn {
   background: none;
   border: none;
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
   cursor: pointer;
   font-size: 12px;
   padding: 0;
@@ -1304,7 +1304,7 @@ function formatSize(bytes: number): string {
 }
 
 .attachments-count.error {
-  color: var(--color-danger, #dc2626);
+  color: var(--ui-danger);
   font-weight: 600;
 }
 
@@ -1315,15 +1315,15 @@ function formatSize(bytes: number): string {
   padding: 4px 10px;
   border: 1px dashed var(--border-color);
   border-radius: 6px;
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .upload-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent-blue, #007AFF);
+  background: var(--ui-fill-hover);
+  border-color: var(--ui-accent);
 }
 
 .hidden-input {
@@ -1357,8 +1357,8 @@ function formatSize(bytes: number): string {
 .att-source {
   padding: 1px 5px;
   border-radius: 999px;
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
   font-size: 10px;
 }
 
@@ -1377,7 +1377,7 @@ function formatSize(bytes: number): string {
 }
 
 .att-remove:hover {
-  color: #ff3b30;
+  color: var(--ui-danger);
 }
 
 /* 弹窗 */
@@ -1385,7 +1385,7 @@ function formatSize(bytes: number): string {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ui-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1398,7 +1398,7 @@ function formatSize(bytes: number): string {
   padding: 24px;
   width: 360px;
   max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--ui-shadow-md);
   overflow: visible;
 }
 
@@ -1468,11 +1468,8 @@ function formatSize(bytes: number): string {
   font-weight: 500;
   outline: none;
   cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23999' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 5px center;
+  appearance: auto;
+  -webkit-appearance: menulist;
   transition: border-color 0.15s;
   width: 44px;
   text-align: center;
@@ -1484,7 +1481,7 @@ function formatSize(bytes: number): string {
 }
 
 .sc-select:focus {
-  border-color: var(--accent-blue, #007AFF);
+  border-color: var(--ui-accent);
 }
 
 .sc-sep {
@@ -1502,8 +1499,8 @@ function formatSize(bytes: number): string {
   justify-content: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(0, 122, 255, 0.06);
-  border: 1px solid rgba(0, 122, 255, 0.12);
+  background: var(--ui-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, var(--ui-border));
   border-radius: 6px;
   font-size: 13px;
   color: var(--text-secondary);
@@ -1511,7 +1508,7 @@ function formatSize(bytes: number): string {
 }
 
 .schedule-preview-bar strong {
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
   font-weight: 600;
 }
 
@@ -1603,8 +1600,8 @@ function formatSize(bytes: number): string {
 }
 
 .scheduled-item-cancel:hover {
-  background: rgba(255, 59, 48, 0.1);
-  color: #FF3B30;
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
 }
 
 /* 确认对话框 */
@@ -1637,18 +1634,18 @@ function formatSize(bytes: number): string {
   padding: 10px 20px;
   border-radius: 8px;
   font-size: 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--ui-shadow-sm);
   pointer-events: none;
 }
 
 .toast.success {
-  background: #34C759;
-  color: #fff;
+  background: var(--ui-success);
+  color: var(--ui-text-inverse);
 }
 
 .toast.error {
-  background: #FF3B30;
-  color: #fff;
+  background: var(--ui-danger);
+  color: var(--ui-text-inverse);
 }
 
 .toast.info {
@@ -1776,7 +1773,7 @@ function formatSize(bytes: number): string {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--ui-shadow-md);
   z-index: 200;
   padding: 10px;
 }
@@ -1810,8 +1807,8 @@ function formatSize(bytes: number): string {
 }
 
 .sig-preset-card:hover {
-  border-color: var(--accent-blue, #007AFF);
-  background: rgba(0, 122, 255, 0.04);
+  border-color: var(--ui-accent);
+  background: var(--ui-fill-selected);
   transform: translateY(-1px);
 }
 
@@ -1846,7 +1843,7 @@ function formatSize(bytes: number): string {
   top: 4px; right: 4px;
   width: 20px; height: 20px;
   border: none; border-radius: 50%;
-  background: rgba(0,0,0,0.06); color: var(--text-tertiary);
+  background: var(--ui-fill-muted); color: var(--ui-text-3);
   font-size: 10px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: all 0.15s;
@@ -1854,8 +1851,8 @@ function formatSize(bytes: number): string {
 }
 .sig-preset-card:hover .sig-customize-btn { opacity: 1; }
 .sig-customize-btn:hover {
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
 }
 
 /* 自定义编辑对话框 */
@@ -1874,7 +1871,7 @@ function formatSize(bytes: number): string {
   resize: vertical; outline: none;
   box-sizing: border-box;
 }
-.sig-customize-textarea:focus { border-color: var(--accent-blue, #007AFF); }
+.sig-customize-textarea:focus { border-color: var(--ui-accent); }
 
 /* 我的签名：复用预设卡片样式 + 额外标记 */
 .sig-user-card {
@@ -1899,8 +1896,8 @@ function formatSize(bytes: number): string {
   top: 4px; left: 6px;
   padding: 1px 7px;
   font-size: 10px;
-  background: rgba(0,122,255,0.12);
-  color: var(--accent-blue, #007AFF);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
   border-radius: 3px;
   line-height: 1.2;
 }
@@ -1928,7 +1925,7 @@ function formatSize(bytes: number): string {
 }
 
 .sig-user-item:hover { background: var(--bg-hover); }
-.sig-user-item.active .sig-user-name { color: var(--accent-blue, #007AFF); font-weight: 500; }
+.sig-user-item.active .sig-user-name { color: var(--ui-accent); font-weight: 500; }
 
 .sig-user-name {
   flex: 1;
@@ -1939,7 +1936,7 @@ function formatSize(bytes: number): string {
 
 .sig-default-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent-blue, #007AFF);
+  background: var(--ui-accent);
   flex-shrink: 0;
 }
 
@@ -1952,7 +1949,7 @@ function formatSize(bytes: number): string {
   flex-shrink: 0; opacity: 0; transition: all 0.12s;
 }
 .sig-user-item:hover .sig-delete-btn { opacity: 1; }
-.sig-delete-btn:hover { background: rgba(255,59,48,0.1); color: #ff3b30; }
+.sig-delete-btn:hover { background: var(--ui-danger-soft); color: var(--ui-danger); }
 
 .sig-empty-hint {
   padding: 10px 8px; text-align: center;
@@ -1961,12 +1958,12 @@ function formatSize(bytes: number): string {
 
 .sig-save-current-btn {
   width: 100%; padding: 7px 10px;
-  border: 1px dashed var(--accent-blue, #007AFF);
+  border: 1px dashed var(--ui-accent);
   border-radius: 6px; background: transparent;
-  color: var(--accent-blue, #007AFF); font-size: 12px;
+  color: var(--ui-accent); font-size: 12px;
   cursor: pointer; transition: all 0.15s; text-align: left;
 }
-.sig-save-current-btn:hover { background: rgba(0,122,255,0.06); }
+.sig-save-current-btn:hover { background: var(--ui-accent-soft); }
 
 /* 保存签名对话框 */
 .sig-save-dialog { text-align: center; }
@@ -1977,7 +1974,7 @@ function formatSize(bytes: number): string {
   font-size: 13px; outline: none; box-sizing: border-box;
   margin-bottom: 12px;
 }
-.sig-save-input:focus { border-color: var(--accent-blue, #007AFF); }
+.sig-save-input:focus { border-color: var(--ui-accent); }
 
 /* ==================== 手机端签名面板覆盖（必须在桌面端之后） ==================== */
 @media (max-width: 768px) {
@@ -1994,7 +1991,7 @@ function formatSize(bytes: number): string {
     border-radius: 12px 12px 0 0 !important;
     z-index: 1000 !important;
     padding: 12px 16px 20px !important;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: var(--ui-shadow-md) !important;
   }
 
   /* 签名编辑对话框：手机端铺满 */

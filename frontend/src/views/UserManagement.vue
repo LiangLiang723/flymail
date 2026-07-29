@@ -1,5 +1,5 @@
 <template>
-  <div class="user-page">
+  <div class="user-page ui-page">
     <div class="header">
       <div>
         <h2>用户管理</h2>
@@ -280,7 +280,7 @@ onMounted(loadUsers);
   position: fixed;
   inset: 0;
   z-index: 9000;
-  background: rgba(15, 23, 42, 0.36);
+  background: var(--ui-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,7 +355,7 @@ onMounted(loadUsers);
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #64748b;
+  color: var(--ui-text-2);
 }
 
 .eye-btn {

@@ -1,5 +1,5 @@
 <template>
-  <div class="about-page">
+  <div class="about-page ui-page">
     <section class="about-card">
       <div class="brand-row">
         <img :src="base + 'icon-full.png'" alt="FlyMail" class="brand-logo" @error="onLogoError" />

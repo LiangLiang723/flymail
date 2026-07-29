@@ -1,5 +1,5 @@
 <template>
-  <div class="contact-page">
+  <div class="contact-page ui-page ui-page--edge">
   <!-- ============ 左侧：联系人列表 ============ -->
   <aside class="contact-sidebar" :class="{ 'mobile-hidden': selectedId && isMobile }">
   <!-- 顶部操作栏 -->
@@ -578,7 +578,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 8px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--ui-text-inverse);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -682,7 +682,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-text-inverse);
   font-size: 14px;
   font-weight: 600;
   flex-shrink: 0;
@@ -815,7 +815,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-text-inverse);
   font-size: 28px;
   font-weight: 600;
   flex-shrink: 0;
@@ -912,7 +912,7 @@ onUnmounted(() => {
 
 .btn-delete:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--ui-text-inverse);
 }
 
 /* ============ 详情区块 ============ */
@@ -1056,7 +1056,7 @@ onUnmounted(() => {
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ui-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1183,7 +1183,7 @@ onUnmounted(() => {
 
 .btn-remove-email:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--ui-text-inverse);
 }
 
 .btn-add-email {
@@ -1242,7 +1242,7 @@ onUnmounted(() => {
 /* 保存按钮 - 始终显示蓝色 */
 .btn-save {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--ui-text-inverse);
 }
 
 .btn-save:hover {

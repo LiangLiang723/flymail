@@ -1,5 +1,5 @@
 <template>
-  <div class="backup-page">
+  <div class="backup-page ui-page">
   <!-- 主体：账号tabs + 列表 + 详情（文件夹由侧边栏 backupStore 管理） -->
   <div class="backup-content">
   <!-- 顶部：账号切换 tabs -->
@@ -525,7 +525,7 @@ function downloadAttachment(att: BackupAttachment) {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary, #f5f5f7);
+  background: var(--ui-canvas);
 }
 
 /* ==================== 内容区 ==================== */
@@ -541,9 +541,9 @@ function downloadAttachment(att: BackupAttachment) {
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--ui-surface-floating);
+  backdrop-filter: blur(20px) saturate(145%);
+  border-bottom: 1px solid var(--ui-border);
   gap: 12px;
   flex-wrap: wrap;
   min-height: 48px;
@@ -571,16 +571,16 @@ function downloadAttachment(att: BackupAttachment) {
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--text-secondary, #86868b);
+  color: var(--ui-text-2);
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.account-tab:hover { background: rgba(0, 0, 0, 0.04); }
+.account-tab:hover { background: var(--ui-fill-hover); }
 .account-tab.active {
-  background: rgba(0, 122, 255, 0.1);
-  color: #007aff;
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
   font-weight: 500;
 }
 
@@ -596,15 +596,15 @@ function downloadAttachment(att: BackupAttachment) {
 
 .account-count {
   font-size: 11px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--ui-fill-muted);
   padding: 1px 6px;
   border-radius: 8px;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
 }
 
 .account-tab.active .account-count {
-  background: rgba(0, 122, 255, 0.15);
-  color: #007aff;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 
 /* ==================== 筛选栏（列表上方，参照 MailList 风格） ==================== */
@@ -613,7 +613,7 @@ function downloadAttachment(att: BackupAttachment) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 
@@ -632,7 +632,7 @@ function downloadAttachment(att: BackupAttachment) {
 /* 文件夹名+数量 */
 .list-count {
   font-size: 12px;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -641,7 +641,7 @@ function downloadAttachment(att: BackupAttachment) {
 .toolbar-divider {
   width: 1px;
   height: 16px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--ui-border-strong);
   flex-shrink: 0;
   margin: 0 4px;
 }
@@ -652,19 +652,19 @@ function downloadAttachment(att: BackupAttachment) {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
 }
 .filter-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text-secondary, #86868b);
+  background: var(--ui-fill-hover);
+  color: var(--ui-text-2);
 }
 .filter-btn.active {
-  background: rgba(0, 122, 255, 0.1);
-  color: #007aff;
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
   font-weight: 500;
 }
 
@@ -678,14 +678,14 @@ function downloadAttachment(att: BackupAttachment) {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--text-secondary, #86868b);
+  color: var(--ui-text-2);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .btn-icon:hover:not(:disabled) {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--text-primary, #1d1d1f);
+  background: var(--ui-fill-hover);
+  color: var(--ui-text-1);
 }
 
 .btn-icon:disabled {
@@ -717,7 +717,7 @@ function downloadAttachment(att: BackupAttachment) {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-secondary, #86868b);
+  color: var(--ui-text-2);
   gap: 8px;
 }
 
@@ -732,7 +732,7 @@ function downloadAttachment(att: BackupAttachment) {
   padding: 10px 16px;
   border: none;
   background: transparent;
-  border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
+  border-bottom: 1px solid var(--ui-border);
   cursor: pointer;
   transition: background 0.15s;
   width: 100%;
@@ -741,7 +741,7 @@ function downloadAttachment(att: BackupAttachment) {
   min-height: 52px;
 }
 
-.mail-item:hover { background: var(--bg-hover, rgba(0, 0, 0, 0.04)); }
+.mail-item:hover { background: var(--ui-fill-hover); }
 
 /* 左列：头像 + 发件人（固定宽度，保证各行对齐） */
 .mail-sender {
@@ -761,7 +761,7 @@ function downloadAttachment(att: BackupAttachment) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--ui-text-inverse);
   font-size: 13px;
   font-weight: 600;
   flex-shrink: 0;
@@ -769,7 +769,7 @@ function downloadAttachment(att: BackupAttachment) {
 
 .mail-from {
   font-size: 13px;
-  color: var(--text-secondary, #86868b);
+  color: var(--ui-text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -796,7 +796,7 @@ function downloadAttachment(att: BackupAttachment) {
 
 .mail-subject {
   font-size: 13px;
-  color: var(--text-secondary, #86868b);
+  color: var(--ui-text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -807,7 +807,7 @@ function downloadAttachment(att: BackupAttachment) {
 /* 附件图标（回形针） */
 .att-badge {
   flex-shrink: 0;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   margin-left: 2px;
 }
 
@@ -818,15 +818,15 @@ function downloadAttachment(att: BackupAttachment) {
   font-weight: 500;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 59, 48, 0.12);
-  color: #ff3b30;
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
   white-space: nowrap;
 }
 
 /* 右列：日期（固定宽度，右对齐） */
 .mail-date {
   font-size: 11px;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   flex-shrink: 0;
   white-space: nowrap;
   width: 64px;
@@ -844,25 +844,25 @@ function downloadAttachment(att: BackupAttachment) {
 
 .pagination button {
   padding: 6px 14px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ui-surface-1);
   font-size: 12px;
   cursor: pointer;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   transition: opacity 0.2s;
 }
 
-.pagination button:hover:not(:disabled) { background: rgba(255, 255, 255, 1); }
+.pagination button:hover:not(:disabled) { background: var(--ui-fill-hover); }
 .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
-.page-info { font-size: 12px; color: var(--text-secondary, #86868b); }
+.page-info { font-size: 12px; color: var(--ui-text-2); }
 
 /* ==================== 详情视图（占满整个区域，与 MailList 一致） ==================== */
 .archive-detail {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ui-surface-1);
   overflow: hidden;
 }
 
@@ -872,9 +872,9 @@ function downloadAttachment(att: BackupAttachment) {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
-  background: var(--bg-primary, rgba(255, 255, 255, 0.7));
-  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface-floating);
+  backdrop-filter: blur(20px) saturate(145%);
   flex-shrink: 0;
 }
 
@@ -885,7 +885,7 @@ function downloadAttachment(att: BackupAttachment) {
   padding: 6px 12px;
   border: none;
   background: transparent;
-  color: var(--accent-blue, #007aff);
+  color: var(--ui-accent);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -894,7 +894,7 @@ function downloadAttachment(att: BackupAttachment) {
   font-family: inherit;
 }
 
-.btn-back:hover { background: var(--bg-hover, rgba(0, 0, 0, 0.04)); }
+.btn-back:hover { background: var(--ui-fill-hover); }
 
 /* 详情页操作按钮容器（打印等） */
 .detail-actions {
@@ -911,16 +911,16 @@ function downloadAttachment(att: BackupAttachment) {
   padding: 4px 10px;
   border: none;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-secondary, #86868b);
+  background: var(--ui-fill-muted);
+  color: var(--ui-text-2);
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
 }
 .btn-action:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--text-primary, #1d1d1f);
+  background: var(--ui-fill-hover);
+  color: var(--ui-text-1);
 }
 .btn-action:disabled {
   opacity: 0.5;
@@ -950,7 +950,7 @@ function downloadAttachment(att: BackupAttachment) {
 .detail-subject {
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   margin: 0 0 16px 0;
   line-height: 1.4;
   word-break: break-word;
@@ -970,7 +970,7 @@ function downloadAttachment(att: BackupAttachment) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--ui-text-inverse);
   font-size: 15px;
   font-weight: 600;
   flex-shrink: 0;
@@ -987,7 +987,7 @@ function downloadAttachment(att: BackupAttachment) {
 .from-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -995,7 +995,7 @@ function downloadAttachment(att: BackupAttachment) {
 
 .from-email {
   font-size: 12px;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1006,7 +1006,7 @@ function downloadAttachment(att: BackupAttachment) {
 /* 分割线：头像行 / 信息卡 / 正文 之间 */
 .detail-divider {
   height: 1px;
-  background: var(--border-color, rgba(0, 0, 0, 0.08));
+  background: var(--ui-border);
   margin: 12px 0;
 }
 
@@ -1015,7 +1015,7 @@ function downloadAttachment(att: BackupAttachment) {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 14px;
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--ui-surface-2);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -1029,13 +1029,13 @@ function downloadAttachment(att: BackupAttachment) {
   line-height: 1.6;
 }
 .meta-row-label {
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   flex-shrink: 0;
   width: 48px;
   font-weight: 500;
 }
 .meta-row-value {
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   word-break: break-all;
   flex: 1;
   min-width: 0;
@@ -1054,11 +1054,11 @@ function downloadAttachment(att: BackupAttachment) {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #ff9500;
+  color: var(--ui-warning);
 }
 
 .deleted-notice {
-  color: #ff3b30;
+  color: var(--ui-danger);
   font-weight: 500;
   margin-left: 4px;
 }
@@ -1068,7 +1068,7 @@ function downloadAttachment(att: BackupAttachment) {
   align-items: center;
   gap: 12px;
   font-size: 11px;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
 }
 
 /* 正文骨架屏 */
@@ -1081,7 +1081,7 @@ function downloadAttachment(att: BackupAttachment) {
 
 .skeleton-line {
   height: 14px;
-  background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%);
+  background: linear-gradient(90deg, var(--ui-fill-muted) 25%, var(--ui-fill-hover) 50%, var(--ui-fill-muted) 75%);
   background-size: 200% 100%;
   animation: skeleton-loading 1.4s ease infinite;
   border-radius: 4px;
@@ -1096,7 +1096,7 @@ function downloadAttachment(att: BackupAttachment) {
 .detail-content {
   font-size: 14px;
   line-height: 1.6;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -1107,7 +1107,7 @@ function downloadAttachment(att: BackupAttachment) {
 }
 
 .detail-content :deep(a) {
-  color: #0071e3;
+  color: var(--ui-accent);
   word-break: break-all;
 }
 
@@ -1117,7 +1117,7 @@ function downloadAttachment(att: BackupAttachment) {
 }
 
 .body-empty {
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   font-size: 13px;
   text-align: center;
   padding: 40px;
@@ -1127,7 +1127,7 @@ function downloadAttachment(att: BackupAttachment) {
 .attachment-list {
   margin-top: 24px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
+  border-top: 1px solid var(--ui-border);
 }
 
 .attachment-header {
@@ -1136,7 +1136,7 @@ function downloadAttachment(att: BackupAttachment) {
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   margin-bottom: 10px;
 }
 
@@ -1146,17 +1146,17 @@ function downloadAttachment(att: BackupAttachment) {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--ui-surface-2);
   margin-bottom: 6px;
   transition: background 0.15s;
 }
 
-.attachment-item:hover { background: rgba(0, 0, 0, 0.06); }
+.attachment-item:hover { background: var(--ui-fill-hover); }
 
 .att-icon {
   display: flex;
   align-items: center;
-  color: var(--text-secondary, #86868b);
+  color: var(--ui-text-2);
   flex-shrink: 0;
 }
 
@@ -1167,7 +1167,7 @@ function downloadAttachment(att: BackupAttachment) {
 
 .att-name {
   font-size: 13px;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1175,20 +1175,20 @@ function downloadAttachment(att: BackupAttachment) {
 
 .att-meta {
   font-size: 11px;
-  color: var(--text-tertiary, #a1a1a6);
+  color: var(--ui-text-3);
   margin-top: 2px;
 }
 
 /* 附件下载按钮：默认灰色，hover 时变蓝 */
 .att-download {
   flex-shrink: 0;
-  color: var(--text-tertiary, #999);
+  color: var(--ui-text-3);
   padding: 4px;
   border-radius: 4px;
   transition: color 0.15s;
 }
 .attachment-item:hover .att-download {
-  color: var(--primary, #007aff);
+  color: var(--ui-accent);
 }
 
 /* ==================== 移动端适配 ==================== */
@@ -1208,8 +1208,8 @@ function downloadAttachment(att: BackupAttachment) {
   padding: 5px 12px;
   border: none;
   border-radius: var(--radius-md, 8px);
-  background: rgba(0, 122, 255, 0.1);
-  color: var(--accent-blue, #007aff);
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
@@ -1218,7 +1218,7 @@ function downloadAttachment(att: BackupAttachment) {
 
   /* 移动端筛选按钮显示 */
   .mobile-filter-toggle { display: flex; }
-  .mobile-filter-toggle.active { color: var(--accent-blue, #007aff); }
+  .mobile-filter-toggle.active { color: var(--ui-accent); }
 
   /* 工具栏作为下拉菜单的定位基准 */
   .list-toolbar { position: relative; }
@@ -1239,9 +1239,9 @@ function downloadAttachment(att: BackupAttachment) {
   .filter-dropdown-menu {
   position: relative;
   pointer-events: auto;
-  background: var(--bg-primary, #fff);
-  border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.06));
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  background: var(--ui-surface-1);
+  border-bottom: 1px solid var(--ui-border);
+  box-shadow: var(--ui-shadow-sm);
   }
   .filter-dropdown-compact { padding: 4px 0; }
   .filter-dropdown-item {
@@ -1252,17 +1252,17 @@ function downloadAttachment(att: BackupAttachment) {
   background: transparent;
   text-align: left;
   font-size: 14px;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   cursor: pointer;
   font-family: inherit;
   }
-  .filter-dropdown-item.active { color: var(--accent-blue, #007aff); font-weight: 500; }
+  .filter-dropdown-item.active { color: var(--ui-accent); font-weight: 500; }
 
   /* iOS风格底部弹出文件夹选择 */
   .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ui-scrim);
   z-index: 1000;
   display: flex;
   align-items: flex-end;
@@ -1308,14 +1308,14 @@ function downloadAttachment(att: BackupAttachment) {
   border: none;
   background: var(--bg-primary);
   font-size: 17px;
-  color: var(--text-primary, #1d1d1f);
+  color: var(--ui-text-1);
   text-align: left;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s;
   }
-  .sheet-item:active { background: var(--bg-hover); }
-  .sheet-item.active { color: var(--accent-blue, #007aff); font-weight: 500; }
+  .sheet-item:active { background: var(--ui-fill-hover); }
+  .sheet-item.active { color: var(--ui-accent); font-weight: 500; }
   .sheet-item + .sheet-item { border-top: 0.5px solid var(--border-color); }
   .sheet-folder-name { flex: 1; }
   .sheet-folder-count { font-size: 15px; color: var(--text-secondary); margin-right: 8px; }

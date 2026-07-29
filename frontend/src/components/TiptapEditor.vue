@@ -604,8 +604,8 @@ const toolbarButtons = [
 }
 
 .toolbar-btn.active {
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
 }
 
 /* 下拉菜单 */
@@ -643,7 +643,7 @@ const toolbarButtons = [
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--ui-shadow-md);
 }
 
 .toolbar-dropdown:hover .dropdown-menu,
@@ -735,12 +735,12 @@ const toolbarButtons = [
 .editor-content :deep(.tiptap ul) { padding-left: 1.5em; list-style: disc; }
 .editor-content :deep(.tiptap ol) { padding-left: 1.5em; list-style: decimal; }
 .editor-content :deep(.tiptap blockquote) {
-  border-left: 3px solid var(--accent-blue, #007AFF);
+  border-left: 3px solid var(--ui-accent);
   padding-left: 1em;
   margin: 0.5em 0;
   color: var(--text-secondary);
 }
-.editor-content :deep(.tiptap a) { color: var(--accent-blue, #007AFF); text-decoration: underline; }
+.editor-content :deep(.tiptap a) { color: var(--ui-accent); text-decoration: underline; }
 .editor-content :deep(.tiptap img) { max-width: 100%; border-radius: 4px; }
 
 /* 分割线样式 */
@@ -773,7 +773,7 @@ const toolbarButtons = [
   font-weight: 600;
 }
 .editor-content :deep(.tiptap table .selectedCell) {
-  background: rgba(0, 122, 255, 0.1);
+  background: var(--ui-accent-soft);
 }
 .editor-content :deep(.tiptap table .column-resize-handle) {
   position: absolute;
@@ -781,7 +781,7 @@ const toolbarButtons = [
   top: 0;
   bottom: -2px;
   width: 4px;
-  background-color: var(--accent-blue, #007AFF);
+  background-color: var(--ui-accent);
   pointer-events: none;
 }
 
@@ -794,10 +794,10 @@ const toolbarButtons = [
 
 /* 下拉菜单危险操作（删除） */
 .dropdown-item.danger {
-  color: #ff3b30;
+  color: var(--ui-danger);
 }
 .dropdown-item.danger:hover {
-  background: #fff1f0;
+  background: var(--ui-danger-soft);
 }
 
 /* 下拉菜单禁用状态 */
@@ -823,7 +823,7 @@ const toolbarButtons = [
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--ui-shadow-md);
   z-index: 100;
   padding: 8px;
 }
@@ -855,8 +855,8 @@ const toolbarButtons = [
 }
 
 .emoji-tab.active {
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
 }
 
 .emoji-grid {
@@ -901,7 +901,7 @@ const toolbarButtons = [
   border-radius: 12px 12px 0 0 !important;
   z-index: 1000 !important;
   padding: 10px 12px 16px !important;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15) !important;
+  box-shadow: var(--ui-shadow-md) !important;
   }
 
   .emoji-grid {

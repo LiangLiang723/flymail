@@ -8,7 +8,7 @@ import {
   type MediaQueryListLike,
   type ThemeRootLike,
   type ThemeStorageLike,
-} from '../src/utils/theme';
+} from '../src/utils/theme.ts';
 
 class FakeStorage implements ThemeStorageLike {
   private values = new Map<string, string>();

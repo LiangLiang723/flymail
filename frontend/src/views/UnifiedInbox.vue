@@ -1,5 +1,5 @@
 <template>
-  <section class="unified-page">
+  <section class="unified-page ui-page">
     <header class="unified-header">
       <div>
         <h2>聚合收件箱</h2>
@@ -277,39 +277,39 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.unified-page { height: 100%; overflow: auto; padding: 24px; background: var(--bg-secondary, #f5f7fb); }
+.unified-page { height: 100%; overflow: auto; padding: 24px; background: var(--ui-canvas); }
 .unified-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .unified-header h2 { margin: 0 0 6px; font-size: 24px; }
-.unified-header p { margin: 0; color: var(--text-tertiary, #64748b); }
+.unified-header p { margin: 0; color: var(--ui-text-3); }
 .header-actions, .settings-actions, .pagination { display: flex; align-items: center; gap: 10px; }
-.settings-card, .filter-bar, .message-list, .state-card { background: var(--bg-primary, #fff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 12px; }
+.settings-card, .filter-bar, .message-list, .state-card { background: var(--ui-surface-1); border: 1px solid var(--ui-border); border-radius: 12px; }
 .settings-card { padding: 18px; margin-bottom: 16px; }
 .settings-title { font-weight: 700; margin-bottom: 10px; }
 .account-option { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; }
-.account-option small { color: var(--text-tertiary, #64748b); }
+.account-option small { color: var(--ui-text-3); }
 .settings-actions { justify-content: flex-end; margin-top: 12px; }
-.empty-inline { color: var(--text-tertiary, #64748b); padding: 10px 0; }
+.empty-inline { color: var(--ui-text-3); padding: 10px 0; }
 .filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px; margin-bottom: 12px; }
-.select { min-width: 180px; border: 1px solid var(--border-color, #dbe2ea); border-radius: 8px; padding: 8px 10px; background: var(--bg-primary, #fff); }
-.filter-chip { border: 1px solid var(--border-color, #dbe2ea); border-radius: 999px; padding: 7px 12px; background: transparent; cursor: pointer; }
-.filter-chip.active { border-color: var(--color-accent, #1677ff); background: var(--color-accent-lighter, #e8f3ff); color: var(--color-accent, #1677ff); }
-.summary { margin-left: auto; color: var(--text-tertiary, #64748b); font-size: 13px; }
-.state-card { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-tertiary, #64748b); }
-.error-state { color: var(--color-danger, #dc2626); }
+.select { min-width: 180px; border: 1px solid var(--ui-border-strong); border-radius: 8px; padding: 8px 10px; background: var(--ui-surface-1); color: var(--ui-text-1); }
+.filter-chip { border: 1px solid var(--ui-border-strong); border-radius: 999px; padding: 7px 12px; background: transparent; color: var(--ui-text-2); cursor: pointer; }
+.filter-chip.active { border-color: var(--ui-accent); background: var(--ui-fill-selected); color: var(--ui-accent); }
+.summary { margin-left: auto; color: var(--ui-text-3); font-size: 13px; }
+.state-card { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--ui-text-3); }
+.error-state { color: var(--ui-danger); }
 .message-list { overflow: hidden; }
-.message-row { width: 100%; display: grid; grid-template-columns: 12px minmax(130px, 220px) minmax(0, 1fr) 24px 72px; align-items: center; gap: 12px; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--border-color, #edf1f5); background: var(--bg-primary, #fff); text-align: left; cursor: pointer; }
+.message-row { width: 100%; display: grid; grid-template-columns: 12px minmax(130px, 220px) minmax(0, 1fr) 24px 72px; align-items: center; gap: 12px; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-surface-1); color: var(--ui-text-1); text-align: left; cursor: pointer; }
 .message-row:last-child { border-bottom: 0; }
-.message-row:hover { background: var(--bg-hover, #f8fafc); }
-.message-row.unread { background: #f3f8ff; }
+.message-row:hover { background: var(--ui-fill-hover); }
+.message-row.unread { background: var(--ui-fill-selected); }
 .read-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
-.unread .read-dot { background: var(--color-accent, #1677ff); }
+.unread .read-dot { background: var(--ui-accent); }
 .sender { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .unread .sender, .unread .message-main strong { font-weight: 700; }
 .message-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .message-main strong, .message-main small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.message-main small { color: var(--text-tertiary, #64748b); }
+.message-main small { color: var(--ui-text-3); }
 .attachment { text-align: center; }
-time { color: var(--text-tertiary, #64748b); font-size: 12px; text-align: right; }
+time { color: var(--ui-text-3); font-size: 12px; text-align: right; }
 .pagination { justify-content: center; margin-top: 16px; }
 @media (max-width: 760px) {
   .unified-page { padding: 12px; }

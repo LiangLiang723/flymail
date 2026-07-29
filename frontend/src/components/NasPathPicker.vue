@@ -230,7 +230,7 @@ function onCancel() {
 .nas-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ui-scrim);
   backdrop-filter: blur(8px);
   z-index: 2000;
   display: flex;
@@ -248,7 +248,7 @@ function onCancel() {
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--ui-shadow-lg);
 }
 
 .nas-head {
@@ -297,7 +297,7 @@ function onCancel() {
 
 .nav-item.clickable {
   cursor: pointer;
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
 }
 
 .nav-sep {
@@ -332,18 +332,18 @@ function onCancel() {
 }
 
 .nas-row:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  background: var(--ui-fill-hover);
 }
 
 .nas-row.selected {
-  background: rgba(0, 122, 255, 0.12);
+  background: var(--ui-fill-selected);
 }
 
 .nas-row svg {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
 }
 
 .nas-row.file svg {
@@ -402,8 +402,8 @@ function onCancel() {
 }
 
 .btn-ok {
-  background: var(--accent-blue, #007AFF);
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
 }
 
 .btn-ok:disabled {

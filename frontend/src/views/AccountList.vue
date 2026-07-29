@@ -1,5 +1,5 @@
 <template>
-  <div class="account-page">
+  <div class="account-page ui-page">
     <!-- 操作栏 -->
     <div class="toolbar">
       <div class="sort-toggle">
@@ -1004,7 +1004,7 @@ async function reconnectAccount(account: any) {
 .toggle-btn.active {
   background: var(--bg-primary);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--ui-shadow-xs);
 }
 
 /* ==================== 加载状态 ==================== */
@@ -1080,9 +1080,9 @@ async function reconnectAccount(account: any) {
 
 .delete-job {
   padding: var(--space-3) var(--space-4);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 8px;
-  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 28%, var(--ui-border));
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-danger-soft);
 }
 
 .delete-job-main {
@@ -1099,8 +1099,8 @@ async function reconnectAccount(account: any) {
 
 .delete-progress {
   height: 6px;
-  border-radius: 999px;
-  background: rgba(239, 68, 68, 0.16);
+  border-radius: var(--ui-radius-round);
+  background: color-mix(in srgb, var(--ui-danger) 22%, transparent);
   overflow: hidden;
 }
 
@@ -1108,8 +1108,8 @@ async function reconnectAccount(account: any) {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #ef4444;
-  transition: width 0.2s ease;
+  background: var(--ui-danger);
+  transition: width var(--ui-motion-fast);
 }
 
 .section-header {
@@ -1178,9 +1178,9 @@ async function reconnectAccount(account: any) {
   line-height: 0;
 }
 
-.account-avatar.qq { background: #E8F4FD; }
-.account-avatar.gmail { background: #FEE8E7; }
-.account-avatar.netease { background: #FDE8E8; }
+.account-avatar.qq { background: var(--ui-accent-soft); }
+.account-avatar.gmail { background: var(--ui-danger-soft); }
+.account-avatar.netease { background: var(--ui-warning-soft); }
 
 /* 账号信息 */
 .account-info {
@@ -1282,18 +1282,18 @@ async function reconnectAccount(account: any) {
   border-radius: 50%;
 }
 
-.account-status.connected { background: #E8F5E9; color: #2E7D32; }
-.account-status.connected .status-dot { background: #4CAF50; }
+.account-status.connected { background: var(--ui-success-soft); color: var(--ui-success); }
+.account-status.connected .status-dot { background: var(--ui-success); }
 .account-status.disconnected { background: var(--bg-tertiary); color: var(--text-tertiary); }
 .account-status.disconnected .status-dot { background: var(--text-tertiary); }
-.account-status.offline { background: #EEF2FF; color: #4338CA; }
-.account-status.offline .status-dot { background: #6366F1; }
-.account-status.error { background: #FFEBEE; color: #C62828; }
-.account-status.error .status-dot { background: #EF5350; }
-.account-status.checking { background: #E3F2FD; color: #1565C0; }
-.account-status.checking .status-dot { background: #42A5F5; animation: status-pulse 0.8s ease-in-out infinite; }
-.account-status.reauth_needed { background: #FFF3E0; color: #E65100; }
-.account-status.reauth_needed .status-dot { background: #FF9800; }
+.account-status.offline { background: var(--ui-accent-soft); color: var(--ui-accent); }
+.account-status.offline .status-dot { background: var(--ui-accent); }
+.account-status.error { background: var(--ui-danger-soft); color: var(--ui-danger); }
+.account-status.error .status-dot { background: var(--ui-danger); }
+.account-status.checking { background: var(--ui-accent-soft); color: var(--ui-accent); }
+.account-status.checking .status-dot { background: var(--ui-accent); animation: status-pulse 0.8s ease-in-out infinite; }
+.account-status.reauth_needed { background: var(--ui-warning-soft); color: var(--ui-warning); }
+.account-status.reauth_needed .status-dot { background: var(--ui-warning); }
 
 @keyframes status-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -1314,10 +1314,10 @@ async function reconnectAccount(account: any) {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: #FFF3E0;
-  border: 1px solid #FFB74D;
+  background: var(--ui-warning-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-warning) 34%, var(--ui-border));
   border-radius: var(--border-radius-sm);
-  color: #E65100;
+  color: var(--ui-warning);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -1326,17 +1326,7 @@ async function reconnectAccount(account: any) {
 }
 
 .btn-reauth-card:hover {
-  background: #FFE0B2;
-}
-
-:root.dark .btn-reauth-card {
-  background: #3D2E00;
-  border-color: #5A4400;
-  color: #FFB74D;
-}
-
-:root.dark .btn-reauth-card:hover {
-  background: #4A3800;
+  background: color-mix(in srgb, var(--ui-warning) 22%, transparent);
 }
 
 /* ==================== 对话框 ==================== */
@@ -1438,9 +1428,9 @@ async function reconnectAccount(account: any) {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: white;
+  background: var(--ui-text-inverse);
   transition: transform var(--transition-fast);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .toggle-switch.active .toggle-knob { transform: translateX(16px); }

@@ -1,5 +1,5 @@
 <template>
-  <div class="mail-view">
+  <div class="mail-view ui-page ui-page--edge">
     <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>
@@ -1359,7 +1359,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-item:not(.unread) {
-  background: rgba(148, 163, 184, 0.06);
+  background: var(--ui-fill-muted);
 }
 
 .mail-item:not(.unread) .mail-from,
@@ -1373,7 +1373,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-item:not(.unread):hover {
-  background: rgba(148, 163, 184, 0.1);
+  background: var(--ui-fill-hover);
 }
 
 .toolbar-right {
@@ -1541,8 +1541,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .folder-nav-item.active {
-  background: rgba(0, 122, 255, 0.1);
-  color: var(--accent-blue);
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
   font-weight: 600;
 }
 
@@ -1570,17 +1570,11 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: #fef3e2;
-  border-bottom: 1px solid #f5d0a0;
+  background: var(--ui-warning-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-warning) 28%, var(--ui-border));
   font-size: var(--text-sm);
-  color: #b45309;
+  color: var(--ui-warning);
   flex-shrink: 0;
-}
-
-:root.dark .reauth-banner {
-  background: #3d2e00;
-  border-bottom-color: #5a4400;
-  color: #fbbf24;
 }
 
 .reauth-banner .btn-sm {
@@ -1649,18 +1643,14 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: transparent;
   border-radius: 50%;
   cursor: pointer;
-  color: #e67e22;
+  color: var(--ui-warning);
   transition: all var(--transition-fast);
   padding: 0;
 }
 
 .btn-reauth:hover {
-  background: #fef3e2;
-  color: #d35400;
-}
-
-:root.dark .btn-reauth:hover {
-  background: #3d2e00;
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
 }
 
 .account-icon {
@@ -1674,10 +1664,10 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   overflow: hidden;
 }
 
-.account-icon.qq { background: #fff; }
-.account-icon.gmail { background: #fff; }
-.account-icon.netease { background: #fff; }
-.account-icon.icloud { background: #fff; }
+.account-icon.qq,
+.account-icon.gmail,
+.account-icon.netease,
+.account-icon.icloud { background: var(--ui-text-inverse); }
 
 .account-email {
   overflow: hidden;
@@ -1742,8 +1732,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .search-input:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.12);
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
 }
 
 /* 筛选按钮（工具栏内） */
@@ -1763,8 +1753,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   color: var(--text-secondary);
 }
 .filter-btn.active {
-  background: rgba(0, 122, 255, 0.1);
-  color: var(--color-accent);
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
   font-weight: 500;
 }
 
@@ -1799,8 +1789,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .btn-icon:active {
-  background: rgba(0, 122, 255, 0.1);
-  color: var(--accent-blue);
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
 }
 
 .refresh-button svg {
@@ -1861,12 +1851,12 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .select-btn.delete {
-  color: #FF3B30;
+  color: var(--ui-danger);
 }
 
 .select-btn.delete:hover {
-  background: rgba(255, 59, 48, 0.1);
-  color: #FF3B30;
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
 }
 
 .select-btn.delete:disabled {
@@ -1881,12 +1871,12 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
 /* 标记已读按钮 */
 .select-btn.mark-read {
-  color: var(--accent-blue, #007AFF);
+  color: var(--ui-accent);
 }
 
 .select-btn.mark-read:hover {
-  background: rgba(0, 122, 255, 0.1);
-  color: var(--accent-blue, #007AFF);
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
 }
 
 .select-btn.mark-read:disabled {
@@ -1902,8 +1892,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 /* 实时同步状态指示器 */
 .sync-badge {
   font-size: 11px;
-  color: var(--accent-blue, #007AFF);
-  background: rgba(0, 122, 255, 0.1);
+  color: var(--ui-accent);
+  background: var(--ui-fill-selected);
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
@@ -1934,7 +1924,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 .sync-status.connected .status-dot {
   background: var(--color-success);
   opacity: 1;
-  box-shadow: 0 0 4px rgba(52, 199, 89, 0.4);
+  box-shadow: 0 0 0 3px var(--ui-success-soft);
 }
 
 .list-count {
@@ -2038,22 +2028,22 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   align-items: center;
 }
 .unread-icon {
-  color: #f5a623; /* 橙色实心信封 */
+  color: var(--ui-warning);
 }
 .read-icon {
-  color: #c7c7cc; /* 灰色打开信封 */
+  color: var(--ui-text-3);
 }
 
 /* 附件图标（列表中的回形针标记） */
 .att-badge {
   flex-shrink: 0;
-  color: var(--text-tertiary, #999);
+  color: var(--ui-text-3);
   margin-left: 2px;
 }
 
 /* 多选模式选中行高亮 */
 .mail-item.selected {
-  background: rgba(0, 122, 255, 0.1);
+  background: var(--ui-fill-selected);
 }
 
 /* 勾选圆圈 */
@@ -2061,7 +2051,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid #c7c7cc;
+  border: 2px solid var(--ui-text-3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2071,8 +2061,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .check-circle.checked {
-  background: #007AFF;
-  border-color: #007AFF;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
   transform: scale(1.1);
 }
 
@@ -2145,8 +2135,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .page-btn.active {
-  background: #007AFF;
-  color: #fff;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
   font-weight: 600;
 }
 
@@ -2173,7 +2163,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--ui-text-inverse);
   font-size: 13px;
   font-weight: var(--font-semibold);
   flex-shrink: 0;
@@ -2229,12 +2219,12 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   white-space: nowrap;
 }
 .mail-status-tag.unread {
-  background: rgba(245, 166, 35, 0.12);
-  color: #D48806;
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
 }
 .mail-status-tag.read {
-  background: rgba(142, 142, 147, 0.1);
-  color: #8E8E93;
+  background: var(--ui-fill-muted);
+  color: var(--ui-text-3);
 }
 
 /* ==================== 邮件详情 ==================== */
@@ -2306,12 +2296,12 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .btn-action.confirm {
-  background: #FF3B30;
-  color: #fff;
+  background: var(--ui-danger);
+  color: var(--ui-text-inverse);
 }
 
 .btn-action.confirm:hover {
-  background: #E03A22;
+  background: var(--ui-danger-hover);
 }
 
 .detail-header {
@@ -2340,7 +2330,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--ui-text-inverse);
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
   flex-shrink: 0;
@@ -2424,7 +2414,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 .attachment-list {
   margin-top: 16px;
   padding: 12px;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--ui-border);
 }
 .attachment-header {
   display: flex;
@@ -2432,7 +2422,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary, #666);
+  color: var(--ui-text-2);
   margin-bottom: 8px;
 }
 .attachment-item {
@@ -2441,16 +2431,16 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   gap: 10px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: var(--bg-secondary, #f5f5f5);
+  background: var(--ui-surface-2);
   cursor: pointer;
   transition: background 0.15s;
 }
 .attachment-item:hover {
-  background: var(--bg-tertiary, #eaeaea);
+  background: var(--ui-fill-hover);
 }
 .att-icon {
   flex-shrink: 0;
-  color: var(--text-tertiary, #999);
+  color: var(--ui-text-3);
 }
 .att-info {
   flex: 1;
@@ -2459,14 +2449,14 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 .att-name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary, #333);
+  color: var(--ui-text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .att-meta {
   font-size: 11px;
-  color: var(--text-tertiary, #999);
+  color: var(--ui-text-3);
   margin-top: 2px;
   display: flex;
   align-items: center;
@@ -2479,20 +2469,20 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(52, 199, 89, 0.12);
-  color: #1f8a46;
+  background: var(--ui-success-soft);
+  color: var(--ui-success);
   font-size: 11px;
   font-weight: 600;
 }
 .att-download {
   flex-shrink: 0;
-  color: var(--text-tertiary, #999);
+  color: var(--ui-text-3);
   padding: 4px;
   border-radius: 4px;
   transition: color 0.15s;
 }
 .attachment-item:hover .att-download {
-  color: var(--primary, #007aff);
+  color: var(--ui-accent);
 }
 
 /* 移动端：筛选切换按钮（桌面端隐藏） */
@@ -2593,7 +2583,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     pointer-events: auto;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: var(--ui-shadow-sm);
     max-height: 60vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -2607,7 +2597,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     max-height: none;
     border: 1px solid var(--border-color);
     border-radius: 10px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    box-shadow: var(--ui-shadow-md);
     padding: 4px 0;
     overflow-y: auto;
     max-height: 50vh;
@@ -2677,7 +2667,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     justify-content: space-between;
     gap: 6px;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.06);
+    box-shadow: var(--ui-shadow-sm);
     flex-wrap: nowrap;
   }
 
@@ -2711,7 +2701,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     padding: 5px 12px;
     border: none;
     border-radius: var(--radius-md);
-    background: rgba(0, 122, 255, 0.1);
+    background: var(--ui-fill-selected);
     color: var(--accent-blue);
     font-size: var(--text-sm);
     font-weight: 600;
@@ -2719,7 +2709,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     transition: background 0.2s;
   }
   .folder-picker:active {
-    background: rgba(0, 122, 255, 0.2);
+    background: var(--ui-accent-soft);
   }
   .picker-label {
     max-width: 120px;
@@ -2732,7 +2722,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   .sheet-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--ui-scrim);
     z-index: 1000;
     display: flex;
     align-items: flex-end;
@@ -2880,7 +2870,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   border: none;
   border-radius: 8px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--ui-text-inverse);
   font-size: var(--text-xs);
   font-weight: var(--font-medium);
   font-family: inherit;
@@ -3067,7 +3057,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   height: 34px;
   padding: 0 13px;
   border-radius: 9px;
-  box-shadow: 0 1px 2px rgba(0, 122, 255, 0.2);
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .list-items {

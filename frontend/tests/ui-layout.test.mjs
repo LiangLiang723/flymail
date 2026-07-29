@@ -10,19 +10,35 @@ async function readSource(relativePath) {
   return readFile(path.join(frontendRoot, relativePath), 'utf8');
 }
 
-test('application shell uses one flat sidebar and keeps global actions out of a topbar', async () => {
-  const source = await readSource('src/App.vue');
+test('authentication boot state never renders the login form before session checking finishes', async () => {
+  const appSource = await readSource('src/App.vue');
+  const loginSource = await readSource('src/views/LoginView.vue');
 
-  assert.match(source, /class="sidebar-header"/);
-  assert.match(source, /class="nav-list"/);
-  assert.match(source, /v-for="item in navItems"/);
-  assert.doesNotMatch(source, /class="nav-group-label"/);
-  assert.doesNotMatch(source, /class="topbar"/);
-  assert.match(source, /class="sidebar-actions"/);
-  assert.match(source, /class="sidebar-profile-trigger"/);
-  assert.match(source, /class="user-menu-popover"/);
-  assert.match(source, /\.user-menu-popover\s*\{[^}]*position:\s*fixed;/s);
-  assert.match(source, /<AppIcon/);
+  assert.match(appSource, /<AuthGate/);
+  assert.doesNotMatch(appSource, /!authReady\s*\|\|\s*!currentUser/);
+  assert.match(appSource, /authState/);
+  assert.match(loginSource, /role="alert"/);
+  assert.match(loginSource, /getLoginErrorMessage/);
+});
+
+test('application shell uses extracted navigation components without legacy duplicate markup', async () => {
+  const appSource = await readSource('src/App.vue');
+  const sidebarSource = await readSource('src/components/app/AppSidebar.vue');
+  const userMenuSource = await readSource('src/components/app/UserMenu.vue');
+  const shellCss = await readSource('src/styles/app-shell.css');
+
+  assert.match(appSource, /<AppSidebar/);
+  assert.match(appSource, /<NotificationDrawer/);
+  assert.doesNotMatch(appSource, /v-if="false"/);
+  assert.doesNotMatch(appSource, /<style scoped>/);
+  assert.doesNotMatch(appSource, /class="topbar"/);
+  assert.match(sidebarSource, /class="sidebar-header sidebar-row"/);
+  assert.match(sidebarSource, /class="nav-list"/);
+  assert.match(sidebarSource, /v-for="item in navItems"/);
+  assert.doesNotMatch(sidebarSource, /class="nav-group-label"/);
+  assert.match(userMenuSource, /class="sidebar-profile-trigger"/);
+  assert.match(userMenuSource, /class="user-menu-popover"/);
+  assert.match(shellCss, /\.user-menu-popover\s*\{[^}]*position:\s*fixed/s);
 });
 
 test('mail view keeps the toolbar inside the list card without a permanent preview pane', async () => {
@@ -37,19 +53,23 @@ test('mail view keeps the toolbar inside the list card without a permanent previ
   assert.doesNotMatch(source, /mail-preview-pane/);
 });
 
-test('responsive shell keeps a desktop icon rail and uses a mobile drawer', async () => {
-  const source = await readSource('src/App.vue');
+test('responsive shell keeps a stable 72px icon rail and uses a mobile drawer', async () => {
+  const appSource = await readSource('src/App.vue');
+  const sidebarSource = await readSource('src/components/app/AppSidebar.vue');
+  const shellCss = await readSource('src/styles/app-shell.css');
 
-  assert.match(source, /class="sidebar-toggle"/);
-  assert.match(source, /class="mobile-sidebar-launcher"/);
-  assert.match(source, /class="mobile-sidebar-backdrop"/);
-  assert.match(source, /flymail_sidebar_collapsed/);
-  assert.match(source, /\.app-shell\.sidebar-collapsed\s*\{[^}]*grid-template-columns:\s*68px\s+minmax\(0,\s*1fr\)/s);
-  assert.match(source, /\.app-shell\.sidebar-collapsed \.nav-item-label[\s\S]*display:\s*none/);
-  assert.doesNotMatch(source, /\.app-shell\.sidebar-collapsed \.sidebar\s*\{\s*opacity:\s*0;[^}]*pointer-events:\s*none/s);
-  assert.match(source, /class="mobile-mail-navigation"/);
-  assert.match(source, /new CustomEvent\('flymail-mail-navigation'/);
-  assert.match(source, /type: 'reauth'/);
+  assert.match(appSource, /<AppSidebar/);
+  assert.match(sidebarSource, /class="sidebar-icon-rail"/);
+  assert.match(sidebarSource, /class="sidebar-label-pane"/);
+  assert.match(sidebarSource, /class="mobile-sidebar-backdrop"/);
+  assert.match(appSource, /flymail_sidebar_collapsed/);
+  assert.match(shellCss, /--app-sidebar-expanded:\s*248px/);
+  assert.match(shellCss, /--app-sidebar-collapsed:\s*72px/);
+  assert.match(shellCss, /grid-template-columns:\s*72px minmax\(0,\s*1fr\)/);
+  assert.doesNotMatch(shellCss, /\.app-shell\.sidebar-collapsed[^\{]*\{[^}]*flex-direction:/s);
+  assert.match(sidebarSource, /class="mobile-mail-navigation"/);
+  assert.match(sidebarSource, /type: 'reauth'/);
+  assert.match(shellCss, /prefers-reduced-transparency/);
 });
 
 test('mobile mail view delegates account and folder navigation without horizontal overflow', async () => {
