@@ -1,14 +1,32 @@
 <template>
   <LoginView v-if="!authReady || !currentUser" @success="handleLoginSuccess" />
 
-  <div v-else class="app-shell">
-    <aside class="sidebar">
+  <div
+    v-else
+    class="app-shell"
+    :class="{
+      'sidebar-collapsed': sidebarCollapsed && !isMobileLayout,
+      'mobile-sidebar-open': mobileSidebarOpen,
+    }"
+  >
+    <button
+      v-if="isMobileLayout && mobileSidebarOpen"
+      class="mobile-sidebar-backdrop"
+      type="button"
+      aria-label="关闭导航"
+      @click="mobileSidebarOpen = false"
+    ></button>
+
+    <aside class="sidebar" :aria-hidden="isMobileLayout && !mobileSidebarOpen">
       <div class="brand">
         <img src="/icon.png" alt="FlyMail" class="brand-logo" />
         <div class="brand-copy">
           <div class="brand-name">FlyMail</div>
           <div class="brand-subtitle">Docker 多用户版</div>
         </div>
+        <button class="sidebar-mobile-close" type="button" aria-label="关闭导航" @click="mobileSidebarOpen = false">
+          <AppIcon name="close" :size="20" />
+        </button>
       </div>
 
       <div class="nav-scroll">
@@ -20,13 +38,55 @@
               :key="item.key"
               class="nav-item"
               :class="{ active: currentView === item.key }"
-              @click="currentView = item.key"
+              @click="navigateFromSidebar(item.key)"
             >
               <AppIcon :name="item.icon" :size="18" />
               <span>{{ item.label }}</span>
             </button>
           </section>
         </nav>
+
+        <section v-if="isMobileLayout && currentView === 'mail'" class="mobile-mail-navigation">
+          <div class="mobile-mail-navigation-title">邮箱账号</div>
+          <div v-for="account in mailStore.accounts" :key="account.id" class="mobile-account-row">
+            <button
+              type="button"
+              class="mobile-account-item"
+              :class="{ active: mailStore.currentAccountId === account.id }"
+              @click="selectMobileMailNavigation({ type: 'account', id: account.id })"
+            >
+              <span class="mobile-account-avatar">{{ accountInitial(account) }}</span>
+              <span class="mobile-account-copy">
+                <strong>{{ accountDisplayName(account) }}</strong>
+                <small>{{ account.email }}</small>
+              </span>
+            </button>
+            <button
+              v-if="mailStore.reauthAccountIds.has(account.id)"
+              class="mobile-account-reauth"
+              type="button"
+              title="重新授权"
+              aria-label="重新授权"
+              @click="selectMobileMailNavigation({ type: 'reauth', id: account.id })"
+            >
+              <AppIcon name="sync" :size="15" />
+            </button>
+          </div>
+
+          <div class="mobile-mail-navigation-title folder-title">文件夹</div>
+          <button
+            v-for="folder in mailStore.folders"
+            :key="folder.path"
+            type="button"
+            class="mobile-folder-item"
+            :class="{ active: mailStore.currentFolder === folder.path }"
+            @click="selectMobileMailNavigation({ type: 'folder', path: folder.path })"
+          >
+            <AppIcon :name="folderIconName(folder.name)" :size="17" />
+            <span>{{ mailStore.folderDisplayName(folder.name) }}</span>
+            <small>{{ mobileFolderCount(folder) }}</small>
+          </button>
+        </section>
       </div>
 
       <div class="sidebar-footer">
@@ -38,6 +98,15 @@
     <div class="main">
       <header class="topbar">
         <div class="topbar-title">
+          <button
+            class="sidebar-toggle"
+            type="button"
+            :title="isMobileLayout ? '打开导航' : (sidebarCollapsed ? '展开主导航' : '隐藏主导航')"
+            :aria-label="isMobileLayout ? '打开导航' : (sidebarCollapsed ? '展开主导航' : '隐藏主导航')"
+            @click="toggleSidebar"
+          >
+            <AppIcon :name="isMobileLayout ? 'menu' : (sidebarCollapsed ? 'panel-left-open' : 'panel-left-close')" :size="20" />
+          </button>
           <h1>{{ currentTitle }}</h1>
         </div>
         <div class="topbar-actions">
@@ -186,6 +255,9 @@ const currentUser = ref<any>(null);
 const authReady = ref(false);
 const showNotifications = ref(false);
 const showUserMenu = ref(false);
+const isMobileLayout = ref(window.innerWidth <= 960);
+const sidebarCollapsed = ref(localStorage.getItem('flymail_sidebar_collapsed') === '1');
+const mobileSidebarOpen = ref(false);
 const appVersion = import.meta.env.VITE_APP_VERSION || '0.0.0';
 
 function handleGlobalWsMessage(data: any) {
@@ -265,6 +337,72 @@ const currentTitle = computed(() => {
   if (currentView.value === 'compose') return '写邮件';
   return navItems.value.find((item) => item.key === currentView.value)?.label || 'FlyMail';
 });
+
+function accountDisplayName(account: any) {
+  return String(account?.remark || '').trim() || account?.email || '邮箱账号';
+}
+
+function accountInitial(account: any) {
+  return accountDisplayName(account).trim().charAt(0).toUpperCase() || 'M';
+}
+
+function folderIconName(name: string) {
+  const displayName = mailStore.folderDisplayName(name);
+  const icons: Record<string, string> = {
+    收件箱: 'inbox',
+    已发送: 'send',
+    草稿箱: 'draft',
+    垃圾邮件: 'junk',
+    已删除: 'trash',
+    已加星标: 'star',
+  };
+  return icons[displayName] || 'folder';
+}
+
+function mobileFolderCount(folder: any) {
+  const displayName = mailStore.folderDisplayName(folder.name);
+  return ['已发送', '草稿箱', '已删除'].includes(displayName)
+    ? Number(folder.total_count || 0)
+    : Number(folder.unread_count || 0);
+}
+
+function navigateFromSidebar(key: string) {
+  currentView.value = key;
+  mobileSidebarOpen.value = false;
+}
+
+function selectMobileMailNavigation(detail: { type: 'account' | 'reauth'; id: string } | { type: 'folder'; path: string }) {
+  window.dispatchEvent(new CustomEvent('flymail-mail-navigation', { detail }));
+  mobileSidebarOpen.value = false;
+}
+
+function toggleSidebar() {
+  showNotifications.value = false;
+  showUserMenu.value = false;
+  if (isMobileLayout.value) {
+    mobileSidebarOpen.value = !mobileSidebarOpen.value;
+    return;
+  }
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem('flymail_sidebar_collapsed', sidebarCollapsed.value ? '1' : '0');
+}
+
+function handleWindowResize() {
+  const nextMobile = window.innerWidth <= 960;
+  if (!nextMobile) mobileSidebarOpen.value = false;
+  isMobileLayout.value = nextMobile;
+}
+
+function handleSidebarRequest() {
+  if (isMobileLayout.value) mobileSidebarOpen.value = true;
+}
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape') return;
+  mobileSidebarOpen.value = false;
+  showNotifications.value = false;
+  showUserMenu.value = false;
+}
 
 async function bootstrapAfterLogin() {
   currentUser.value = await api.get('/auth/me');
@@ -371,14 +509,21 @@ async function openNotification(item: any) {
 
 onMounted(() => {
   window.addEventListener('flymail-navigate', handleNavigate);
+  window.addEventListener('flymail-toggle-sidebar', handleSidebarRequest);
+  window.addEventListener('resize', handleWindowResize);
+  window.addEventListener('keydown', handleGlobalKeydown);
   checkAuth();
 });
 
 onUnmounted(() => {
   window.removeEventListener('flymail-navigate', handleNavigate);
+  window.removeEventListener('flymail-toggle-sidebar', handleSidebarRequest);
+  window.removeEventListener('resize', handleWindowResize);
+  window.removeEventListener('keydown', handleGlobalKeydown);
 });
 
 watch(currentView, (value) => {
+  mobileSidebarOpen.value = false;
   if (value === 'users' && !isAdmin.value) {
     currentView.value = 'mail';
     return;
@@ -401,9 +546,15 @@ watch(currentView, (value) => {
   grid-template-columns: 220px minmax(0, 1fr);
   background: var(--bg-secondary);
   overflow: hidden;
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
 }
 
 .sidebar {
+  width: 220px;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -412,6 +563,21 @@ watch(currentView, (value) => {
   background: var(--bg-primary);
   border-right: 1px solid var(--border-color);
   overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+  transition: transform 180ms ease, opacity 140ms ease;
+}
+
+.app-shell.sidebar-collapsed .sidebar {
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.mobile-sidebar-backdrop,
+.sidebar-mobile-close,
+.mobile-mail-navigation {
+  display: none;
 }
 
 .brand {
@@ -529,6 +695,34 @@ watch(currentView, (value) => {
   justify-content: space-between;
   align-items: center;
   padding: 18px 28px 10px;
+}
+
+.topbar-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-toggle:hover {
+  border-color: var(--border-color);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .topbar h1 {
@@ -863,22 +1057,52 @@ watch(currentView, (value) => {
 }
 
 @media (max-width: 960px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto minmax(0, 1fr);
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     height: 100dvh;
-    overflow-y: auto;
+    min-height: 100dvh;
+    overflow: hidden;
+    transition: none;
   }
 
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
-    padding: 18px 16px 14px;
-    overflow: visible;
+  .sidebar,
+  .app-shell.sidebar-collapsed .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 9200;
+    width: min(86vw, 320px);
+    padding: 18px 14px 14px;
+    border-right: 1px solid var(--border-color-strong);
+    border-bottom: 0;
+    box-shadow: var(--shadow-xl);
+    opacity: 1;
+    overflow: hidden;
+    transform: translateX(-105%);
+    pointer-events: none;
+    transition: transform 180ms ease;
+  }
+
+  .app-shell.mobile-sidebar-open .sidebar {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  .mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9100;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: rgba(5, 10, 18, 0.58);
   }
 
   .brand {
-    margin-bottom: 16px;
+    position: relative;
+    padding-right: 42px;
+    margin-bottom: 18px;
   }
 
   .brand-logo {
@@ -894,62 +1118,213 @@ watch(currentView, (value) => {
     font-size: 12px;
   }
 
-  .nav-scroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-right: 4px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+  .sidebar-mobile-close {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
   }
 
-  .nav-scroll::-webkit-scrollbar {
-    display: none;
+  .nav-scroll {
+    flex: 1;
+    min-height: 0;
+    padding-right: 2px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .nav-groups {
-    display: inline-flex;
-    flex-direction: row;
-    gap: 8px;
-    min-width: max-content;
-    padding-bottom: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+    padding-bottom: 18px;
   }
 
   .nav-group {
-    display: contents;
+    display: flex;
   }
 
-  .nav-group-label,
-  .sidebar-footer {
-    display: none;
+  .nav-group-label {
+    display: block;
   }
 
   .nav-item {
+    width: 100%;
+    height: 42px;
     flex: 0 0 auto;
-    width: auto;
-    height: 38px;
-    padding: 0 13px;
-    white-space: nowrap;
-    border-radius: 999px;
-    background: var(--bg-tertiary);
+    padding: 0 12px;
+    border-radius: 9px;
+    background: transparent;
+    white-space: normal;
   }
 
   .nav-item.active {
+    background: var(--bg-active);
+    color: var(--color-accent);
+  }
+
+  .mobile-mail-navigation {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 18px 0 8px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .mobile-mail-navigation-title {
+    padding: 0 10px 6px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+  }
+
+  .mobile-mail-navigation-title.folder-title {
+    padding-top: 14px;
+  }
+
+  .mobile-account-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .mobile-account-item,
+  .mobile-folder-item {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
+    text-align: left;
+    font: inherit;
+  }
+
+  .mobile-account-item {
+    padding-right: 42px;
+  }
+
+  .mobile-account-reauth {
+    position: absolute;
+    right: 7px;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-warning);
+  }
+
+  .mobile-account-item.active,
+  .mobile-folder-item.active {
+    background: var(--bg-active);
+    color: var(--color-accent);
+  }
+
+  .mobile-account-avatar {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .mobile-account-item.active .mobile-account-avatar {
     background: var(--color-accent);
     color: var(--text-on-accent);
   }
 
+  .mobile-account-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-account-copy strong,
+  .mobile-account-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-account-copy strong {
+    color: inherit;
+    font-size: 13px;
+  }
+
+  .mobile-account-copy small {
+    color: var(--text-tertiary);
+    font-size: 10px;
+  }
+
+  .mobile-folder-item > span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-folder-item > small {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .sidebar-footer {
+    display: flex;
+  }
+
   .topbar {
-    min-height: 64px;
-    gap: 12px;
-    padding: 12px 16px 4px;
+    min-height: 60px;
+    gap: 8px;
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+  }
+
+  .topbar-title {
+    gap: 4px;
+  }
+
+  .sidebar-toggle {
+    width: 40px;
+    height: 40px;
   }
 
   .topbar h1 {
-    font-size: 22px;
+    max-width: 48vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 20px;
   }
 
   .topbar-actions {
-    gap: 6px;
+    gap: 2px;
   }
 
   .user-name {
@@ -957,27 +1332,44 @@ watch(currentView, (value) => {
   }
 
   .user-menu-trigger {
-    padding-right: 7px;
+    padding-right: 5px;
+  }
+
+  .user-menu-trigger > svg {
+    display: none;
   }
 
   .user-menu-popover {
     position: fixed;
-    top: 72px;
-    right: 12px;
+    top: 62px;
+    right: 8px;
   }
 
   .main {
-    overflow: visible;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .content {
-    padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
-    overflow: visible;
     width: 100%;
+    min-width: 0;
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    overflow: auto;
   }
 
   .content-mail {
-    padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell,
+  .sidebar,
+  .sidebar-toggle {
+    transition: none;
   }
 }
 </style>

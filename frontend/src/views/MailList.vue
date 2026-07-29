@@ -1,22 +1,5 @@
 <template>
   <div class="mail-view">
-    <!-- 移动端保留横向账号切换 -->
-    <div v-if="isMobile && mailStore.accounts.length > 1" class="account-tabs mobile-account-tabs">
-      <div v-for="acc in mailStore.accounts" :key="acc.id" class="account-tab-wrapper">
-        <button
-          class="account-tab"
-          :class="{ active: mailStore.currentAccountId === acc.id }"
-          @click="switchAccount(acc.id)"
-        >
-          <span class="account-icon" :class="acc.provider" v-html="providerIcon(acc.provider)"></span>
-          <span class="account-email">{{ accountDisplayName(acc) }}</span>
-        </button>
-        <button v-if="mailStore.reauthAccountIds.has(acc.id)" class="btn-reauth" @click.stop="reauthorize(acc.id)" title="重新授权">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        </button>
-      </div>
-    </div>
-
     <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>
@@ -86,8 +69,8 @@
               <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
           </button>
-          <!-- 移动端：iOS风格文件夹选择器 -->
-          <button v-if="isMobile" class="folder-picker" @click="showFolderSheet = true">
+          <!-- 移动端：打开统一导航抽屉 -->
+          <button v-if="isMobile" class="folder-picker" @click="openMobileSidebar">
             <span class="picker-label">{{ mailStore.currentFolderName }}</span>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
@@ -881,8 +864,31 @@ async function openPendingMessage() {
   }
 }
 
+function openMobileSidebar() {
+  window.dispatchEvent(new CustomEvent('flymail-toggle-sidebar'));
+}
+
+async function handleMailNavigation(event: Event) {
+  const detail = (event as CustomEvent).detail as { type?: string; id?: string; path?: string } | undefined;
+  if (!detail) return;
+  if (detail.type === 'account' && detail.id) {
+    if (detail.id !== mailStore.currentAccountId) await switchAccount(detail.id);
+    return;
+  }
+  if (detail.type === 'reauth' && detail.id) {
+    await reauthorize(detail.id);
+    return;
+  }
+  if (detail.type === 'folder' && detail.path) {
+    if (detail.path === mailStore.currentFolder) return;
+    searchKeyword.value = '';
+    mailStore.setFolder(detail.path);
+  }
+}
+
 onMounted(async () => {
   connectWs();
+  window.addEventListener('flymail-mail-navigation', handleMailNavigation);
   if (!(await openPendingMessage())) await loadMessages();
 });
 
@@ -905,6 +911,7 @@ onUnmounted(() => {
   // 清理 resize 事件监听，防止内存泄漏
   window.removeEventListener('resize', onResize);
   window.removeEventListener('flymail-sent-message', handleSentMessage);
+  window.removeEventListener('flymail-mail-navigation', handleMailNavigation);
   if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
 });
 
@@ -3174,24 +3181,178 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   }
 }
 
+@media (max-width: 960px) {
+  .mail-shell,
+  .mail-shell.detail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .folder-sidebar {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
-  .mobile-account-tabs {
+  .mail-view,
+  .mail-shell,
+  .mail-list,
+  .list-items {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .mail-view {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .mail-shell {
+    height: 100%;
+  }
+
+  .mail-list {
+    min-height: 0;
     border: 0;
-    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .list-toolbar {
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 8px;
+    overflow: visible;
+  }
+
+  .toolbar-left {
+    width: 100%;
+    flex: 0 0 100%;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .toolbar-left .filter-btn,
+  .toolbar-left .toolbar-divider {
+    display: none;
+  }
+
+  .toolbar-right {
+    width: 100%;
+    flex: 0 0 100%;
+    display: flex;
+    gap: 5px;
+  }
+
+  .search-input {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mobile-filter-toggle {
+    display: inline-flex;
+  }
+
+  .sync-status {
+    display: none;
+  }
+
+  .folder-picker {
+    min-width: 0;
+    max-width: 42vw;
+    padding-inline: 10px;
+  }
+
+  .picker-label {
+    max-width: 100%;
+  }
+
+  .list-items {
+    overflow-x: hidden;
   }
 
   .mail-item,
   .mail-item:not(.unread) {
+    width: 100%;
+    min-width: 0;
+    min-height: 72px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "select sender date"
+      "select info info";
+    column-gap: 8px;
+    row-gap: 5px;
     padding: 10px 12px 10px 17px;
+    overflow: hidden;
+  }
+
+  .check-circle {
+    grid-area: select;
+    align-self: center;
+    margin-right: 0;
   }
 
   .mail-sender {
-    width: 104px;
-    min-width: 104px;
+    grid-area: sender;
+    width: auto;
+    min-width: 0;
+    gap: 9px;
+    padding-right: 0;
   }
 
+  .mail-info {
+    grid-area: info;
+    width: 100%;
+    min-width: 0;
+    padding-left: 39px;
+  }
+
+  .mail-main-row {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mail-avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .mail-from {
+    font-size: 13px;
+  }
+
+  .mail-subject {
+    width: 100%;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .mail-status-icon,
   .mail-status-tag {
-    width: 38px;
+    display: none;
+  }
+
+  .mail-date {
+    grid-area: date;
+    width: auto;
+    align-self: center;
+    margin: 0;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  .pagination {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .page-btn.page-nav {
+    min-width: 78px;
   }
 }
 

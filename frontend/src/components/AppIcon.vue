@@ -49,6 +49,20 @@
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
     </g>
+    <g v-else-if="name === 'menu'">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </g>
+    <g v-else-if="name === 'panel-left-open'">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M8 4v16M13 9l3 3-3 3" />
+    </g>
+    <g v-else-if="name === 'panel-left-close'">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M8 4v16M16 9l-3 3 3 3" />
+    </g>
+    <g v-else-if="name === 'close'">
+      <path d="m6 6 12 12M18 6 6 18" />
+    </g>
     <g v-else-if="name === 'chevron-down'">
       <path d="m7 10 5 5 5-5" />
     </g>

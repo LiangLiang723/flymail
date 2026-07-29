@@ -20,7 +20,7 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 - 本机临时附件与 NAS 授权目录附件双通道，支持附件保存到 NAS
 - 邮件导出 PDF、PWA 安装壳和移动端适配
 - 深色模式，可在设置中选择跟随浏览器、浅色或深色，默认跟随浏览器
-- 桌面端分组导航、账号与文件夹侧栏和紧凑邮件列表；点击邮件后仍进入独立详情视图
+- 桌面端主导航支持折叠并记住状态，邮件账号与文件夹侧栏始终保留；移动端使用包含主导航、账号和文件夹的抽屉式侧边栏
 - 邮件本地备份，默认写入 `/data/flymail/backup`；也可选择显式挂载到 `/data` 下的授权目录，并在新邮件同步后自动归档
 - 站内通知、WebSocket 实时推送，以及 Bark、Telegram、企业微信、钉钉、飞书和通用 Webhook 通知
 - Gmail 用户级 HTTP CONNECT 代理，覆盖 OAuth、令牌刷新、IMAP、SMTP、IDLE，并可由 Telegram/Webhook 复用
@@ -81,7 +81,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.8` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.9` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -124,7 +124,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.8 .
+docker build -t benxianyu/flymail:0.0.9 .
 ```
 
 登录 Docker Hub：
@@ -136,7 +136,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.8
+docker push benxianyu/flymail:0.0.9
 ```
 
 ## 数据存储

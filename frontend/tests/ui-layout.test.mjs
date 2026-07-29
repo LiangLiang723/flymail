@@ -32,6 +32,27 @@ test('mail view keeps the toolbar inside the list card without a permanent previ
   assert.doesNotMatch(source, /mail-preview-pane/);
 });
 
+test('responsive shell collapses desktop navigation and uses a mobile drawer', async () => {
+  const source = await readSource('src/App.vue');
+
+  assert.match(source, /class="sidebar-toggle"/);
+  assert.match(source, /class="mobile-sidebar-backdrop"/);
+  assert.match(source, /flymail_sidebar_collapsed/);
+  assert.match(source, /class="mobile-mail-navigation"/);
+  assert.match(source, /new CustomEvent\('flymail-mail-navigation'/);
+  assert.match(source, /type: 'reauth'/);
+});
+
+test('mobile mail view delegates account and folder navigation without horizontal overflow', async () => {
+  const source = await readSource('src/views/MailList.vue');
+
+  assert.doesNotMatch(source, /mobile-account-tabs/);
+  assert.match(source, /flymail-mail-navigation/);
+  assert.match(source, /function handleMailNavigation/);
+  assert.match(source, /detail\.type === 'reauth'/);
+  assert.match(source, /@media \(max-width: 768px\)[\s\S]*\.mail-item,[\s\S]*min-width: 0;/);
+});
+
 test('manual refresh animates only while the latest page request is active', async () => {
   const source = await readSource('src/views/MailList.vue');
 
