@@ -80,7 +80,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.4` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.5` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -123,7 +123,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.4 .
+docker build -t benxianyu/flymail:0.0.5 .
 ```
 
 登录 Docker Hub：
@@ -135,7 +135,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.4
+docker push benxianyu/flymail:0.0.5
 ```
 
 ## 数据存储
@@ -213,7 +213,7 @@ Gmail 的用户级代理仅支持 `http://` HTTP CONNECT 代理，可在设置�
 
 在线账号打开普通邮件列表时，后端会优先读取本地缓存；只有当前页缓存不足、远端统计未知，或本地缓存数量少于 IMAP 已知总数时，才会从 IMAP 拉取当前页摘要并写回缓存。本地缓存用于离线查看、搜索、附件状态和详情加速。
 
-邮件管理页右上角的刷新只刷新当前邮箱、当前文件夹、当前页；它会把当前页远端摘要写回本地缓存，并校正这一页的已读/未读状态，不会启动同步管理里的历史同步任务。
+邮件管理页右上角的刷新只等待当前邮箱、当前文件夹、当前页刷新完成；它会把当前页远端摘要写回本地缓存，并校正这一页的已读/未读状态。若检测到本地缓存仍有缺失邮件，补全任务会转到后台继续执行，不会阻塞刷新按钮，也不会启动同步管理里的历史同步任务。
 
 前端使用统一文件夹别名请求核心文件夹，例如 `INBOX`、`Sent`、`Drafts`、`Junk`、`Trash`。后端会通过 IMAP 文件夹列表解析到服务商真实路径，例如网易已发送的 `&XfJT0ZAB-`、Gmail 中文环境下的 `[Gmail]/&XfJT0ZCuTvY-`。已发送文件夹不会因为本地 0 统计而跳过远端刷新。
 

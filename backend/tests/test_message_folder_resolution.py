@@ -241,7 +241,7 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             ["account-1_Sent_aaa_12", "account-1_Sent_Messages_bbb_12"],
         )
 
-    async def test_manual_refresh_runs_missing_uid_backfill(self):
+    async def test_manual_refresh_schedules_missing_uid_backfill_without_waiting(self):
         messages = _load_messages_route_module()
         account = types.SimpleNamespace(
             id="account-1",
@@ -280,6 +280,14 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
         mail_cache_stub.sync_missing_messages = AsyncMock(return_value=1)
         previous_mail_cache = sys.modules.get("services.mail_cache")
         sys.modules["services.mail_cache"] = mail_cache_stub
+        background_tasks = []
+
+        def capture_background_task(coro, name=""):
+            background_tasks.append((coro, name))
+            coro.close()
+            return types.SimpleNamespace(add_done_callback=lambda _callback: None)
+
+        messages.create_background_task = capture_background_task
 
         try:
             await messages.refresh_messages(
@@ -294,7 +302,10 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             else:
                 sys.modules["services.mail_cache"] = previous_mail_cache
 
-        mail_cache_stub.sync_missing_messages.assert_awaited_once_with(account, "Sent Messages")
+        mail_cache_stub.sync_missing_messages.assert_called_once_with(account, "Sent Messages")
+        mail_cache_stub.sync_missing_messages.assert_not_awaited()
+        self.assertEqual(len(background_tasks), 1)
+        self.assertEqual(background_tasks[0][1], "refresh_missing_messages")
         messages.sync_service.refresh_clients.assert_awaited_once_with("account-1", "Sent", user_uid="user-1")
 
     async def test_resolves_netease_sent_folder_by_display_name(self):
