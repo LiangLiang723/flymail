@@ -5,40 +5,77 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="/icon.png" alt="FlyMail" class="brand-logo" />
-        <div>
+        <div class="brand-copy">
           <div class="brand-name">FlyMail</div>
           <div class="brand-subtitle">Docker 多用户版</div>
         </div>
       </div>
 
       <div class="nav-scroll">
-        <nav class="nav">
-          <button
-            v-for="item in navItems"
-            :key="item.key"
-            class="nav-item"
-            :class="{ active: currentView === item.key }"
-            @click="currentView = item.key"
-          >
-            {{ item.label }}
-          </button>
+        <nav class="nav-groups" aria-label="主导航">
+          <section v-for="group in navGroups" :key="group.label" class="nav-group">
+            <div class="nav-group-label">{{ group.label }}</div>
+            <button
+              v-for="item in group.items"
+              :key="item.key"
+              class="nav-item"
+              :class="{ active: currentView === item.key }"
+              @click="currentView = item.key"
+            >
+              <AppIcon :name="item.icon" :size="18" />
+              <span>{{ item.label }}</span>
+            </button>
+          </section>
         </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <span>FlyMail</span>
+        <span>v{{ appVersion }}</span>
       </div>
     </aside>
 
     <div class="main">
       <header class="topbar">
-        <div>
+        <div class="topbar-title">
           <h1>{{ currentTitle }}</h1>
-          <p>{{ currentUser.username }} · {{ currentUser.role === 'admin' ? '管理员' : '普通用户' }}</p>
         </div>
         <div class="topbar-actions">
-          <button class="notification-button" type="button" @click="showNotifications = !showNotifications" title="通知中心">
-            <span>通知</span>
+          <button class="notification-button" type="button" @click="toggleNotifications" title="通知中心" aria-label="通知中心">
+            <AppIcon name="bell" :size="20" />
             <strong v-if="mailStore.unreadNotificationCount">{{ mailStore.unreadNotificationCount > 99 ? '99+' : mailStore.unreadNotificationCount }}</strong>
           </button>
-          <button class="btn btn-secondary" @click="changePassword">修改密码</button>
-          <button class="btn btn-secondary" @click="logout">退出登录</button>
+
+          <div class="user-menu">
+            <button
+              class="user-menu-trigger"
+              type="button"
+              :aria-expanded="showUserMenu"
+              aria-haspopup="menu"
+              @click="toggleUserMenu"
+            >
+              <span class="user-avatar">{{ userInitial }}</span>
+              <span class="user-name">{{ currentUser.username }}</span>
+              <AppIcon name="chevron-down" :size="15" />
+            </button>
+            <div v-if="showUserMenu" class="user-menu-popover" role="menu">
+              <div class="user-menu-summary">
+                <span class="user-avatar large">{{ userInitial }}</span>
+                <span>
+                  <strong>{{ currentUser.username }}</strong>
+                  <small>{{ currentUser.role === 'admin' ? '管理员' : '普通用户' }}</small>
+                </span>
+              </div>
+              <button type="button" role="menuitem" @click="changePassword">
+                <AppIcon name="lock" :size="17" />
+                <span>修改密码</span>
+              </button>
+              <button type="button" role="menuitem" class="logout-item" @click="logout">
+                <AppIcon name="logout" :size="17" />
+                <span>退出登录</span>
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -124,6 +161,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import AppIcon from './components/AppIcon.vue';
 import About from './views/About.vue';
 import AccountList from './views/AccountList.vue';
 import Backup from './views/Backup.vue';
@@ -147,6 +185,8 @@ const uiStore = useUIStore();
 const currentUser = ref<any>(null);
 const authReady = ref(false);
 const showNotifications = ref(false);
+const showUserMenu = ref(false);
+const appVersion = import.meta.env.VITE_APP_VERSION || '0.0.0';
 
 function handleGlobalWsMessage(data: any) {
   if (data.type === 'new_mail') {
@@ -189,24 +229,37 @@ const savedView = sessionStorage.getItem('flymail_view') || 'mail';
 const currentView = ref(savedView === 'compose' ? 'mail' : savedView);
 
 const isAdmin = computed(() => currentUser.value?.role === 'admin');
+const userInitial = computed(() => String(currentUser.value?.username || 'U').trim().charAt(0).toUpperCase());
 
-const navItems = computed(() => {
-  const items = [
-    { key: 'unified', label: '聚合收件箱' },
-    { key: 'mail', label: '邮件管理' },
-    { key: 'history-sync', label: '同步管理' },
-    { key: 'accounts', label: '账号管理' },
-    { key: 'contacts', label: '联系人' },
-    { key: 'backup', label: '邮件备份' },
-    { key: 'settings', label: '设置' },
-    { key: 'notifications', label: '第三方通知' },
-    { key: 'about', label: '关于' },
-  ];
-  if (isAdmin.value) {
-    items.splice(6, 0, { key: 'users', label: '用户管理' });
-  }
-  return items;
-});
+const navGroups = computed(() => [
+  {
+    label: '邮件',
+    items: [
+      { key: 'unified', label: '聚合收件箱', icon: 'inbox' },
+      { key: 'mail', label: '邮件管理', icon: 'mail' },
+      { key: 'contacts', label: '联系人', icon: 'contacts' },
+    ],
+  },
+  {
+    label: '管理',
+    items: [
+      { key: 'history-sync', label: '同步管理', icon: 'sync' },
+      { key: 'accounts', label: '账号管理', icon: 'accounts' },
+      { key: 'backup', label: '邮件备份', icon: 'backup' },
+    ],
+  },
+  {
+    label: '系统',
+    items: [
+      ...(isAdmin.value ? [{ key: 'users', label: '用户管理', icon: 'users' }] : []),
+      { key: 'notifications', label: '第三方通知', icon: 'notifications' },
+      { key: 'settings', label: '设置', icon: 'settings' },
+      { key: 'about', label: '关于', icon: 'info' },
+    ],
+  },
+]);
+
+const navItems = computed(() => navGroups.value.flatMap((group) => group.items));
 
 const currentTitle = computed(() => {
   if (currentView.value === 'compose') return '写邮件';
@@ -236,7 +289,18 @@ async function handleLoginSuccess() {
   authReady.value = true;
 }
 
+function toggleNotifications() {
+  showUserMenu.value = false;
+  showNotifications.value = !showNotifications.value;
+}
+
+function toggleUserMenu() {
+  showNotifications.value = false;
+  showUserMenu.value = !showUserMenu.value;
+}
+
 async function logout() {
+  showUserMenu.value = false;
   await api.post('/auth/logout');
   disconnectGlobalWs();
   currentUser.value = null;
@@ -245,6 +309,7 @@ async function logout() {
 }
 
 async function changePassword() {
+  showUserMenu.value = false;
   const currentPassword = window.prompt('请输入当前密码');
   if (!currentPassword) return;
   const newPassword = window.prompt('请输入新密码');
@@ -333,70 +398,121 @@ watch(currentView, (value) => {
   height: 100vh;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   background: var(--bg-secondary);
   overflow: hidden;
 }
 
 .sidebar {
-  padding: 24px 18px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px 16px;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-color);
-  overflow-y: auto;
-  min-width: 0;
+  overflow: hidden;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 11px;
+  padding: 4px 8px;
   margin-bottom: 24px;
 }
 
 .brand-logo {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
 }
 
-.brand-name {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.brand-subtitle {
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.nav-scroll {
+.brand-copy {
   min-width: 0;
 }
 
-.nav {
+.brand-name {
+  font-size: 21px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brand-subtitle {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.nav-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nav-groups {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 20px;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-group-label {
+  padding: 0 10px 5px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
 .nav-item {
-  height: 42px;
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
   border: none;
-  border-radius: 10px;
+  border-radius: 9px;
   text-align: left;
-  padding: 0 14px;
+  padding: 0 11px;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   cursor: pointer;
+  font: inherit;
   font-size: 14px;
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .nav-item:hover {
   background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item:active {
+  transform: translateY(1px);
 }
 
 .nav-item.active {
-  background: var(--color-accent);
-  color: var(--text-on-accent);
+  background: var(--bg-active);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 10px 0;
+  margin-top: 14px;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-tertiary);
+  font-size: 11px;
 }
 
 .main {
@@ -408,20 +524,18 @@ watch(currentView, (value) => {
 }
 
 .topbar {
+  min-height: 76px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 28px 0;
+  padding: 18px 28px 10px;
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: 28px;
-}
-
-.topbar p {
-  margin: 6px 0 0;
-  color: var(--text-secondary);
+  font-size: 25px;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
 .topbar-actions {
@@ -430,29 +544,154 @@ watch(currentView, (value) => {
   align-items: center;
 }
 
-.notification-button {
-  position: relative;
-  height: 40px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--bg-tertiary);
+.notification-button,
+.user-menu-trigger {
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-primary);
   cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.notification-button:hover,
+.user-menu-trigger:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+}
+
+.notification-button {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
 }
 
 .notification-button strong {
   position: absolute;
-  top: -7px;
-  right: -7px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 2px solid var(--bg-secondary);
   border-radius: 999px;
   background: var(--color-danger);
   color: var(--text-on-accent);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px 0 6px;
+  border-radius: 12px;
+  font: inherit;
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.user-avatar.large {
+  width: 38px;
+  height: 38px;
+  font-size: 15px;
+}
+
+.user-name {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.user-menu-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  width: 220px;
+  padding: 8px;
+  border: 1px solid var(--border-color-strong);
+  border-radius: 13px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-xl);
+}
+
+.user-menu-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 12px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.user-menu-summary > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-menu-summary strong,
+.user-menu-summary small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-summary strong {
+  font-size: 13px;
+}
+
+.user-menu-summary small {
+  color: var(--text-secondary);
   font-size: 11px;
-  line-height: 20px;
+}
+
+.user-menu-popover > button {
+  width: 100%;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.user-menu-popover > button:hover {
+  background: var(--bg-hover);
+}
+
+.user-menu-popover .logout-item {
+  color: var(--color-danger);
 }
 
 .notification-overlay {
@@ -667,7 +906,7 @@ watch(currentView, (value) => {
     display: none;
   }
 
-  .nav {
+  .nav-groups {
     display: inline-flex;
     flex-direction: row;
     gap: 8px;
@@ -675,10 +914,20 @@ watch(currentView, (value) => {
     padding-bottom: 2px;
   }
 
+  .nav-group {
+    display: contents;
+  }
+
+  .nav-group-label,
+  .sidebar-footer {
+    display: none;
+  }
+
   .nav-item {
     flex: 0 0 auto;
+    width: auto;
     height: 38px;
-    padding: 0 14px;
+    padding: 0 13px;
     white-space: nowrap;
     border-radius: 999px;
     background: var(--bg-tertiary);
@@ -690,32 +939,31 @@ watch(currentView, (value) => {
   }
 
   .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
-    padding: 18px 16px 0;
+    min-height: 64px;
+    gap: 12px;
+    padding: 12px 16px 4px;
   }
 
   .topbar h1 {
     font-size: 22px;
   }
 
-  .topbar p {
-    margin-top: 4px;
-    font-size: 14px;
-  }
-
   .topbar-actions {
-    width: 100%;
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
 
-  .topbar-actions .btn {
-    flex: 0 0 auto;
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 9px;
+  .user-name {
+    display: none;
+  }
+
+  .user-menu-trigger {
+    padding-right: 7px;
+  }
+
+  .user-menu-popover {
+    position: fixed;
+    top: 72px;
+    right: 12px;
   }
 
   .main {

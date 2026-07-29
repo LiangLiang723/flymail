@@ -1,7 +1,7 @@
 <template>
   <div class="mail-view">
-    <!-- 多账号 Tab 切换 -->
-    <div v-if="mailStore.accounts.length > 1" class="account-tabs">
+    <!-- 移动端保留横向账号切换 -->
+    <div v-if="isMobile && mailStore.accounts.length > 1" class="account-tabs mobile-account-tabs">
       <div v-for="acc in mailStore.accounts" :key="acc.id" class="account-tab-wrapper">
         <button
           class="account-tab"
@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <!-- 单账号重新授权提示（多账号时 Tab 栏已有按钮，此处仅单账号显示） -->
+    <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>
       <button class="btn btn-primary btn-sm" @click="reauthorize(mailStore.currentAccountId)">重新授权</button>
@@ -25,16 +25,48 @@
 
     <div class="mail-shell" :class="{ detail: !!selectedMessage }">
     <aside v-if="!isMobile" class="folder-sidebar">
-      <button
-        v-for="folder in mailStore.folders"
-        :key="folder.path"
-        class="folder-nav-item"
-        :class="{ active: mailStore.currentFolder === folder.path }"
-        @click="mailStore.setFolder(folder.path)"
-      >
-        <span class="folder-nav-name">{{ mailStore.folderDisplayName(folder.name) }}</span>
-        <span class="folder-nav-count">{{ getFolderCount(folder) }}</span>
-      </button>
+      <header class="folder-sidebar-header">
+        <span>文件夹</span>
+        <span>{{ mailStore.accounts.length }} 个账号</span>
+      </header>
+
+      <div class="account-switcher">
+        <div v-for="acc in mailStore.accounts" :key="acc.id" class="account-switcher-row">
+          <button
+            class="account-switcher-item"
+            :class="{ active: mailStore.currentAccountId === acc.id }"
+            @click="switchAccount(acc.id)"
+          >
+            <span class="account-icon" :class="acc.provider" v-html="providerIcon(acc.provider)"></span>
+            <span class="account-switcher-copy">
+              <strong>{{ accountDisplayName(acc) }}</strong>
+              <small>{{ acc.email }}</small>
+            </span>
+          </button>
+          <button
+            v-if="mailStore.reauthAccountIds.has(acc.id)"
+            class="btn-reauth account-reauth"
+            @click.stop="reauthorize(acc.id)"
+            title="重新授权"
+          >
+            <AppIcon name="sync" :size="14" />
+          </button>
+        </div>
+      </div>
+
+      <div class="folder-nav-list">
+        <button
+          v-for="folder in mailStore.folders"
+          :key="folder.path"
+          class="folder-nav-item"
+          :class="{ active: mailStore.currentFolder === folder.path }"
+          @click="mailStore.setFolder(folder.path)"
+        >
+          <AppIcon :name="folderIconName(folder.name)" :size="17" />
+          <span class="folder-nav-name">{{ mailStore.folderDisplayName(folder.name) }}</span>
+          <span class="folder-nav-count">{{ getFolderCount(folder) }}</span>
+        </button>
+      </div>
     </aside>
 
     <!-- 邮件列表视图 -->
@@ -358,6 +390,7 @@ import { useConfirmAction } from '../composables/useConfirmAction';
 import { useContacts } from '../composables/useContacts';
 import { buildForwardDraft, buildReplyDraft } from '../composables/useReplyForward';
 import { exportMailToPDF } from '../utils/export-pdf';
+import AppIcon from '../components/AppIcon.vue';
 import NasPathPicker from '../components/NasPathPicker.vue';
 
 const mailStore = useMailStore();
@@ -368,6 +401,18 @@ const attachmentForNas = ref<Attachment | null>(null);
 
 function accountDisplayName(account: any) {
   return String(account?.remark || '').trim() || account?.email || '';
+}
+
+function folderIconName(folderName: string) {
+  const name = String(folderName || '').toLowerCase();
+  if (['inbox', '收件箱'].includes(name)) return 'inbox';
+  if (['sent', 'sent messages', 'sent items', 'sent mail', '已发送'].includes(name)) return 'send';
+  if (name.includes('draft') || name === '草稿箱') return 'draft';
+  if (['junk', 'junk email', 'spam', '垃圾邮件'].includes(name)) return 'junk';
+  if (['trash', 'deleted', 'deleted items', 'deleted messages', '已删除'].includes(name)) return 'trash';
+  if (name.includes('archive') || name === '存档') return 'archive';
+  if (name.includes('star') || name === '星标邮件') return 'star';
+  return 'folder';
 }
 
 const messages = ref<Message[]>([]);
@@ -2821,6 +2866,325 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
 .compose-entry-btn:hover {
   opacity: 0.9;
+}
+
+/* 2026 邮件工作区视觉重构 */
+.mail-shell {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.folder-sidebar {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 14px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.folder-sidebar-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.folder-sidebar-header span:last-child {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.account-switcher {
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.account-switcher-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.account-switcher-item {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 32px 8px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.account-switcher-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.account-switcher-item.active {
+  background: var(--bg-active);
+  color: var(--color-accent);
+}
+
+.account-switcher-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.account-switcher-copy strong,
+.account-switcher-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-switcher-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account-switcher-copy small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.account-reauth {
+  position: absolute;
+  right: 7px;
+  z-index: 1;
+}
+
+.folder-nav-list {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 12px;
+  overflow-y: auto;
+}
+
+.folder-nav-item {
+  min-height: 38px;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.folder-nav-item > svg {
+  flex: 0 0 auto;
+}
+
+.folder-nav-name {
+  flex: 1;
+}
+
+.folder-nav-item.active {
+  background: var(--bg-active);
+  color: var(--color-accent);
+}
+
+.mail-list {
+  border-radius: 14px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.list-toolbar {
+  min-height: 48px;
+  padding: 7px 12px;
+  gap: 10px;
+  background: color-mix(in srgb, var(--bg-card) 92%, var(--bg-tertiary));
+}
+
+.toolbar-left,
+.toolbar-right {
+  gap: 6px;
+}
+
+.search-input {
+  width: 250px;
+  height: 34px;
+  border-color: var(--border-color-strong);
+  background: var(--bg-secondary);
+}
+
+.filter-btn {
+  min-height: 28px;
+  padding: 3px 9px;
+  border-radius: 7px;
+}
+
+.filter-btn.active {
+  background: var(--bg-active);
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.compose-entry-btn {
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 9px;
+  box-shadow: 0 1px 2px rgba(0, 122, 255, 0.2);
+}
+
+.list-items {
+  background: transparent;
+}
+
+.mail-item,
+.mail-item:not(.unread) {
+  position: relative;
+  min-height: 56px;
+  padding: 9px 14px 9px 18px;
+  background: transparent;
+}
+
+.mail-item::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+  transform: translateY(-50%);
+}
+
+.mail-item.unread::before {
+  background: var(--color-accent);
+}
+
+.mail-item:hover,
+.mail-item:not(.unread):hover {
+  background: var(--bg-hover);
+}
+
+.mail-item.selected {
+  background: var(--bg-active);
+}
+
+.mail-item:not(.unread) .mail-from,
+.mail-item:not(.unread) .mail-subject,
+.mail-item:not(.unread) .mail-date {
+  color: var(--text-secondary);
+}
+
+.mail-item:not(.unread) .mail-avatar {
+  opacity: 0.82;
+}
+
+.mail-sender {
+  width: 190px;
+  gap: 11px;
+  padding-right: 16px;
+}
+
+.mail-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.mail-status-icon.unread-icon {
+  color: var(--color-accent);
+}
+
+.mail-status-icon.read-icon {
+  display: none;
+}
+
+.mail-status-tag {
+  width: 40px;
+  border-radius: 5px;
+}
+
+.mail-status-tag.unread {
+  background: var(--color-accent-lighter);
+  color: var(--color-accent);
+}
+
+.mail-status-tag.read {
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.mail-date {
+  width: 58px;
+  padding-left: 8px;
+}
+
+.pagination {
+  min-height: 48px;
+  background: var(--bg-card);
+}
+
+@media (max-width: 1180px) and (min-width: 769px) {
+  .mail-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .mail-sender {
+    width: 150px;
+  }
+
+  .search-input {
+    width: 190px;
+  }
+
+  .list-count,
+  .toolbar-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-account-tabs {
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .mail-item,
+  .mail-item:not(.unread) {
+    padding: 10px 12px 10px 17px;
+  }
+
+  .mail-sender {
+    width: 104px;
+    min-width: 104px;
+  }
+
+  .mail-status-tag {
+    width: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder-nav-item,
+  .account-switcher-item,
+  .mail-item,
+  .btn-icon,
+  .compose-entry-btn {
+    transition: none;
+  }
 }
 
 /* 骨架屏：正文加载中的占位动画 */
