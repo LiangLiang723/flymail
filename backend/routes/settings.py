@@ -182,19 +182,41 @@ def _disabled_account_response() -> dict:
 
 async def _build_folder_progress(account_id: str) -> list[dict]:
     items = []
-    count_by_key = {
-        item.get("folder_key"): item
-        for item in await list_account_folder_counts(account_id)
-    }
-    for folder_key, label in FOLDER_PROGRESS_ITEMS:
+    count_rows = await list_account_folder_counts(account_id)
+    count_by_key = {item.get("folder_key"): item for item in count_rows}
+    progress_folders = [
+        (folder_key, label, count_by_key.get(folder_key.lower()))
+        for folder_key, label in FOLDER_PROGRESS_ITEMS
+    ]
+    core_keys = {folder_key.lower() for folder_key, _label in FOLDER_PROGRESS_ITEMS}
+    progress_folders.extend(
+        (
+            item.get("folder_path") or item.get("folder_key") or "",
+            item.get("display_name") or item.get("folder_path") or item.get("folder_key") or "",
+            item,
+        )
+        for item in count_rows
+        if item.get("folder_key") not in core_keys
+        and (item.get("folder_path") or item.get("folder_key"))
+    )
+
+    for folder_key, label, summary in progress_folders:
         folder_stats = await get_folder_stats(account_id, folder_key)
         cached_count = await get_cached_count(account_id, folder_key)
-        synced_count = int((count_by_key.get(folder_key.lower()) or {}).get("cached_count", 0) or 0)
+        synced_count = int((summary or {}).get("cached_count", 0) or 0)
         synced_count = max(synced_count, cached_count)
         sync_job = await get_history_sync_job(account_id, job_type=f"folder_sync:{folder_key}")
         clear_job = await get_history_sync_job(account_id, job_type=f"folder_clear:{folder_key}")
-        total_count = max(int(folder_stats.get("total_count", 0) or 0), synced_count, cached_count)
-        unread_count = int(folder_stats.get("unread_count", 0) or 0)
+        total_count = max(
+            int(folder_stats.get("total_count", 0) or 0),
+            int((summary or {}).get("total_count", 0) or 0),
+            synced_count,
+            cached_count,
+        )
+        unread_count = max(
+            int(folder_stats.get("unread_count", 0) or 0),
+            int((summary or {}).get("unread_count", 0) or 0),
+        )
         if folder_key == "Sent":
             unread_count = 0
         items.append(

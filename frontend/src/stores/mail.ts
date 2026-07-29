@@ -190,6 +190,7 @@ export const useMailStore = defineStore('mail', () => {
         folderCounts.value = folderCountsByAccount.value[currentAccountId.value] || {};
         folderPaths.value = { ...DEFAULT_FOLDER_PATHS, ...(folderPathsByAccount.value[currentAccountId.value] || {}) };
       }
+      await loadFolders();
     } catch (e) {
       console.error('加载账号失败:', e);
       uiStore.error('加载账号失败');

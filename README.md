@@ -80,7 +80,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.3` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.4` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -123,7 +123,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.3 .
+docker build -t benxianyu/flymail:0.0.4 .
 ```
 
 登录 Docker Hub：
@@ -135,7 +135,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.3
+docker push benxianyu/flymail:0.0.4
 ```
 
 ## 数据存储
@@ -190,7 +190,7 @@ docker push benxianyu/flymail:0.0.3
 
 账号管理页中的“其他邮箱”支持填写邮箱地址、登录用户名、IMAP/SMTP 主机、端口和加密方式。添加前会同时验证收件和发件连接。为避免服务端请求伪造，通用邮箱只允许解析到公网地址的服务器，且不允许明文连接；需要访问内网自建邮件服务器时，当前版本不会放行。
 
-通用 IMAP 邮箱在首次同步时会发现服务器返回的自定义文件夹，并在邮件侧栏显示其名称、未读数和邮件总数。已经发现的自定义文件夹会参与后台周期增量同步，因此分流到 `ROVO`、`OA`、`会议通知` 等文件夹的新邮件也会写入本地缓存。
+通用 IMAP 邮箱在首次同步时会发现服务器返回的自定义文件夹，并在邮件侧栏显示其名称、未读数和邮件总数。登录后邮件页面会主动刷新当前账号的文件夹列表，不依赖浏览器里旧的会话缓存。已经发现的自定义文件夹会参与后台周期增量同步和“同步管理”中的刷新同步，因此分流到 `ROVO`、`OA`、`会议通知` 等文件夹的新旧邮件都会写入本地缓存并计入同步进度。
 
 新浪邮箱使用客户端授权码接入。Gmail 和 Outlook 继续使用 OAuth；QQ、网易、iCloud、新浪和通用邮箱使用授权码、应用专用密码或邮箱服务商允许的客户端密码。
 

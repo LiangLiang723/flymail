@@ -182,7 +182,14 @@ def _folder_ref(path: str, name: str | None = None):
     return type("FolderRef", (), {"path": path, "name": name or path})()
 
 
-def _resolve_history_folders(remote_folders: list, wanted_folders: list[str] | None = None) -> list:
+def _resolve_history_folders(
+    remote_folders: list,
+    wanted_folders: list[str] | None = None,
+    *,
+    include_all: bool = False,
+) -> list:
+    if include_all and wanted_folders is None:
+        return list(remote_folders)
     wanted = [normalize_history_folder(item) for item in (wanted_folders or CORE_HISTORY_FOLDER_ORDER)]
     resolved = []
     for wanted_folder in wanted:
@@ -880,7 +887,11 @@ async def run_history_sync(
         receiver = ProviderFactory.get_receiver(account.provider)
         await receiver.connect(credentials)
         remote_folders = await receiver.fetch_folders()
-        folders = _resolve_history_folders(remote_folders, folders)
+        folders = _resolve_history_folders(
+            remote_folders,
+            folders,
+            include_all=account.provider == "custom",
+        )
 
         current_folder_name = job.get("current_folder") or ""
         start_index = 0

@@ -104,6 +104,25 @@ def _load_history_sync_module():
 
 
 class HistorySyncFolderResolutionTest(unittest.TestCase):
+    def test_custom_full_sync_keeps_all_remote_folders(self):
+        history_sync = _load_history_sync_module()
+        remote_folders = [
+            types.SimpleNamespace(name="收件箱", path="INBOX"),
+            types.SimpleNamespace(name="已发送", path="&XfJT0ZAB-"),
+            types.SimpleNamespace(name="OA", path="OA"),
+            types.SimpleNamespace(name="ROVO", path="ROVO"),
+        ]
+
+        resolved = history_sync._resolve_history_folders(
+            remote_folders,
+            include_all=True,
+        )
+
+        self.assertEqual(
+            [folder.path for folder in resolved],
+            ["INBOX", "&XfJT0ZAB-", "OA", "ROVO"],
+        )
+
     def test_resolves_netease_sent_folder_by_display_name(self):
         history_sync = _load_history_sync_module()
         remote_folders = [

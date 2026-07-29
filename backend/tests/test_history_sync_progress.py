@@ -60,6 +60,9 @@ def _load_settings_route_module():
     app_settings_stub.async_load_settings = AsyncMock(return_value={})
     app_settings_stub.async_save_settings = AsyncMock(return_value={})
 
+    sync_stub = types.ModuleType("services.sync")
+    sync_stub.sync_service = types.SimpleNamespace()
+
     schemas_stub = types.ModuleType("schemas")
     for name in (
         "OAuthDiagnosticResponse",
@@ -81,6 +84,7 @@ def _load_settings_route_module():
             "db",
             "services.history_sync",
             "services.settings",
+            "services.sync",
             "schemas",
         )
     }
@@ -91,6 +95,7 @@ def _load_settings_route_module():
             "db": db_stub,
             "services.history_sync": history_sync_stub,
             "services.settings": app_settings_stub,
+            "services.sync": sync_stub,
             "schemas": schemas_stub,
         }
     )
@@ -195,6 +200,64 @@ class HistorySyncProgressTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(inbox["cached_count"], 12)
         self.assertEqual(inbox["summary_count"], 12)
         self.assertTrue(inbox["is_synced"])
+
+    async def test_folder_progress_includes_discovered_custom_folders(self):
+        settings = _load_settings_route_module()
+        rows = [
+            {
+                "folder_key": "inbox",
+                "folder_path": "INBOX",
+                "display_name": "收件箱",
+                "cached_count": 50,
+                "total_count": 542,
+                "unread_count": 254,
+            },
+            {
+                "folder_key": "oa",
+                "folder_path": "OA",
+                "display_name": "OA",
+                "cached_count": 267,
+                "total_count": 575,
+                "unread_count": 267,
+            },
+            {
+                "folder_key": "rovo",
+                "folder_path": "ROVO",
+                "display_name": "ROVO",
+                "cached_count": 556,
+                "total_count": 689,
+                "unread_count": 556,
+            },
+        ]
+
+        async def fake_get_folder_stats(account_id, folder_path):
+            row = next((item for item in rows if item["folder_path"] == folder_path), None)
+            return {
+                "total_count": row["total_count"] if row else 0,
+                "unread_count": row["unread_count"] if row else 0,
+                "updated_at": 1,
+            }
+
+        async def fake_get_cached_count(account_id, folder_path):
+            row = next((item for item in rows if item["folder_path"] == folder_path), None)
+            return row["cached_count"] if row else 0
+
+        with (
+            patch.object(settings, "list_account_folder_counts", AsyncMock(return_value=rows)),
+            patch.object(settings, "get_folder_stats", fake_get_folder_stats),
+            patch.object(settings, "get_cached_count", fake_get_cached_count),
+            patch.object(settings, "get_history_sync_job", AsyncMock(return_value=None)),
+        ):
+            progress = await settings._build_folder_progress("account-1")
+
+        self.assertEqual(
+            [item["folder"] for item in progress],
+            ["INBOX", "Sent", "Drafts", "Junk", "Trash", "OA", "ROVO"],
+        )
+        oa = next(item for item in progress if item["folder"] == "OA")
+        self.assertEqual(oa["label"], "OA")
+        self.assertEqual(oa["cached_count"], 267)
+        self.assertEqual(oa["total_count"], 575)
 
     async def test_start_history_sync_rejects_disabled_account(self):
         settings = _load_settings_route_module()
