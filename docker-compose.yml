@@ -2,7 +2,7 @@ services:
   flymail-app:
     build:
       context: .
-    image: benxianyu/flymail:0.0.10
+    image: benxianyu/flymail:0.0.11
     container_name: flymail
     restart: always
     env_file:

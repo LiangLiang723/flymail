@@ -18,32 +18,41 @@
     ></button>
 
     <aside class="sidebar" :aria-hidden="isMobileLayout && !mobileSidebarOpen">
-      <div class="brand">
-        <img src="/icon.png" alt="FlyMail" class="brand-logo" />
-        <div class="brand-copy">
-          <div class="brand-name">FlyMail</div>
-          <div class="brand-subtitle">Docker 多用户版</div>
+      <div class="sidebar-header">
+        <div class="brand">
+          <img src="/icon.png" alt="FlyMail" class="brand-logo" />
+          <div class="brand-copy">
+            <div class="brand-name">FlyMail</div>
+            <div class="brand-subtitle">Docker 多用户版</div>
+          </div>
         </div>
+        <button
+          class="sidebar-toggle"
+          type="button"
+          :title="sidebarCollapsed ? '展开主导航' : '折叠主导航'"
+          :aria-label="sidebarCollapsed ? '展开主导航' : '折叠主导航'"
+          @click="toggleSidebar"
+        >
+          <AppIcon :name="sidebarCollapsed ? 'panel-left-open' : 'panel-left-close'" :size="19" />
+        </button>
         <button class="sidebar-mobile-close" type="button" aria-label="关闭导航" @click="mobileSidebarOpen = false">
           <AppIcon name="close" :size="20" />
         </button>
       </div>
 
       <div class="nav-scroll">
-        <nav class="nav-groups" aria-label="主导航">
-          <section v-for="group in navGroups" :key="group.label" class="nav-group">
-            <div class="nav-group-label">{{ group.label }}</div>
-            <button
-              v-for="item in group.items"
-              :key="item.key"
-              class="nav-item"
-              :class="{ active: currentView === item.key }"
-              @click="navigateFromSidebar(item.key)"
-            >
-              <AppIcon :name="item.icon" :size="18" />
-              <span>{{ item.label }}</span>
-            </button>
-          </section>
+        <nav class="nav-list" aria-label="主导航">
+          <button
+            v-for="item in navItems"
+            :key="item.key"
+            class="nav-item"
+            :class="{ active: currentView === item.key }"
+            :title="sidebarCollapsed && !isMobileLayout ? item.label : undefined"
+            @click="navigateFromSidebar(item.key)"
+          >
+            <AppIcon :name="item.icon" :size="18" />
+            <span class="nav-item-label">{{ item.label }}</span>
+          </button>
         </nav>
 
         <section v-if="isMobileLayout && currentView === 'mail'" class="mobile-mail-navigation">
@@ -89,43 +98,29 @@
         </section>
       </div>
 
-      <div class="sidebar-footer">
-        <span>FlyMail</span>
-        <span>v{{ appVersion }}</span>
-      </div>
-    </aside>
-
-    <div class="main">
-      <header class="topbar">
-        <div class="topbar-title">
-          <button
-            class="sidebar-toggle"
-            type="button"
-            :title="isMobileLayout ? '打开导航' : (sidebarCollapsed ? '展开主导航' : '隐藏主导航')"
-            :aria-label="isMobileLayout ? '打开导航' : (sidebarCollapsed ? '展开主导航' : '隐藏主导航')"
-            @click="toggleSidebar"
-          >
-            <AppIcon :name="isMobileLayout ? 'menu' : (sidebarCollapsed ? 'panel-left-open' : 'panel-left-close')" :size="20" />
-          </button>
-          <h1>{{ currentTitle }}</h1>
-        </div>
-        <div class="topbar-actions">
-          <button class="notification-button" type="button" @click="toggleNotifications" title="通知中心" aria-label="通知中心">
-            <AppIcon name="bell" :size="20" />
+      <div class="sidebar-bottom">
+        <div class="sidebar-actions">
+          <button class="sidebar-action notification-button" type="button" @click="toggleNotifications" title="通知中心" aria-label="通知中心">
+            <AppIcon name="bell" :size="19" />
+            <span class="sidebar-action-label">通知中心</span>
             <strong v-if="mailStore.unreadNotificationCount">{{ mailStore.unreadNotificationCount > 99 ? '99+' : mailStore.unreadNotificationCount }}</strong>
           </button>
 
           <div class="user-menu">
             <button
-              class="user-menu-trigger"
+              class="sidebar-profile-trigger"
               type="button"
               :aria-expanded="showUserMenu"
               aria-haspopup="menu"
+              title="账号菜单"
               @click="toggleUserMenu"
             >
               <span class="user-avatar">{{ userInitial }}</span>
-              <span class="user-name">{{ currentUser.username }}</span>
-              <AppIcon name="chevron-down" :size="15" />
+              <span class="sidebar-profile-copy">
+                <strong>{{ currentUser.username }}</strong>
+                <small>{{ currentUser.role === 'admin' ? '管理员' : '普通用户' }}</small>
+              </span>
+              <AppIcon class="profile-chevron" name="chevron-down" :size="15" />
             </button>
             <div v-if="showUserMenu" class="user-menu-popover" role="menu">
               <div class="user-menu-summary">
@@ -146,7 +141,25 @@
             </div>
           </div>
         </div>
-      </header>
+
+        <div class="sidebar-footer">
+          <span>FlyMail</span>
+          <span>v{{ appVersion }}</span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <button
+        v-if="isMobileLayout && !mobileSidebarOpen && !showNotifications"
+        class="mobile-sidebar-launcher"
+        type="button"
+        title="打开导航"
+        aria-label="打开导航"
+        @click="toggleSidebar"
+      >
+        <AppIcon name="menu" :size="19" />
+      </button>
 
       <main class="content" :class="`content-${currentView}`">
         <ComposeEmail v-if="currentView === 'compose'" @discard="returnToMail" @sent="returnToMail" />
@@ -303,40 +316,18 @@ const currentView = ref(savedView === 'compose' ? 'mail' : savedView);
 const isAdmin = computed(() => currentUser.value?.role === 'admin');
 const userInitial = computed(() => String(currentUser.value?.username || 'U').trim().charAt(0).toUpperCase());
 
-const navGroups = computed(() => [
-  {
-    label: '邮件',
-    items: [
-      { key: 'unified', label: '聚合收件箱', icon: 'inbox' },
-      { key: 'mail', label: '邮件管理', icon: 'mail' },
-      { key: 'contacts', label: '联系人', icon: 'contacts' },
-    ],
-  },
-  {
-    label: '管理',
-    items: [
-      { key: 'history-sync', label: '同步管理', icon: 'sync' },
-      { key: 'accounts', label: '账号管理', icon: 'accounts' },
-      { key: 'backup', label: '邮件备份', icon: 'backup' },
-    ],
-  },
-  {
-    label: '系统',
-    items: [
-      ...(isAdmin.value ? [{ key: 'users', label: '用户管理', icon: 'users' }] : []),
-      { key: 'notifications', label: '第三方通知', icon: 'notifications' },
-      { key: 'settings', label: '设置', icon: 'settings' },
-      { key: 'about', label: '关于', icon: 'info' },
-    ],
-  },
+const navItems = computed(() => [
+  { key: 'unified', label: '聚合收件箱', icon: 'inbox' },
+  { key: 'mail', label: '邮件管理', icon: 'mail' },
+  { key: 'contacts', label: '联系人', icon: 'contacts' },
+  { key: 'history-sync', label: '同步管理', icon: 'sync' },
+  { key: 'accounts', label: '账号管理', icon: 'accounts' },
+  { key: 'backup', label: '邮件备份', icon: 'backup' },
+  ...(isAdmin.value ? [{ key: 'users', label: '用户管理', icon: 'users' }] : []),
+  { key: 'notifications', label: '第三方通知', icon: 'notifications' },
+  { key: 'settings', label: '设置', icon: 'settings' },
+  { key: 'about', label: '关于', icon: 'info' },
 ]);
-
-const navItems = computed(() => navGroups.value.flatMap((group) => group.items));
-
-const currentTitle = computed(() => {
-  if (currentView.value === 'compose') return '写邮件';
-  return navItems.value.find((item) => item.key === currentView.value)?.label || 'FlyMail';
-});
 
 function accountDisplayName(account: any) {
   return String(account?.remark || '').trim() || account?.email || '邮箱账号';
@@ -368,6 +359,7 @@ function mobileFolderCount(folder: any) {
 
 function navigateFromSidebar(key: string) {
   currentView.value = key;
+  showUserMenu.value = false;
   mobileSidebarOpen.value = false;
 }
 
@@ -429,6 +421,7 @@ async function handleLoginSuccess() {
 
 function toggleNotifications() {
   showUserMenu.value = false;
+  mobileSidebarOpen.value = false;
   showNotifications.value = !showNotifications.value;
 }
 
@@ -550,92 +543,103 @@ watch(currentView, (value) => {
 }
 
 .app-shell.sidebar-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-columns: 68px minmax(0, 1fr);
 }
 
 .sidebar {
-  width: 220px;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px 14px 16px;
+  padding: 14px 10px 12px;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-color);
   overflow: hidden;
-  opacity: 1;
-  transform: translateX(0);
-  transition: transform 180ms ease, opacity 140ms ease;
-}
-
-.app-shell.sidebar-collapsed .sidebar {
-  opacity: 0;
-  transform: translateX(-100%);
-  pointer-events: none;
 }
 
 .mobile-sidebar-backdrop,
+.mobile-sidebar-launcher,
 .sidebar-mobile-close,
 .mobile-mail-navigation {
   display: none;
 }
 
-.brand {
+.sidebar-header {
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 4px 8px;
-  margin-bottom: 24px;
+  gap: 8px;
+}
+
+.brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 10px;
+  padding: 2px 4px;
+  overflow: hidden;
 }
 
 .brand-logo {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
 }
 
 .brand-copy {
   min-width: 0;
+  white-space: nowrap;
 }
 
 .brand-name {
-  font-size: 21px;
+  font-size: 19px;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .brand-subtitle {
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.sidebar-toggle {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-toggle:hover {
+  border-color: var(--border-color);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .nav-scroll {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  margin-top: 14px;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
-.nav-groups {
+.nav-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.nav-group-label {
-  padding: 0 10px 5px;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  gap: 3px;
 }
 
 .nav-item {
@@ -671,125 +675,118 @@ watch(currentView, (value) => {
   font-weight: 600;
 }
 
-.sidebar-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 14px 10px 0;
-  margin-top: 14px;
-  border-top: 1px solid var(--border-color);
-  color: var(--text-tertiary);
-  font-size: 11px;
+.nav-item > svg {
+  flex: 0 0 auto;
 }
 
-.main {
+.nav-item-label {
   min-width: 0;
-  min-height: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-bottom {
+  flex: 0 0 auto;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.sidebar-actions {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 4px;
 }
 
-.topbar {
-  min-height: 76px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 28px 10px;
-}
-
-.topbar-title {
-  min-width: 0;
+.sidebar-action,
+.sidebar-profile-trigger {
+  width: 100%;
+  min-height: 42px;
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.sidebar-toggle {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  padding: 0;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: var(--text-secondary);
+  text-align: left;
   cursor: pointer;
+  font: inherit;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
-.sidebar-toggle:hover {
+.sidebar-action:hover,
+.sidebar-profile-trigger:hover {
   border-color: var(--border-color);
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 
-.topbar h1 {
-  margin: 0;
-  font-size: 25px;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-}
-
-.topbar-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.notification-button,
-.user-menu-trigger {
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
-}
-
-.notification-button:hover,
-.user-menu-trigger:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-color);
+.sidebar-action-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .notification-button {
   position: relative;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: 10px;
 }
 
 .notification-button strong {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 2px;
+  right: 5px;
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  border: 2px solid var(--bg-secondary);
+  border: 2px solid var(--bg-primary);
   border-radius: 999px;
   background: var(--color-danger);
   color: var(--text-on-accent);
   font-size: 10px;
   line-height: 14px;
+  text-align: center;
 }
 
 .user-menu {
   position: relative;
 }
 
-.user-menu-trigger {
-  height: 42px;
+.sidebar-profile-trigger {
+  padding-left: 6px;
+}
+
+.sidebar-profile-copy {
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 10px 0 6px;
-  border-radius: 12px;
-  font: inherit;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-profile-copy strong,
+.sidebar-profile-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-profile-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.sidebar-profile-copy small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.profile-chevron {
+  flex: 0 0 auto;
 }
 
 .user-avatar {
@@ -811,26 +808,73 @@ watch(currentView, (value) => {
   font-size: 15px;
 }
 
-.user-name {
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
+.sidebar-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 10px 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
 }
 
 .user-menu-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 100;
+  position: fixed;
+  left: 230px;
+  bottom: 24px;
+  z-index: 9300;
   width: 220px;
   padding: 8px;
   border: 1px solid var(--border-color-strong);
   border-radius: 13px;
   background: var(--bg-card);
   box-shadow: var(--shadow-xl);
+}
+
+.app-shell.sidebar-collapsed .sidebar-header {
+  min-height: 88px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 7px;
+}
+
+.app-shell.sidebar-collapsed .brand {
+  width: 100%;
+  flex: 0 0 auto;
+  justify-content: center;
+  padding: 0;
+}
+
+.app-shell.sidebar-collapsed .brand-copy,
+.app-shell.sidebar-collapsed .nav-item-label,
+.app-shell.sidebar-collapsed .sidebar-action-label,
+.app-shell.sidebar-collapsed .sidebar-profile-copy,
+.app-shell.sidebar-collapsed .profile-chevron,
+.app-shell.sidebar-collapsed .sidebar-footer {
+  display: none;
+}
+
+.app-shell.sidebar-collapsed .nav-item,
+.app-shell.sidebar-collapsed .sidebar-action,
+.app-shell.sidebar-collapsed .sidebar-profile-trigger {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+
+.app-shell.sidebar-collapsed .notification-button strong {
+  top: 1px;
+  right: 0;
+}
+
+.app-shell.sidebar-collapsed .user-menu-popover {
+  left: 78px;
+}
+
+.main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .user-menu-summary {
@@ -1099,10 +1143,32 @@ watch(currentView, (value) => {
     background: rgba(5, 10, 18, 0.58);
   }
 
+  .mobile-sidebar-launcher {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    z-index: 9050;
+    width: 34px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border-color-strong);
+    border-left: 0;
+    border-radius: 0 12px 12px 0;
+    background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-50%);
+    backdrop-filter: blur(12px);
+  }
+
+  .sidebar-header {
+    min-height: 44px;
+  }
+
   .brand {
-    position: relative;
-    padding-right: 42px;
-    margin-bottom: 18px;
+    padding: 0;
   }
 
   .brand-logo {
@@ -1118,14 +1184,16 @@ watch(currentView, (value) => {
     font-size: 12px;
   }
 
+  .sidebar-toggle {
+    display: none;
+  }
+
   .sidebar-mobile-close {
-    position: absolute;
-    top: 4px;
-    right: 2px;
     width: 36px;
     height: 36px;
     display: grid;
     place-items: center;
+    flex: 0 0 auto;
     padding: 0;
     border: 0;
     border-radius: 9px;
@@ -1136,26 +1204,17 @@ watch(currentView, (value) => {
   .nav-scroll {
     flex: 1;
     min-height: 0;
+    margin-top: 14px;
     padding-right: 2px;
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  .nav-groups {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
+  .nav-list {
+    gap: 3px;
     min-width: 0;
-    padding-bottom: 18px;
-  }
-
-  .nav-group {
-    display: flex;
-  }
-
-  .nav-group-label {
-    display: block;
+    padding-bottom: 12px;
   }
 
   .nav-item {
@@ -1294,55 +1353,20 @@ watch(currentView, (value) => {
     font-size: 11px;
   }
 
+  .sidebar-bottom {
+    margin-top: 8px;
+  }
+
   .sidebar-footer {
     display: flex;
   }
 
-  .topbar {
-    min-height: 60px;
-    gap: 8px;
-    padding: 8px 10px 6px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-  }
-
-  .topbar-title {
-    gap: 4px;
-  }
-
-  .sidebar-toggle {
-    width: 40px;
-    height: 40px;
-  }
-
-  .topbar h1 {
-    max-width: 48vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 20px;
-  }
-
-  .topbar-actions {
-    gap: 2px;
-  }
-
-  .user-name {
-    display: none;
-  }
-
-  .user-menu-trigger {
-    padding-right: 5px;
-  }
-
-  .user-menu-trigger > svg {
-    display: none;
-  }
-
   .user-menu-popover {
-    position: fixed;
-    top: 62px;
-    right: 8px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: auto;
   }
 
   .main {

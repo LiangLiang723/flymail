@@ -10,13 +10,18 @@ async function readSource(relativePath) {
   return readFile(path.join(frontendRoot, relativePath), 'utf8');
 }
 
-test('application shell groups navigation and keeps account actions in a user menu', async () => {
+test('application shell uses one flat sidebar and keeps global actions out of a topbar', async () => {
   const source = await readSource('src/App.vue');
 
-  assert.match(source, /class="nav-groups"/);
-  assert.match(source, /class="nav-group-label"/);
-  assert.match(source, /class="user-menu-trigger"/);
+  assert.match(source, /class="sidebar-header"/);
+  assert.match(source, /class="nav-list"/);
+  assert.match(source, /v-for="item in navItems"/);
+  assert.doesNotMatch(source, /class="nav-group-label"/);
+  assert.doesNotMatch(source, /class="topbar"/);
+  assert.match(source, /class="sidebar-actions"/);
+  assert.match(source, /class="sidebar-profile-trigger"/);
   assert.match(source, /class="user-menu-popover"/);
+  assert.match(source, /\.user-menu-popover\s*\{[^}]*position:\s*fixed;/s);
   assert.match(source, /<AppIcon/);
 });
 
@@ -32,12 +37,16 @@ test('mail view keeps the toolbar inside the list card without a permanent previ
   assert.doesNotMatch(source, /mail-preview-pane/);
 });
 
-test('responsive shell collapses desktop navigation and uses a mobile drawer', async () => {
+test('responsive shell keeps a desktop icon rail and uses a mobile drawer', async () => {
   const source = await readSource('src/App.vue');
 
   assert.match(source, /class="sidebar-toggle"/);
+  assert.match(source, /class="mobile-sidebar-launcher"/);
   assert.match(source, /class="mobile-sidebar-backdrop"/);
   assert.match(source, /flymail_sidebar_collapsed/);
+  assert.match(source, /\.app-shell\.sidebar-collapsed\s*\{[^}]*grid-template-columns:\s*68px\s+minmax\(0,\s*1fr\)/s);
+  assert.match(source, /\.app-shell\.sidebar-collapsed \.nav-item-label[\s\S]*display:\s*none/);
+  assert.doesNotMatch(source, /\.app-shell\.sidebar-collapsed \.sidebar\s*\{\s*opacity:\s*0;[^}]*pointer-events:\s*none/s);
   assert.match(source, /class="mobile-mail-navigation"/);
   assert.match(source, /new CustomEvent\('flymail-mail-navigation'/);
   assert.match(source, /type: 'reauth'/);
