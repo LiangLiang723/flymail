@@ -126,8 +126,7 @@
 .ui-button--danger,
 .btn-danger,
 .toolbar-btn.danger,
-.btn-delete,
-.danger {
+.btn-delete {
   background: var(--ui-danger);
   color: var(--ui-text-inverse);
 }
@@ -138,6 +137,60 @@
 .btn-delete:hover:not(:disabled) {
   background: var(--ui-danger-hover);
   border-color: transparent;
+}
+
+.btn-danger-ghost {
+  border-color: color-mix(in srgb, var(--ui-danger) 28%, var(--ui-border));
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+}
+
+.btn-danger-ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ui-danger) 44%, var(--ui-border));
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-danger);
+}
+
+.attachment-action {
+  min-width: var(--ui-control-sm);
+  height: var(--ui-control-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-3);
+  font: inherit;
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 90ms ease-out,
+    background var(--ui-motion-fast),
+    border-color var(--ui-motion-fast),
+    color var(--ui-motion-fast);
+}
+
+.attachment-action:hover:not(:disabled) {
+  border-color: var(--ui-border);
+  background: var(--ui-fill-hover);
+  color: var(--ui-accent);
+}
+
+.attachment-action:active:not(:disabled) {
+  transform: scale(0.96);
+  background: var(--ui-fill-pressed);
+}
+
+.attachment-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .ui-button--sm { min-height: var(--ui-control-sm); padding: 0 12px; font-size: var(--ui-text-xs); }

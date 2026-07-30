@@ -66,6 +66,16 @@ test('reusable button primitives expose variants and loading state', async () =>
   assert.match(iconButton, /label/);
 });
 
+test('shared button variants never style generic danger state classes', async () => {
+  const source = await readSource('src/styles/components.css');
+
+  assert.doesNotMatch(source, /(?:^|,)\s*\.danger\s*(?:,|\{)/m);
+  assert.match(
+    source,
+    /\.ui-button--danger,[\s\S]*\.btn-danger,[\s\S]*\.toolbar-btn\.danger,[\s\S]*\.btn-delete\s*\{/,
+  );
+});
+
 test('all authenticated pages opt into the shared page system', async () => {
   const pages = [
     'About.vue',

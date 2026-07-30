@@ -350,10 +350,10 @@
               </div>
             </div>
             <div class="attachment-actions-inline">
-              <button class="att-download" type="button" title="下载到本机" @click="downloadAttachment(att)">
+              <button class="attachment-action" type="button" title="下载到本机" aria-label="下载附件到本机" @click="downloadAttachment(att)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
-              <button class="att-download" type="button" title="保存到 NAS" @click="chooseAttachmentNasTarget(att)">NAS</button>
+              <button class="attachment-action" type="button" title="保存到 NAS" aria-label="保存附件到 NAS" @click="chooseAttachmentNasTarget(att)">NAS</button>
             </div>
           </div>
         </div>
@@ -2470,15 +2470,11 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-size: 11px;
   font-weight: 600;
 }
-.att-download {
-  flex-shrink: 0;
-  color: var(--ui-text-3);
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.15s;
-}
-.attachment-item:hover .att-download {
-  color: var(--ui-accent);
+.attachment-actions-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
 }
 
 /* 移动端：筛选切换按钮（桌面端隐藏） */

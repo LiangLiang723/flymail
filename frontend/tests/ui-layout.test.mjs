@@ -107,6 +107,20 @@ test('mobile mail view delegates account and folder navigation without horizonta
   assert.match(source, /@media \(max-width: 768px\)[\s\S]*\.mail-item,[\s\S]*min-width: 0;/);
 });
 
+test('destructive secondary actions and attachment controls use explicit variants', async () => {
+  const notificationSource = await readSource('src/views/NotificationSettings.vue');
+  const mailSource = await readSource('src/views/MailList.vue');
+  const componentCss = await readSource('src/styles/components.css');
+
+  assert.match(notificationSource, /class="btn btn-danger-ghost"/);
+  assert.doesNotMatch(notificationSource, /class="btn btn-secondary danger"/);
+  assert.match(mailSource, /class="attachment-action"/);
+  assert.doesNotMatch(mailSource, /class="att-download"/);
+  assert.match(componentCss, /\.btn-danger-ghost\s*\{[^}]*color:\s*var\(--ui-danger\);/s);
+  assert.match(componentCss, /\.attachment-action\s*\{[^}]*border:\s*1px solid transparent;[^}]*background:\s*transparent;/s);
+  assert.match(componentCss, /\.attachment-action:disabled\s*\{/);
+});
+
 test('manual refresh animates only while the latest page request is active', async () => {
   const source = await readSource('src/views/MailList.vue');
 
