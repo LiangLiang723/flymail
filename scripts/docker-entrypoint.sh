@@ -72,6 +72,7 @@ mysqld \
   --port=3306 \
   --secure-file-priv="${MYSQL_FILES_DIR}" \
   --log-error="${MYSQL_ERROR_LOG}" \
+  --skip-log-bin \
   --skip-name-resolve &
 mysql_pid=$!
 

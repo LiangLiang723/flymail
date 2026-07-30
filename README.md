@@ -84,7 +84,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.15` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.16` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -127,7 +127,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.15 .
+docker build -t benxianyu/flymail:0.0.16 .
 ```
 
 登录 Docker Hub：
@@ -139,7 +139,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.15
+docker push benxianyu/flymail:0.0.16
 ```
 
 ## 数据存储
@@ -155,6 +155,8 @@ docker push benxianyu/flymail:0.0.15
 - 用户设置
 - 签名
 - 历史同步任务
+
+单容器部署默认关闭 MySQL 二进制日志，避免邮件缓存频繁更新产生大量 binlog 并持续占用 `/data/mysql`。该模式不提供基于 binlog 的主从复制和时间点恢复；需要这些能力时，应改用独立 MySQL 并自行配置备份与日志保留策略。
 
 ### `/data/flymail`
 
