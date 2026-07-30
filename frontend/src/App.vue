@@ -41,21 +41,23 @@
         </button>
 
         <main class="content" :class="`content-${currentView}`">
-          <ComposeEmail v-if="currentView === 'compose'" @discard="returnToMail" @sent="returnToMail" />
-          <template v-else-if="currentView === 'mail'">
-            <KeepAlive>
-              <MailList />
-            </KeepAlive>
-          </template>
-          <UnifiedInbox v-else-if="currentView === 'unified'" />
-          <HistorySync v-else-if="currentView === 'history-sync'" />
-          <AccountList v-else-if="currentView === 'accounts'" />
-          <ContactList v-else-if="currentView === 'contacts'" />
-          <Backup v-else-if="currentView === 'backup'" />
-          <UserManagement v-else-if="currentView === 'users' && isAdmin" />
-          <Settings v-else-if="currentView === 'settings'" />
-          <NotificationSettings v-else-if="currentView === 'notifications'" />
-          <About v-else-if="currentView === 'about'" />
+          <div class="app-page-viewport">
+            <ComposeEmail v-if="currentView === 'compose'" @discard="returnToMail" @sent="returnToMail" />
+            <template v-else-if="currentView === 'mail'">
+              <KeepAlive>
+                <MailList />
+              </KeepAlive>
+            </template>
+            <UnifiedInbox v-else-if="currentView === 'unified'" />
+            <HistorySync v-else-if="currentView === 'history-sync'" />
+            <AccountList v-else-if="currentView === 'accounts'" />
+            <ContactList v-else-if="currentView === 'contacts'" />
+            <Backup v-else-if="currentView === 'backup'" />
+            <UserManagement v-else-if="currentView === 'users' && isAdmin" />
+            <Settings v-else-if="currentView === 'settings'" />
+            <NotificationSettings v-else-if="currentView === 'notifications'" />
+            <About v-else-if="currentView === 'about'" />
+          </div>
         </main>
       </div>
 
