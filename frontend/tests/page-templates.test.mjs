@@ -87,3 +87,27 @@ test('settings documents use the document template and shared header', async () 
     assert.match(source, /class="document-column/);
   }
 });
+
+test('the compatibility layer no longer owns page root height, padding or scrolling', async () => {
+  const source = await read('src/styles/page-system.css');
+  const roots = new Set([
+    '.mail-view',
+    '.backup-page',
+    '.compose-page',
+    '.unified-page',
+    '.history-sync-page',
+    '.account-page',
+    '.user-page',
+    '.contact-page',
+    '.settings-page',
+    '.notify-page',
+    '.about-page',
+    '.ui-page:not(.ui-page--edge)',
+  ]);
+
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = match[1].split(',').map((selector) => selector.trim());
+    if (!selectors.some((selector) => roots.has(selector))) continue;
+    assert.doesNotMatch(match[2], /(?:^|[;\s])(height|min-height|padding|overflow|overflow-y)\s*:/, selectors.join(', '));
+  }
+});

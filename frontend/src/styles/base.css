@@ -56,6 +56,11 @@ button {
   color: var(--ui-text-1);
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-3) 45%, transparent) transparent;
+}
+
 :focus {
   outline: none;
 }

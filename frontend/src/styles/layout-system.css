@@ -59,16 +59,16 @@
 
 .page-frame__header {
   min-width: 0;
-  padding: 16px 20px 12px;
+  padding: var(--page-padding-compact) var(--page-padding) var(--page-gap);
   border-bottom: 1px solid transparent;
 }
 
 .page-frame__toolbar {
   min-width: 0;
-  min-height: 48px;
+  min-height: var(--toolbar-height);
   display: flex;
   align-items: center;
-  padding: 6px 20px;
+  padding: 6px var(--page-padding);
   border-bottom: 1px solid var(--ui-border);
   background: var(--ui-surface-1);
 }
@@ -78,7 +78,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--page-gap);
 }
 
 .page-header-shell__copy {
@@ -105,7 +105,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ui-space-2);
   flex: 0 0 auto;
 }
 
@@ -114,7 +114,7 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
 }
 
 .page-toolbar__start,
@@ -123,7 +123,7 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
 }
 
 .page-toolbar__main {
@@ -138,7 +138,7 @@
 .ui-panel {
   min-width: 0;
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
+  border-radius: var(--ui-radius-md);
   background: var(--ui-surface-1);
   color: var(--ui-text-1);
   box-shadow: var(--ui-shadow-xs);
@@ -187,8 +187,8 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 12px;
-  padding: 24px;
+  gap: var(--page-gap);
+  padding: var(--page-padding);
   color: var(--ui-text-2);
   text-align: center;
 }
@@ -230,14 +230,14 @@
 .document-column {
   width: min(960px, 100%);
   display: grid;
-  gap: 12px;
-  padding: 0 20px 20px;
+  gap: var(--page-gap);
+  padding: var(--page-padding);
 }
 
 .management-stack {
   display: grid;
-  gap: 12px;
-  padding: 0 20px 20px;
+  gap: var(--page-gap);
+  padding: var(--page-padding);
 }
 
 .workspace-grid,
@@ -252,12 +252,12 @@
 @media (max-width: 960px) {
   .page-frame__header,
   .page-frame__toolbar {
-    padding-inline: 16px;
+    padding-inline: var(--page-padding-compact);
   }
 
   .document-column,
   .management-stack {
-    padding-inline: 16px;
+    padding-inline: var(--page-padding-compact);
   }
 }
 
@@ -267,7 +267,7 @@
   }
 
   .page-frame__toolbar {
-    min-height: 44px;
+    min-height: var(--touch-target);
     padding-block: 4px;
   }
 
@@ -291,7 +291,7 @@
 
   .document-column,
   .management-stack {
-    padding-bottom: 16px;
+    padding-bottom: var(--page-padding-compact);
   }
 }
 

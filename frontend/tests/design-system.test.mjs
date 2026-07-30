@@ -116,6 +116,27 @@ test('page and component style blocks use semantic colors instead of fixed light
   }
 });
 
+test('high-density layout measurements are centralized as semantic tokens', async () => {
+  const tokens = await readSource('src/styles/tokens.css');
+  const layout = await readSource('src/styles/layout-system.css');
+
+  for (const declaration of [
+    '--page-padding: 20px',
+    '--page-padding-compact: 16px',
+    '--page-gap: 12px',
+    '--panel-padding: 16px',
+    '--control-height-md: 36px',
+    '--toolbar-height: 48px',
+    '--list-row-height: 48px',
+  ]) {
+    assert.match(tokens, new RegExp(declaration.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.match(layout, /padding:\s*var\(--page-padding\)/);
+  assert.match(layout, /gap:\s*var\(--page-gap\)/);
+  assert.match(layout, /min-height:\s*var\(--toolbar-height\)/);
+  assert.match(layout, /scrollbar-gutter:\s*stable/);
+});
+
 test('layout primitives expose the four approved page templates', async () => {
   const frame = await readSource('src/components/layout/PageFrame.vue');
   const layout = await readSource('src/styles/layout-system.css');

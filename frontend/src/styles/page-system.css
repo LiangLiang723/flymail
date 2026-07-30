@@ -8,10 +8,6 @@
   font-family: var(--ui-font-family);
 }
 
-.ui-page:not(.ui-page--edge) {
-  padding: clamp(16px, 2.2vw, 28px) !important;
-}
-
 .ui-page h1,
 .ui-page h2,
 .ui-page h3,
@@ -89,11 +85,6 @@
 }
 
 /* Mail and backup share the same three-pane visual language. */
-.mail-view,
-.backup-page {
-  overflow: hidden !important;
-}
-
 .mail-view .mail-shell,
 .backup-page .backup-content {
   min-width: 0;
@@ -224,10 +215,6 @@
 }
 
 /* Unified inbox */
-.unified-page {
-  overflow-y: auto !important;
-}
-
 .unified-page .settings-card,
 .unified-page .filter-bar {
   border-color: var(--ui-border) !important;
@@ -246,7 +233,6 @@
 
 /* Composer */
 .compose-page {
-  overflow: hidden !important;
   background: var(--ui-surface-1) !important;
 }
 
@@ -340,10 +326,6 @@
 }
 
 /* Accounts */
-.account-page {
-  overflow-y: auto !important;
-}
-
 .account-page .toolbar,
 .account-page .section-header {
   border-color: var(--ui-border) !important;
@@ -382,14 +364,6 @@
 }
 
 /* Settings and notification settings */
-.settings-page,
-.notify-page,
-.history-sync-page,
-.user-page,
-.about-page {
-  overflow-y: auto !important;
-}
-
 .settings-page .provider-card,
 .settings-page .card-body,
 .settings-page .guide-panel,
@@ -589,13 +563,8 @@
 }
 
 @media (max-width: 768px) {
-  .ui-page:not(.ui-page--edge) {
-    padding: 16px !important;
-  }
-
   .mail-view .mail-shell,
-  .backup-page .backup-content,
-  .contact-page {
+  .backup-page .backup-content {
     border: 0 !important;
     border-radius: 0 !important;
   }
