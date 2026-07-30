@@ -334,6 +334,9 @@ async def _cache_detail_assets_in_background(account: Account, folder: str, uid_
 async def _cached_detail_assets_complete(account_id: str, uid: int, folder: str, cached: dict | None) -> bool:
     if not cached or not (cached.get("body_text") or cached.get("body_html")):
         return False
+    body_html = str(cached.get("body_html") or "")
+    if "<!-- truncated -->" in body_html and "data:image/" in body_html.lower():
+        return False
     return True
 
 

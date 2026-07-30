@@ -136,6 +136,19 @@ def _load_messages_route_module():
     ):
         setattr(attachments_stub, name, object())
 
+    attachment_cache_stub = types.ModuleType("services.attachment_cache")
+    attachment_cache_stub.AttachmentDownloadFile = object
+    for name in (
+        "batch_delete_cached_messages_and_release",
+        "cache_attachment_bytes",
+        "delete_cached_message_and_release",
+        "remove_transient_download",
+        "resolve_cached_attachment_path",
+        "should_persist_normal_attachment",
+        "write_transient_download",
+    ):
+        setattr(attachment_cache_stub, name, object())
+
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = object()
 
@@ -168,6 +181,7 @@ def _load_messages_route_module():
         "routes._helpers",
         "schemas",
         "services.attachments",
+        "services.attachment_cache",
         "services.sync",
         "services.mail_cache",
         "services.token",
@@ -188,6 +202,7 @@ def _load_messages_route_module():
             "routes._helpers": helpers_stub,
             "schemas": schemas_stub,
             "services.attachments": attachments_stub,
+            "services.attachment_cache": attachment_cache_stub,
             "services.sync": sync_stub,
             "services.mail_cache": mail_cache_stub,
             "services.token": token_stub,
@@ -527,6 +542,18 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
         complete = await messages._cached_detail_assets_complete("account-1", 1, "INBOX", cached)
 
         self.assertTrue(complete)
+
+    async def test_legacy_base64_inline_image_detail_is_refetched(self):
+        messages = _load_messages_route_module()
+        cached = {
+            "body_html": '<p>legacy</p><img src="data:image/png;base64,AAAA">\n<!-- truncated -->',
+            "body_text": "",
+            "has_attachments": False,
+        }
+
+        complete = await messages._cached_detail_assets_complete("account-1", 1, "INBOX", cached)
+
+        self.assertFalse(complete)
 
     async def test_mark_read_queues_remote_failure_and_updates_local(self):
         messages = _load_messages_route_module()
