@@ -143,6 +143,7 @@ test('editor popovers preserve accessible names and compact touch targets', asyn
 
   assert.match(editorSource, /class="color-swatch"[^>]*:aria-label="`使用颜色 \$\{c\}`"/s);
   assert.match(editorSource, /\.color-swatch\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;/s);
+  assert.match(editorSource, /\.color-swatch\s*\{[^}]*border:\s*2px solid var\(--ui-border-strong\);/s);
   assert.match(editorSource, /\.emoji-tab\s*\{[^}]*min-height:\s*32px;/s);
   assert.match(composeSource, /class="toolbar-btn primary"[^>]*aria-label="发送邮件"/s);
   assert.match(composeSource, /class="toolbar-btn"[^>]*aria-label="保存草稿"[^>]*@click="saveDraft"/s);

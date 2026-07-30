@@ -680,7 +680,7 @@ const toolbarButtons = [
 .color-swatch {
   width: 28px;
   height: 28px;
-  border: 2px solid transparent;
+  border: 2px solid var(--ui-border-strong);
   border-radius: 4px;
   cursor: pointer;
   transition: transform 0.1s;
