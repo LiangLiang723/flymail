@@ -25,3 +25,13 @@ test('the page viewport clips outer overflow and delegates scrolling to template
   assert.match(shell, /\.app-page-viewport\s*\{[^}]*min-height:\s*0/s);
   assert.match(shell, /\.app-page-viewport\s*\{[^}]*overflow:\s*hidden/s);
 });
+
+test('each page template owns a deterministic scroll model', async () => {
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(layout, /\.page-frame--management[^}]*overflow:\s*hidden/s);
+  assert.match(layout, /\.page-frame--management[\s\S]*\.page-frame__body[^}]*overflow-y:\s*auto/s);
+  assert.match(layout, /\.page-frame--workspace[^}]*overflow:\s*hidden/s);
+  assert.match(layout, /\.page-frame--split[^}]*overflow:\s*hidden/s);
+  assert.match(layout, /\.page-frame--document[\s\S]*\.page-frame__body[^}]*overflow-y:\s*auto/s);
+});

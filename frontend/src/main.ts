@@ -6,6 +6,7 @@ import './styles/base.css'
 import './styles/macos.css'
 import './styles/components.css'
 import './styles/app-shell.css'
+import './styles/layout-system.css'
 import './styles/page-system.css'
 import { themeController } from './utils/theme'
 

@@ -116,13 +116,34 @@ test('page and component style blocks use semantic colors instead of fixed light
   }
 });
 
+test('layout primitives expose the four approved page templates', async () => {
+  const frame = await readSource('src/components/layout/PageFrame.vue');
+  const layout = await readSource('src/styles/layout-system.css');
+  const empty = await readSource('src/components/ui/UiEmptyState.vue');
+
+  assert.match(frame, /'workspace'\s*\|\s*'management'\s*\|\s*'split'\s*\|\s*'document'/);
+  assert.match(layout, /\.page-frame--workspace/);
+  assert.match(layout, /\.page-frame--management/);
+  assert.match(layout, /\.page-frame--split/);
+  assert.match(layout, /\.page-frame--document/);
+  assert.match(empty, /ui-empty-state/);
+});
+
 test('main stylesheet order establishes tokens before compatibility styles', async () => {
   const source = await readSource('src/main.ts');
   const tokens = source.indexOf("./styles/tokens.css");
   const base = source.indexOf("./styles/base.css");
   const components = source.indexOf("./styles/components.css");
   const legacy = source.indexOf("./styles/macos.css");
+  const layoutSystem = source.indexOf("./styles/layout-system.css");
   const pageSystem = source.indexOf("./styles/page-system.css");
 
-  assert.ok(tokens >= 0 && base > tokens && legacy > base && components > legacy && pageSystem > components);
+  assert.ok(
+    tokens >= 0
+      && base > tokens
+      && legacy > base
+      && components > legacy
+      && layoutSystem > components
+      && pageSystem > layoutSystem,
+  );
 });
