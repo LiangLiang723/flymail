@@ -127,7 +127,7 @@ async def get_shared_attachment_cache_usage() -> int:
     return await get_shared_attachment_cache_usage_bytes()
 
 
-def _create_temp_path(suffix: str = ".part") -> Path:
+def _create_temp_path(suffix: str = ".tmp") -> Path:
     ATTACHMENT_CACHE_TMP_DIR.mkdir(parents=True, exist_ok=True)
     return ATTACHMENT_CACHE_TMP_DIR / f"{uuid.uuid4().hex}{suffix}"
 
@@ -450,6 +450,69 @@ def remove_transient_download(path: Path) -> None:
         target.unlink(missing_ok=True)
     except OSError:
         return
+
+
+async def remove_stale_untracked_cache_files(
+    known_hashes: set[str],
+    older_than: float,
+) -> dict[str, int]:
+    stats = {
+        "orphan_object_files": 0,
+        "orphan_object_bytes": 0,
+        "stale_temp_files": 0,
+    }
+    normalized_known = {
+        digest for value in known_hashes if (digest := _normalize_hash(value))
+    }
+
+    async with _OBJECT_MUTATION_LOCK:
+        sha_root = ATTACHMENT_SHA256_DIR.resolve()
+        if ATTACHMENT_SHA256_DIR.exists():
+            for path in ATTACHMENT_SHA256_DIR.rglob("*"):
+                try:
+                    if path.is_symlink() or not path.is_file():
+                        continue
+                    resolved = path.resolve()
+                    if not resolved.is_relative_to(sha_root):
+                        continue
+                    digest = _normalize_hash(path.name)
+                    if not digest or digest in normalized_known:
+                        continue
+                    stat = path.stat()
+                    if stat.st_mtime >= older_than:
+                        continue
+                    path.unlink()
+                    stats["orphan_object_files"] += 1
+                    stats["orphan_object_bytes"] += int(stat.st_size)
+                except OSError as exc:
+                    logger.warning(
+                        "orphan attachment object cleanup failed file=%s error=%s",
+                        path.name,
+                        type(exc).__name__,
+                    )
+
+        temp_root = ATTACHMENT_CACHE_TMP_DIR.resolve()
+        if ATTACHMENT_CACHE_TMP_DIR.exists():
+            for path in ATTACHMENT_CACHE_TMP_DIR.iterdir():
+                try:
+                    if path.is_symlink() or not path.is_file():
+                        continue
+                    resolved = path.resolve()
+                    if not resolved.is_relative_to(temp_root):
+                        continue
+                    if path.suffix not in {".tmp", ".download"}:
+                        continue
+                    if path.stat().st_mtime >= older_than:
+                        continue
+                    path.unlink()
+                    stats["stale_temp_files"] += 1
+                except OSError as exc:
+                    logger.warning(
+                        "stale attachment temp cleanup failed file=%s error=%s",
+                        path.name,
+                        type(exc).__name__,
+                    )
+    return stats
 
 
 async def delete_cached_message_and_release(account_id: str, uid: int, folder: str) -> bool:

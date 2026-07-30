@@ -28,6 +28,11 @@ class StaticFileResolutionTest(unittest.TestCase):
             self.assertIsNone(resolve_ui_file(root, str(outside)))
             self.assertIsNone(resolve_ui_file(root, "..\\secret.txt"))
 
+    def test_main_lifecycle_starts_and_stops_attachment_cache_maintenance(self):
+        source = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+        self.assertIn("start_attachment_cache_maintenance()", source)
+        self.assertIn("await stop_attachment_cache_maintenance()", source)
+
     def test_rejects_symlink_that_resolves_outside_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "ui"

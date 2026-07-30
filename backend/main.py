@@ -30,6 +30,10 @@ from routes.settings import router as settings_router, sync_gmail_config, sync_o
 from routes.signatures import router as signatures_router
 from routes.websocket import router as websocket_router
 from schemas import HealthResponse, UserResponse
+from services.attachment_cache_maintenance import (
+    start_attachment_cache_maintenance,
+    stop_attachment_cache_maintenance,
+)
 from services.settings import async_load_settings
 from services.read_sync import start_pending_read_sync, stop_pending_read_sync
 from services.sync import sync_service
@@ -71,11 +75,13 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     start_pending_read_sync()
     start_upload_cleanup()
+    start_attachment_cache_maintenance()
     logger.info("startup complete data_dir=%s", BASE_DATA_DIR)
     yield
     await sync_service._stop_all_idle()
     await stop_pending_read_sync()
     await stop_upload_cleanup()
+    await stop_attachment_cache_maintenance()
     from services.scheduler import shutdown_scheduler
 
     shutdown_scheduler()
