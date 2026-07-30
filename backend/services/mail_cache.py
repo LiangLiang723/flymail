@@ -16,7 +16,6 @@ from typing import Awaitable, Callable, Dict, List
 
 from db import (
     get_cached_message_detail,
-    upsert_cached_attachments,
     upsert_cached_messages, get_max_cached_uid, get_accounts,
     upsert_folder_stats, get_folder_stats,
     purge_deleted_from_cache, get_cached_count, get_cached_uids,
@@ -551,7 +550,7 @@ async def _cache_messages_with_details(receiver, account: Account, folder: str, 
 
         cached_detail = await get_cached_message_detail(account.id, detail.uid, folder)
         effective_message_date = coalesce_message_date(detail.date, message.date, (cached_detail or {}).get("date", ""))
-        body_html, storage_path, _att_count, _inline_count, attachment_records = await _cache_message_assets(
+        body_html, storage_path, _att_count, _inline_count = await _cache_message_assets(
             receiver, account, folder, detail
         )
         detail.body_html = body_html
@@ -577,8 +576,6 @@ async def _cache_messages_with_details(receiver, account: Account, folder: str, 
                 cached_at=time.time(),
             )
         )
-        if attachment_records:
-            await upsert_cached_attachments(attachment_records)
 
     if detailed_batch:
         await upsert_cached_messages(detailed_batch)
@@ -804,7 +801,7 @@ async def sync_missing_messages(account: Account, folder: str) -> int:
                                 detail.is_read = message.is_read
                                 cached_detail = await get_cached_message_detail(account.id, detail.uid, folder)
                                 effective_message_date = coalesce_message_date(detail.date, message.date, (cached_detail or {}).get("date", ""))
-                                body_html, storage_path, _att_count, _inline_count, attachment_records = await _cache_message_assets(
+                                body_html, storage_path, _att_count, _inline_count = await _cache_message_assets(
                                     receiver, account, folder, detail
                                 )
                                 detail.body_html = body_html
@@ -829,8 +826,6 @@ async def sync_missing_messages(account: Account, folder: str) -> int:
                                         cached_at=time.time(),
                                     )
                                 )
-                                if attachment_records:
-                                    await upsert_cached_attachments(attachment_records)
                             except Exception as exc:
                                 logger.debug(
                                     "fill missing detail failed, cache summary only: account=%s folder=%s uid=%s error=%s",

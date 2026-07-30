@@ -285,7 +285,7 @@ async def _cache_remote_detail_with_assets(receiver, account: Account, folder: s
     try:
         cached_detail = await get_cached_message_detail(account.id, detail.uid, folder)
         effective_message_date = coalesce_message_date(detail.date, (cached_detail or {}).get("date", ""))
-        body_html, storage_path, _att_count, _inline_count, attachment_records = await _cache_message_assets(
+        body_html, storage_path, _att_count, _inline_count = await _cache_message_assets(
             receiver,
             account,
             folder,
@@ -297,8 +297,6 @@ async def _cache_remote_detail_with_assets(receiver, account: Account, folder: s
         if cached_messages:
             cached_messages[0].storage_path = storage_path
         await upsert_cached_messages(cached_messages)
-        if attachment_records:
-            await upsert_cached_attachments(attachment_records)
         cached_payload = await get_cached_message_detail(account.id, detail.uid, folder)
         if cached_payload:
             cached_payload["attachments"] = await list_cached_attachments(account.id, detail.uid, folder)

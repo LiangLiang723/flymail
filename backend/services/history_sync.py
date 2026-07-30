@@ -6,10 +6,8 @@ from pathlib import Path
 
 from data_paths import (
     DOWNLOADS_DIR,
-    build_message_file_path,
     coalesce_message_date,
     clear_account_storage,
-    ensure_message_file_location,
     ensure_data_dirs,
     normalize_message_date,
 )
@@ -41,6 +39,7 @@ from db import (
 )
 from models import CachedAttachment, CachedMessage
 from providers.factory import ProviderFactory
+from services.attachment_cache import cache_attachment_bytes, resolve_cached_attachment_path
 from services.sync import sync_service
 from services.token import ensure_token
 from utils.logger import get_logger
@@ -594,14 +593,11 @@ async def run_folder_clear_cache(account_id: str, folder_name: str, job_type: st
         )
 
 
-async def _cache_message_assets(receiver, account, folder_name: str, detail) -> tuple[str, str, int, int, list[CachedAttachment]]:
+async def _cache_message_assets(receiver, account, folder_name: str, detail) -> tuple[str, str, int, int]:
     body_html = detail.body_html or ""
     storage_path = ""
     downloaded_attachments = 0
     downloaded_inline_images = 0
-    attachment_records: list[CachedAttachment] = []
-    cached_detail = await get_cached_message_detail(account.id, detail.uid, folder_name)
-    effective_message_date = coalesce_message_date(detail.date, (cached_detail or {}).get("date", ""))
 
     for attachment in detail.attachments or []:
         cached_attachment = await get_cached_attachment(
@@ -610,112 +606,85 @@ async def _cache_message_assets(receiver, account, folder_name: str, detail) -> 
             folder_name,
             attachment.part_number,
         )
-        current_local_path = (cached_attachment or {}).get("local_path", "")
-        try:
-            storage_path, target_path, _ = ensure_message_file_location(
-                message_date=detail.date,
-                account_id=account.id,
-                account_email=account.email,
-                uid=detail.uid,
-                part_number=attachment.part_number,
-                filename=attachment.filename or "",
-                content_type=attachment.content_type or "",
-                current_path=current_local_path,
-                fallback_message_date=effective_message_date,
-            )
-        except Exception as exc:
-            logger.debug(
-                "history sync attachment path resolve failed: account=%s uid=%s part=%s error=%s",
-                account.email,
-                detail.uid,
-                attachment.part_number,
-                exc,
-            )
-            storage_path, target_path = build_message_file_path(
-                message_date=detail.date,
-                account_id=account.id,
-                account_email=account.email,
-                uid=detail.uid,
-                part_number=attachment.part_number,
-                filename=attachment.filename or "",
-                content_type=attachment.content_type or "",
-                fallback_message_date=effective_message_date,
-            )
-            target_path.parent.mkdir(parents=True, exist_ok=True)
+        record = CachedAttachment(
+            account_id=account.id,
+            user_uid=account.user_uid,
+            uid=detail.uid,
+            folder=folder_name,
+            part_number=attachment.part_number,
+            filename=attachment.filename or "",
+            content_type=attachment.content_type or "application/octet-stream",
+            size=int(attachment.size or 0),
+            content_id=attachment.content_id or "",
+            is_inline=bool(attachment.is_inline),
+            cached_at=time.time(),
+        )
 
-        if target_path.exists():
-            attachment_records.append(
-                CachedAttachment(
-                    account_id=account.id,
-                    user_uid=account.user_uid,
-                    uid=detail.uid,
-                    folder=folder_name,
-                    part_number=attachment.part_number,
-                    filename=attachment.filename or "",
-                    content_type=attachment.content_type or "",
-                    size=attachment.size or target_path.stat().st_size,
-                    content_id=attachment.content_id or "",
-                    is_inline=bool(attachment.is_inline),
-                    local_path=str(target_path),
-                    cached_at=time.time(),
-                )
-            )
-            if attachment.is_inline:
+        if not attachment.is_inline:
+            await upsert_cached_attachments([record])
+            continue
+
+        if cached_attachment:
+            existing_path = await resolve_cached_attachment_path(cached_attachment, touch=False)
+            if existing_path:
+                record.local_path = cached_attachment.get("local_path", "")
+                record.content_sha256 = cached_attachment.get("content_sha256", "")
+                record.last_accessed_at = float(cached_attachment.get("last_accessed_at", 0) or 0)
+                record.size = int(cached_attachment.get("size", 0) or record.size)
+                await upsert_cached_attachments([record])
                 downloaded_inline_images += 1
                 cid = _strip_cid(attachment.content_id)
                 if cid:
-                    local_url = _build_inline_attachment_url(account.id, folder_name, detail.uid, attachment.part_number)
-                    body_html = _replace_inline_cids(body_html, cid, local_url)
-            else:
-                downloaded_attachments += 1
-            continue
+                    body_html = _replace_inline_cids(
+                        body_html,
+                        cid,
+                        _build_inline_attachment_url(
+                            account.id,
+                            folder_name,
+                            detail.uid,
+                            attachment.part_number,
+                        ),
+                    )
+                continue
 
         att_data = getattr(attachment, "data", None)
         if att_data is None:
             try:
-                att_data = await receiver.fetch_attachment_data(str(detail.uid), folder_name, attachment.part_number)
+                att_data = await receiver.fetch_attachment_data(
+                    str(detail.uid),
+                    folder_name,
+                    attachment.part_number,
+                )
             except Exception as exc:
                 logger.debug(
-                    "history sync attachment download failed: account=%s uid=%s part=%s error=%s",
+                    "inline image download failed: account=%s uid=%s part=%s error=%s",
                     account.email,
                     detail.uid,
                     attachment.part_number,
                     exc,
                 )
-                continue
+                att_data = None
 
         if not att_data:
+            await upsert_cached_attachments([record])
             continue
 
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_bytes(att_data)
-        attachment_records.append(
-            CachedAttachment(
-                account_id=account.id,
-                user_uid=account.user_uid,
-                uid=detail.uid,
-                folder=folder_name,
-                part_number=attachment.part_number,
-                filename=attachment.filename or "",
-                content_type=attachment.content_type or "",
-                size=attachment.size or len(att_data),
-                content_id=attachment.content_id or "",
-                is_inline=bool(attachment.is_inline),
-                local_path=str(target_path),
-                cached_at=time.time(),
+        await cache_attachment_bytes(record, att_data, enforce_quota=False)
+        downloaded_inline_images += 1
+        cid = _strip_cid(attachment.content_id)
+        if cid:
+            body_html = _replace_inline_cids(
+                body_html,
+                cid,
+                _build_inline_attachment_url(
+                    account.id,
+                    folder_name,
+                    detail.uid,
+                    attachment.part_number,
+                ),
             )
-        )
 
-        if attachment.is_inline:
-            cid = _strip_cid(attachment.content_id)
-            if cid:
-                local_url = _build_inline_attachment_url(account.id, folder_name, detail.uid, attachment.part_number)
-                body_html = _replace_inline_cids(body_html, cid, local_url)
-            downloaded_inline_images += 1
-        else:
-            downloaded_attachments += 1
-
-    return body_html, storage_path, downloaded_attachments, downloaded_inline_images, attachment_records
+    return body_html, storage_path, downloaded_attachments, downloaded_inline_images
 
 
 def _select_uncached_recent_messages(messages: list, cached_uids: set[int]) -> tuple[list, bool]:
@@ -737,7 +706,7 @@ async def _cache_message_detail(receiver, account, folder_name: str, message, un
         detail.is_read = detail.uid not in unseen_uids
     cached_detail = await get_cached_message_detail(account.id, detail.uid, folder_name)
     effective_message_date = coalesce_message_date(detail.date, getattr(message, "date", ""), (cached_detail or {}).get("date", ""))
-    body_html, storage_path, att_count, inline_count, attachment_records = await _cache_message_assets(receiver, account, folder_name, detail)
+    body_html, storage_path, att_count, inline_count = await _cache_message_assets(receiver, account, folder_name, detail)
     detail.body_html = body_html
     await upsert_cached_messages([
         CachedMessage(
@@ -760,8 +729,6 @@ async def _cache_message_detail(receiver, account, folder_name: str, message, un
             cached_at=time.time(),
         )
     ])
-    if attachment_records:
-        await upsert_cached_attachments(attachment_records)
     return 1, att_count, inline_count
 
 

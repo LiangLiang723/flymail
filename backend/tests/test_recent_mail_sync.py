@@ -48,7 +48,7 @@ def _load_mail_cache_module():
     factory_stub.ProviderFactory = _ProviderFactory
 
     history_sync_stub = types.ModuleType("services.history_sync")
-    history_sync_stub._cache_message_assets = AsyncMock(return_value=("", "", 0, 0, []))
+    history_sync_stub._cache_message_assets = AsyncMock(return_value=("", "", 0, 0))
 
     logger_stub = types.ModuleType("utils.logger")
     logger_stub.get_logger = lambda name: types.SimpleNamespace(
@@ -139,8 +139,7 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
             patch.object(mail_cache, "upsert_folder_stats", AsyncMock()),
             patch.object(mail_cache, "upsert_cached_messages", AsyncMock(return_value=2)),
             patch.object(mail_cache, "get_cached_message_detail", AsyncMock(return_value=None)),
-            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
-            patch.object(mail_cache, "upsert_cached_attachments", AsyncMock()),
+            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
         ):
             factory.get_receiver.return_value = receiver
             added = await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)
@@ -179,8 +178,7 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
             patch.object(mail_cache, "upsert_cached_messages", AsyncMock()),
             patch.object(mail_cache, "batch_update_is_read", batch_update),
             patch.object(mail_cache, "get_cached_message_detail", AsyncMock(return_value=None)),
-            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
-            patch.object(mail_cache, "upsert_cached_attachments", AsyncMock()),
+            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
         ):
             factory.get_receiver.return_value = receiver
             added = await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)
@@ -221,8 +219,7 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
             patch.object(mail_cache, "upsert_cached_messages", upsert),
             patch.object(mail_cache, "batch_update_is_read", AsyncMock()),
             patch.object(mail_cache, "get_cached_message_detail", AsyncMock(return_value=None)),
-            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
-            patch.object(mail_cache, "upsert_cached_attachments", AsyncMock()),
+            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
         ):
             factory.get_receiver.return_value = receiver
             await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)
@@ -268,8 +265,7 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
             patch.object(mail_cache, "upsert_folder_stats", AsyncMock()),
             patch.object(mail_cache, "upsert_cached_messages", AsyncMock()),
             patch.object(mail_cache, "get_cached_message_detail", AsyncMock(return_value=None)),
-            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
-            patch.object(mail_cache, "upsert_cached_attachments", AsyncMock()),
+            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
         ):
             factory.get_receiver.return_value = receiver
             added = await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)
@@ -306,8 +302,7 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
             patch.object(mail_cache, "upsert_folder_stats", AsyncMock()),
             patch.object(mail_cache, "upsert_cached_messages", AsyncMock()),
             patch.object(mail_cache, "get_cached_message_detail", AsyncMock(return_value=None)),
-            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
-            patch.object(mail_cache, "upsert_cached_attachments", AsyncMock()),
+            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
         ):
             factory.get_receiver.return_value = receiver
             added = await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)

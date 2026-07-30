@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from providers.base import Attachment
+from providers.base import Attachment, Message
 
 
 def _load_history_sync_module():
@@ -54,6 +54,10 @@ def _load_history_sync_module():
     factory_stub = types.ModuleType("providers.factory")
     factory_stub.ProviderFactory = object()
 
+    attachment_cache_stub = types.ModuleType("services.attachment_cache")
+    attachment_cache_stub.cache_attachment_bytes = AsyncMock()
+    attachment_cache_stub.resolve_cached_attachment_path = AsyncMock(return_value=None)
+
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = object()
 
@@ -77,6 +81,7 @@ def _load_history_sync_module():
             "db",
             "data_paths",
             "providers.factory",
+            "services.attachment_cache",
             "services.sync",
             "services.token",
             "utils.logger",
@@ -88,6 +93,7 @@ def _load_history_sync_module():
             "db": db_stub,
             "data_paths": data_paths_stub,
             "providers.factory": factory_stub,
+            "services.attachment_cache": attachment_cache_stub,
             "services.sync": sync_stub,
             "services.token": token_stub,
             "utils.logger": logger_stub,
@@ -154,12 +160,16 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
 
         touch_job.assert_awaited_once_with("job-1")
 
-    async def test_cached_attachment_payload_avoids_second_full_message_fetch(self):
+    async def test_normal_attachment_keeps_metadata_without_fetching_content(self):
         history_sync = _load_history_sync_module()
         account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
         receiver = AsyncMock()
-        detail = types.SimpleNamespace(
+        detail = Message(
+            id="101",
             uid=101,
+            subject="mail",
+            from_addr="a@example.com",
+            to_addr="b@example.com",
             date="2026-07-03T00:00:00Z",
             body_html="",
             attachments=[
@@ -172,30 +182,79 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
                 )
             ],
         )
+        upsert = AsyncMock()
+        cache_bytes = AsyncMock()
+        with (
+            patch.object(history_sync, "get_cached_message_detail", AsyncMock(return_value=None)),
+            patch.object(history_sync, "get_cached_attachment", AsyncMock(return_value=None)),
+            patch.object(history_sync, "upsert_cached_attachments", upsert),
+            patch.object(history_sync, "cache_attachment_bytes", cache_bytes, create=True),
+        ):
+            _html, _storage, attachment_count, inline_count = await history_sync._cache_message_assets(
+                receiver,
+                account,
+                "INBOX",
+                detail,
+            )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            target = Path(temp_dir) / "report.bin"
-            with (
-                patch.object(history_sync, "get_cached_message_detail", AsyncMock(return_value=None)),
-                patch.object(history_sync, "get_cached_attachment", AsyncMock(return_value=None)),
-                patch.object(
-                    history_sync,
-                    "ensure_message_file_location",
-                    return_value=("2026/07/101", target, False),
-                ),
-            ):
-                _html, _storage, attachment_count, _inline_count, records = await history_sync._cache_message_assets(
-                    receiver,
-                    account,
-                    "INBOX",
-                    detail,
-                )
-
-            self.assertEqual(target.read_bytes(), b"payload")
-
-        self.assertEqual(attachment_count, 1)
-        self.assertEqual(len(records), 1)
+        self.assertEqual(attachment_count, 0)
+        self.assertEqual(inline_count, 0)
         receiver.fetch_attachment_data.assert_not_awaited()
+        cache_bytes.assert_not_awaited()
+        saved = upsert.await_args.args[0][0]
+        self.assertFalse(saved.is_inline)
+        self.assertEqual(saved.local_path, "")
+        self.assertEqual(saved.content_sha256, "")
+
+    async def test_inline_image_is_cached_and_cid_is_rewritten(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        detail = Message(
+            id="102",
+            uid=102,
+            subject="mail",
+            from_addr="a@example.com",
+            to_addr="b@example.com",
+            date="2026-07-03T00:00:00Z",
+            body_html='<img src="cid:image-1">',
+            attachments=[
+                Attachment(
+                    filename="logo.png",
+                    content_type="image/png",
+                    size=4,
+                    part_number=1,
+                    content_id="<image-1>",
+                    is_inline=True,
+                    data=b"logo",
+                )
+            ],
+        )
+        stored = types.SimpleNamespace(
+            content_sha256="a" * 64,
+            size=4,
+            local_path="/objects/aa/hash",
+            created=True,
+        )
+        cache_bytes = AsyncMock(return_value=stored)
+        with (
+            patch.object(history_sync, "get_cached_message_detail", AsyncMock(return_value=None)),
+            patch.object(history_sync, "get_cached_attachment", AsyncMock(return_value=None)),
+            patch.object(history_sync, "upsert_cached_attachments", AsyncMock()),
+            patch.object(history_sync, "cache_attachment_bytes", cache_bytes, create=True),
+            patch.object(history_sync, "resolve_cached_attachment_path", AsyncMock(return_value=None), create=True),
+        ):
+            body_html, _storage, attachment_count, inline_count = await history_sync._cache_message_assets(
+                receiver,
+                account,
+                "INBOX",
+                detail,
+            )
+
+        cache_bytes.assert_awaited_once()
+        self.assertIn("/api/messages/102/attachments/1", body_html)
+        self.assertEqual(attachment_count, 0)
+        self.assertEqual(inline_count, 1)
 
     async def test_recent_stage_stops_after_cached_message(self):
         history_sync = _load_history_sync_module()
@@ -250,9 +309,8 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(history_sync, "list_cached_messages_needing_body_check", AsyncMock(side_effect=rows)),
             patch.object(history_sync, "get_cached_message_detail", AsyncMock(return_value=None)),
-            patch.object(history_sync, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0, []))),
+            patch.object(history_sync, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
             patch.object(history_sync, "upsert_cached_messages", AsyncMock()) as upsert,
-            patch.object(history_sync, "upsert_cached_attachments", AsyncMock()),
             patch.object(history_sync, "mark_cached_messages_body_checked", AsyncMock()) as mark_checked,
             patch.object(history_sync, "mark_cached_messages_empty_body_checked", AsyncMock()) as mark_empty_checked,
         ):
