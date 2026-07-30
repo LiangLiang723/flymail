@@ -6,11 +6,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Body, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
-from data_paths import coalesce_message_date, ensure_data_dirs, ensure_message_file_location
+from data_paths import coalesce_message_date, ensure_data_dirs
 from db import (
     adjust_account_folder_unread,
-    batch_delete_cached_messages,
     batch_update_is_read,
     batch_update_cached_messages_read,
     delete_pending_read_sync,
@@ -31,11 +31,8 @@ from db import (
     list_cached_attachments,
     search_cached_messages_by_folder,
     update_cached_message_read,
-    update_cached_message_storage_path,
-    upsert_cached_attachments,
     upsert_cached_messages,
     upsert_folder_stats,
-    delete_cached_message,
 )
 from deps import get_uid
 from errors import AppError
@@ -78,6 +75,16 @@ from services.attachments import (
     resolve_user_attachment_path,
     sanitize_attachment_filename,
     unique_target_file,
+)
+from services.attachment_cache import (
+    AttachmentDownloadFile,
+    batch_delete_cached_messages_and_release,
+    cache_attachment_bytes,
+    delete_cached_message_and_release,
+    remove_transient_download,
+    resolve_cached_attachment_path,
+    should_persist_normal_attachment,
+    write_transient_download,
 )
 from services.sync import sync_service
 from services.token import ensure_token as ensure_account_token
@@ -511,42 +518,31 @@ async def _persist_attachment_locally(
     message_date: str,
     attachment,
     data: bytes,
-) -> str:
-    cached_attachment = await get_cached_attachment(account.id, uid_num, folder, attachment.part_number)
-    cached_message = await get_cached_message_detail(account.id, uid_num, folder)
-    effective_message_date = coalesce_message_date(message_date, (cached_message or {}).get("date", ""))
-    storage_path, local_path, _ = ensure_message_file_location(
-        message_date=message_date,
+) -> AttachmentDownloadFile:
+    del message_date
+    record = CachedAttachment(
         account_id=account.id,
-        account_email=account.email,
+        user_uid=user_uid,
         uid=uid_num,
+        folder=folder,
         part_number=attachment.part_number,
         filename=attachment.filename or "",
-        content_type=attachment.content_type or "",
-        current_path=(cached_attachment or {}).get("local_path", ""),
-        fallback_message_date=effective_message_date,
+        content_type=attachment.content_type or "application/octet-stream",
+        size=attachment.size or len(data),
+        content_id=attachment.content_id or "",
+        is_inline=bool(attachment.is_inline),
+        cached_at=time.time(),
     )
-    if not local_path.exists():
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        local_path.write_bytes(data)
-    await upsert_cached_attachments([
-        CachedAttachment(
-            account_id=account.id,
-            user_uid=user_uid,
-            uid=uid_num,
-            folder=folder,
-            part_number=attachment.part_number,
-            filename=attachment.filename or "",
-            content_type=attachment.content_type or "application/octet-stream",
-            size=attachment.size or len(data),
-            content_id=attachment.content_id or "",
-            is_inline=bool(attachment.is_inline),
-            local_path=str(local_path),
-            cached_at=time.time(),
-        )
-    ])
-    await update_cached_message_storage_path(account.id, uid_num, folder, storage_path)
-    return str(local_path)
+    if not record.is_inline and not await should_persist_normal_attachment(user_uid, len(data)):
+        temp_path = await asyncio.to_thread(write_transient_download, data)
+        return AttachmentDownloadFile(path=str(temp_path), transient=True)
+
+    stored = await cache_attachment_bytes(
+        record,
+        data,
+        enforce_quota=not record.is_inline,
+    )
+    return AttachmentDownloadFile(path=stored.local_path, transient=False)
 
 
 def _build_list_response(payload: dict, account_id: str, filter_counts: dict) -> dict:
@@ -1085,41 +1081,10 @@ async def download_attachment(
 
     cached_attachment = await get_cached_attachment(account.id, uid_num, folder, part_number)
     if cached_attachment:
-        try:
-            cached_message = await get_cached_message_detail(account.id, uid_num, folder)
-            _, normalized_path, moved = ensure_message_file_location(
-                message_date=(cached_message or {}).get("date", ""),
-                account_id=account.id,
-                account_email=account.email,
-                uid=uid_num,
-                part_number=part_number,
-                filename=cached_attachment.get("filename", ""),
-                content_type=cached_attachment.get("content_type", ""),
-                current_path=cached_attachment.get("local_path", ""),
-                fallback_message_date=coalesce_message_date((cached_message or {}).get("date", "")),
-            )
-            if moved or str(normalized_path) != str(cached_attachment.get("local_path", "")):
-                await upsert_cached_attachments([
-                    CachedAttachment(
-                        account_id=account.id,
-                        user_uid=user_uid,
-                        uid=uid_num,
-                        folder=folder,
-                        part_number=part_number,
-                        filename=cached_attachment.get("filename", ""),
-                        content_type=cached_attachment.get("content_type", ""),
-                        size=cached_attachment.get("size", 0),
-                        content_id=cached_attachment.get("content_id", ""),
-                        is_inline=bool(cached_attachment.get("is_inline", False)),
-                        local_path=str(normalized_path),
-                        cached_at=time.time(),
-                    )
-                ])
-            if normalized_path.exists():
-                filename = cached_attachment.get("filename") or normalized_path.name
-                return FileResponse(str(normalized_path), filename=filename)
-        except Exception as exc:
-            logger.debug("normalize cached attachment failed: account=%s uid=%s part=%s error=%s", account.email, uid_num, part_number, exc)
+        local_path = await resolve_cached_attachment_path(cached_attachment, touch=True)
+        if local_path:
+            filename = cached_attachment.get("filename") or local_path.name
+            return FileResponse(str(local_path), filename=filename)
 
     if account.status == "offline":
         raise AppError(404, "本地未找到附件，且账号当前处于离线状态")
@@ -1143,7 +1108,7 @@ async def download_attachment(
                 await _safe_disconnect(receiver)
 
         detail, attachment, data = await _with_outlook_retry(account, _fetch_attachment)
-        local_path = await _persist_attachment_locally(
+        download_file = await _persist_attachment_locally(
             account=account,
             user_uid=user_uid,
             folder=folder,
@@ -1152,7 +1117,14 @@ async def download_attachment(
             attachment=attachment,
             data=data,
         )
-        return FileResponse(local_path, filename=attachment.filename or Path(local_path).name)
+        background = None
+        if download_file.transient:
+            background = BackgroundTask(remove_transient_download, Path(download_file.path))
+        return FileResponse(
+            download_file.path,
+            filename=attachment.filename or Path(download_file.path).name,
+            background=background,
+        )
     except AppError:
         raise
     except Exception as exc:
@@ -1295,7 +1267,7 @@ async def delete_message_api(
     else:
         action = "delete"
 
-    await delete_cached_message(account.id, uid_num, folder)
+    await delete_cached_message_and_release(account.id, uid_num, folder)
     await sync_service.notify_message_state_changed(account.id, action, [uid_str], folder=folder, user_uid=user_uid)
     return {"success": True}
 
@@ -1340,7 +1312,7 @@ async def batch_delete_messages(
     else:
         deleted_count = len(uid_strs)
 
-    await batch_delete_cached_messages(account.id, uid_nums, body.folder)
+    await batch_delete_cached_messages_and_release(account.id, uid_nums, body.folder)
     await sync_service.notify_message_state_changed(account.id, action, uid_strs, folder=body.folder, user_uid=user_uid)
     return {"success": True, "deleted": deleted_count}
 

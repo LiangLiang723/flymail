@@ -42,6 +42,9 @@ def _load_mail_cache_module():
     factory_stub = types.ModuleType("providers.factory")
     factory_stub.ProviderFactory = object()
 
+    attachment_cache_stub = types.ModuleType("services.attachment_cache")
+    attachment_cache_stub.purge_deleted_from_cache_and_release = object()
+
     history_stub = types.ModuleType("services.history_sync")
     history_stub._cache_message_assets = object()
 
@@ -60,6 +63,7 @@ def _load_mail_cache_module():
             "data_paths",
             "models",
             "providers.factory",
+            "services.attachment_cache",
             "services.history_sync",
             "utils.logger",
         )
@@ -70,6 +74,7 @@ def _load_mail_cache_module():
             "data_paths": data_paths_stub,
             "models": models_stub,
             "providers.factory": factory_stub,
+            "services.attachment_cache": attachment_cache_stub,
             "services.history_sync": history_stub,
             "utils.logger": logger_stub,
         }

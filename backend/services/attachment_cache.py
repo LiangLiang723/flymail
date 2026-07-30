@@ -17,14 +17,20 @@ from typing import Iterable
 
 from data_paths import ATTACHMENT_CACHE_TMP_DIR, ATTACHMENT_SHA256_DIR
 from db import (
+    batch_delete_cached_messages,
     clear_cached_attachment_storage,
     clear_user_attachment_hash_references,
+    delete_cached_attachments_by_account,
+    delete_cached_message,
+    delete_cached_messages_by_account,
     get_attachment_cache_object,
     get_shared_attachment_cache_usage_bytes,
     get_user_attachment_cache_usage_bytes,
     get_user_setting,
+    list_attachment_hashes_for_messages,
     list_user_attachment_cache_lru,
     pop_unreferenced_attachment_cache_object,
+    purge_deleted_from_cache,
     replace_cached_attachment_object,
     restore_attachment_cache_object,
     touch_cached_attachment_object,
@@ -42,6 +48,12 @@ MIN_ATTACHMENT_CACHE_LIMIT_MB = 100
 CHUNK_SIZE = 1024 * 1024
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 _OBJECT_MUTATION_LOCK = asyncio.Lock()
+
+
+@dataclass(frozen=True)
+class AttachmentDownloadFile:
+    path: str
+    transient: bool = False
 
 
 @dataclass(frozen=True)
@@ -438,3 +450,45 @@ def remove_transient_download(path: Path) -> None:
         target.unlink(missing_ok=True)
     except OSError:
         return
+
+
+async def delete_cached_message_and_release(account_id: str, uid: int, folder: str) -> bool:
+    hashes = await list_attachment_hashes_for_messages(account_id, folder, [int(uid)])
+    deleted = await delete_cached_message(account_id, int(uid), folder)
+    if hashes:
+        await release_unreferenced_objects(hashes)
+    return deleted
+
+
+async def batch_delete_cached_messages_and_release(
+    account_id: str,
+    uids: list[int],
+    folder: str,
+) -> int:
+    normalized_uids = [int(uid) for uid in uids]
+    hashes = await list_attachment_hashes_for_messages(account_id, folder, normalized_uids)
+    deleted = await batch_delete_cached_messages(account_id, normalized_uids, folder)
+    if hashes:
+        await release_unreferenced_objects(hashes)
+    return deleted
+
+
+async def purge_deleted_from_cache_and_release(
+    account_id: str,
+    folder: str,
+    valid_uids: set[int],
+) -> int:
+    hashes = await list_attachment_hashes_for_messages(account_id, folder)
+    deleted = await purge_deleted_from_cache(account_id, folder, valid_uids)
+    if hashes:
+        await release_unreferenced_objects(hashes)
+    return deleted
+
+
+async def clear_account_cache_and_release(account_id: str) -> tuple[int, int]:
+    hashes = await list_attachment_hashes_for_messages(account_id)
+    deleted_messages = await delete_cached_messages_by_account(account_id)
+    deleted_attachments = await delete_cached_attachments_by_account(account_id)
+    if hashes:
+        await release_unreferenced_objects(hashes)
+    return deleted_messages, deleted_attachments

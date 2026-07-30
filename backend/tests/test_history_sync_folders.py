@@ -55,7 +55,9 @@ def _load_history_sync_module():
     factory_stub.ProviderFactory = object()
 
     attachment_cache_stub = types.ModuleType("services.attachment_cache")
+    attachment_cache_stub.batch_delete_cached_messages_and_release = AsyncMock(return_value=0)
     attachment_cache_stub.cache_attachment_bytes = AsyncMock()
+    attachment_cache_stub.clear_account_cache_and_release = AsyncMock(return_value=(0, 0))
     attachment_cache_stub.resolve_cached_attachment_path = AsyncMock(return_value=None)
 
     sync_stub = types.ModuleType("services.sync")

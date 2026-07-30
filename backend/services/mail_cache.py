@@ -18,13 +18,14 @@ from db import (
     get_cached_message_detail,
     upsert_cached_messages, get_max_cached_uid, get_accounts,
     upsert_folder_stats, get_folder_stats,
-    purge_deleted_from_cache, get_cached_count, get_cached_uids,
+    get_cached_count, get_cached_uids,
     get_cached_messages_by_folder, batch_update_is_read,
 )
 from data_paths import coalesce_message_date, normalize_message_date
 from models import CachedMessage, Account
 from providers.base import Message
 from providers.factory import ProviderFactory
+from services.attachment_cache import purge_deleted_from_cache_and_release
 from services.history_sync import _cache_message_assets
 from utils.logger import get_logger
 from utils.tasks import create_background_task
@@ -434,7 +435,7 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
                         cached_uids,
                         all_uids_for_purge,
                     )
-                    purged = await purge_deleted_from_cache(account.id, folder, all_uids_for_purge)
+                    purged = await purge_deleted_from_cache_and_release(account.id, folder, all_uids_for_purge)
                     if purged > 0:
                         logger.info("增量清理过期缓存: 账号=%s, 文件夹=%s, 删除 %d 封",
                                    account.email, folder, purged)
@@ -513,7 +514,7 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
     if all_uids is not None and len(all_uids) > 0:
         cached_uids = await get_cached_uids(account.id, folder)
         await mark_archived_deleted_before_purge(account.id, folder, cached_uids, all_uids)
-        purged = await purge_deleted_from_cache(account.id, folder, all_uids)
+        purged = await purge_deleted_from_cache_and_release(account.id, folder, all_uids)
         if purged > 0:
             logger.info("清理过期缓存: 账号=%s, 文件夹=%s, 删除 %d 封", account.email, folder, purged)
 

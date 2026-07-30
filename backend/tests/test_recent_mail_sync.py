@@ -47,6 +47,9 @@ def _load_mail_cache_module():
 
     factory_stub.ProviderFactory = _ProviderFactory
 
+    attachment_cache_stub = types.ModuleType("services.attachment_cache")
+    attachment_cache_stub.purge_deleted_from_cache_and_release = AsyncMock(return_value=0)
+
     history_sync_stub = types.ModuleType("services.history_sync")
     history_sync_stub._cache_message_assets = AsyncMock(return_value=("", "", 0, 0))
 
@@ -66,6 +69,7 @@ def _load_mail_cache_module():
         for name in (
             "db",
             "providers.factory",
+            "services.attachment_cache",
             "services.history_sync",
             "services.token",
             "utils.logger",
@@ -75,6 +79,7 @@ def _load_mail_cache_module():
         {
             "db": db_stub,
             "providers.factory": factory_stub,
+            "services.attachment_cache": attachment_cache_stub,
             "services.history_sync": history_sync_stub,
             "services.token": token_stub,
             "utils.logger": logger_stub,

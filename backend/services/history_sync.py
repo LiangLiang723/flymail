@@ -14,10 +14,8 @@ from data_paths import (
 from db import (
     batch_update_is_read,
     create_history_sync_job,
-    batch_delete_cached_messages,
     delete_account,
     get_cached_attachment,
-    get_cached_attachment_rows,
     get_cached_count,
     get_cached_message_detail,
     get_account_by_id,
@@ -31,15 +29,18 @@ from db import (
     update_history_sync_job,
     upsert_cached_attachments,
     upsert_cached_messages,
-    delete_cached_attachments_by_account,
-    delete_cached_messages_by_account,
     delete_folder_stats_by_account,
     delete_history_sync_jobs_by_account,
     upsert_folder_stats,
 )
 from models import CachedAttachment, CachedMessage
 from providers.factory import ProviderFactory
-from services.attachment_cache import cache_attachment_bytes, resolve_cached_attachment_path
+from services.attachment_cache import (
+    batch_delete_cached_messages_and_release,
+    cache_attachment_bytes,
+    clear_account_cache_and_release,
+    resolve_cached_attachment_path,
+)
 from services.sync import sync_service
 from services.token import ensure_token
 from utils.logger import get_logger
@@ -338,12 +339,6 @@ async def _account_local_cache_files(account_id: str, account_email: str) -> lis
         for path in account_root.rglob("*"):
             if path.is_file():
                 files[str(path)] = path
-    for item in await get_cached_attachment_rows(account_id):
-        local_path = item.get("local_path") or ""
-        if local_path:
-            path = Path(local_path)
-            if path.exists() and path.is_file():
-                files[str(path)] = path
     return list(files.values())
 
 
@@ -402,8 +397,7 @@ async def run_clear_cache(account_id: str) -> None:
     try:
         await update_history_sync_job(job_id, status="running")
 
-        total_messages = await delete_cached_messages_by_account(account.id)
-        await delete_cached_attachments_by_account(account.id)
+        total_messages, _deleted_attachments = await clear_account_cache_and_release(account.id)
         await delete_folder_stats_by_account(account.id)
         await update_history_sync_job(
             job_id,
@@ -497,8 +491,7 @@ async def run_delete_account(account_id: str) -> None:
         await update_history_sync_job(job_id, status="running")
         await sync_service.remove_account(account.id)
 
-        total_messages = await delete_cached_messages_by_account(account.id)
-        await delete_cached_attachments_by_account(account.id)
+        total_messages, _deleted_attachments = await clear_account_cache_and_release(account.id)
         await delete_folder_stats_by_account(account.id)
         await update_history_sync_job(job_id, fetched_messages=total_messages)
 
@@ -569,7 +562,7 @@ async def run_folder_clear_cache(account_id: str, folder_name: str, job_type: st
         deleted = 0
         for index in range(0, len(uid_list), 100):
             batch = uid_list[index:index + 100]
-            deleted += await batch_delete_cached_messages(account.id, batch, folder_name)
+            deleted += await batch_delete_cached_messages_and_release(account.id, batch, folder_name)
             await update_history_sync_job(
                 job_id,
                 completed_folders=min(index + len(batch), len(uid_list)),
