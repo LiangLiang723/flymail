@@ -41,6 +41,14 @@ test('application shell uses extracted navigation components without legacy dupl
   assert.match(shellCss, /\.user-menu-popover\s*\{[^}]*position:\s*fixed/s);
 });
 
+test('desktop application shell is a viewport grid instead of stacking the sidebar above content', async () => {
+  const shellCss = await readSource('src/styles/app-shell.css');
+
+  assert.match(shellCss, /\.app-shell\s*\{[^}]*display:\s*grid;/s);
+  assert.match(shellCss, /\.app-shell\s*\{[^}]*height:\s*100(?:d)?vh;/s);
+  assert.match(shellCss, /\.app-shell\s*\{[^}]*overflow:\s*hidden;/s);
+});
+
 test('mail view keeps the toolbar inside the list card without a permanent preview pane', async () => {
   const source = await readSource('src/views/MailList.vue');
   const listStart = source.indexOf('class="mail-list"');

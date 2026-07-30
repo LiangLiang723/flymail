@@ -4,7 +4,12 @@
 }
 
 .app-shell {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  display: grid;
   grid-template-columns: var(--app-sidebar-expanded) minmax(0, 1fr) !important;
+  overflow: hidden;
   background: var(--ui-canvas);
   transition: grid-template-columns var(--ui-motion-standard);
 }
