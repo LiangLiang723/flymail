@@ -10,6 +10,7 @@
   min-height: 0;
   display: grid;
   grid-template-columns: var(--app-sidebar-expanded) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: var(--ui-canvas);
   transition: grid-template-columns var(--ui-motion-standard);
@@ -22,6 +23,10 @@
 .app-sidebar {
   position: relative;
   z-index: 20;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -380,15 +385,224 @@ button.sidebar-row:active,
 }
 
 .main {
+  grid-column: 2;
+  grid-row: 1;
   background: var(--ui-canvas);
+}
+
+.toast-container {
+  position: fixed;
+  top: var(--page-padding-compact);
+  right: var(--page-padding-compact);
+  z-index: 9400;
+  width: min(360px, calc(100vw - (2 * var(--page-padding-compact))));
+  display: grid;
+  gap: var(--ui-space-2);
+  pointer-events: none;
+}
+
+.toast-container .toast-item {
+  min-width: 0;
+  padding: 12px 14px;
+  pointer-events: auto;
+}
+
+.notification-overlay,
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
 }
 
 .notification-overlay {
   z-index: 9200;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .notification-drawer {
+  width: min(420px, 100vw);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: var(--ui-radius-xl) 0 0 var(--ui-radius-xl) !important;
+}
+
+.notification-header {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--page-gap);
+  padding: 12px var(--page-padding-compact);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.notification-header > div {
+  min-width: 0;
+}
+
+.notification-header h3 {
+  margin: 0 0 3px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.notification-header span {
+  color: var(--ui-text-2);
+  font-size: var(--ui-text-xs);
+}
+
+.notification-header > button {
+  flex: 0 0 auto;
+}
+
+.notification-tools {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+  padding: 6px var(--page-padding-compact);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.notification-tools button {
+  min-height: var(--control-height-sm);
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-accent);
+  font: inherit;
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notification-tools button:hover {
+  background: var(--ui-fill-hover);
+}
+
+.notification-tools .danger-text {
+  color: var(--ui-danger);
+}
+
+.notification-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.notification-empty {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--page-padding);
+}
+
+.notification-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  background: transparent;
+  color: var(--ui-text-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-item:hover {
+  background: var(--ui-fill-hover);
+}
+
+.notification-item.unread {
+  background: var(--ui-fill-selected);
+}
+
+.notification-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: var(--ui-radius-round);
+  background: transparent;
+}
+
+.notification-item.unread .notification-dot {
+  background: var(--ui-accent);
+}
+
+.notification-content {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.notification-content strong,
+.notification-content small,
+.notification-content em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-content strong {
+  font-size: var(--ui-text-sm);
+}
+
+.notification-content small,
+.notification-content em {
+  color: var(--ui-text-2);
+  font-size: var(--ui-text-xs);
+  font-style: normal;
+}
+
+.notification-item time {
+  color: var(--ui-text-3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.confirm-overlay {
+  z-index: 9250;
+  display: grid;
+  place-items: center;
+  padding: var(--page-padding);
+}
+
+.confirm-dialog {
+  width: min(420px, 100%);
+  padding: var(--page-padding);
+}
+
+.confirm-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.confirm-message {
+  margin: 10px 0 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-text-sm);
+  line-height: 1.55;
+}
+
+.confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+  margin-top: 18px;
 }
 
 .drawer-enter-active,
@@ -416,6 +630,11 @@ button.sidebar-row:active,
   .app-shell,
   .app-shell.sidebar-collapsed {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .main {
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .app-sidebar {

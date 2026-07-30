@@ -46,7 +46,24 @@ test('desktop application shell is a viewport grid instead of stacking the sideb
 
   assert.match(shellCss, /\.app-shell\s*\{[^}]*display:\s*grid;/s);
   assert.match(shellCss, /\.app-shell\s*\{[^}]*height:\s*100(?:d)?vh;/s);
+  assert.match(shellCss, /\.app-shell\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/s);
   assert.match(shellCss, /\.app-shell\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.match(shellCss, /\.app-sidebar\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/s);
+  assert.match(shellCss, /\.main\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/s);
+  assert.match(shellCss, /\.toast-container\s*\{[^}]*position:\s*fixed;/s);
+  assert.match(shellCss, /\.notification-overlay,\s*\.confirm-overlay\s*\{[^}]*position:\s*fixed;/s);
+  assert.match(shellCss, /@media \(max-width:\s*960px\)[\s\S]*\.main\s*\{[^}]*grid-column:\s*1;/s);
+});
+
+test('application overlays keep dense layout and independent scrolling', async () => {
+  const shellCss = await readSource('src/styles/app-shell.css');
+
+  assert.match(shellCss, /\.notification-drawer\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s);
+  assert.match(shellCss, /\.notification-list\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+  assert.match(shellCss, /\.notification-item\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s);
+  assert.match(shellCss, /\.toast-container \.toast-item\s*\{[^}]*padding:/s);
+  assert.match(shellCss, /\.confirm-dialog\s*\{[^}]*padding:/s);
+  assert.match(shellCss, /\.confirm-actions\s*\{[^}]*display:\s*flex;/s);
 });
 
 test('mail view keeps the toolbar inside the list card without a permanent preview pane', async () => {

@@ -21,8 +21,9 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 - 本机临时附件与 NAS 授权目录附件双通道，支持附件保存到 NAS
 - 邮件导出 PDF、PWA 安装壳和移动端适配
 - 统一语义化设计系统覆盖浅色和深色主题，按钮、输入框、卡片、弹窗、状态提示与页面层级复用同一套组件和视觉规范
+- 高密度邮件工作台统一邮件、管理、分栏和设置文档四类页面模板；页头与工具栏保持稳定，页面或面板拥有明确且唯一的滚动区域，不再出现内容半截或滚动条消失
 - 深色模式可在设置中选择跟随浏览器、浅色或深色，默认跟随浏览器，并对低动态、低透明和高对比偏好提供适配
-- 登录后的全局导航采用 248px 展开、72px 折叠的无顶栏侧栏；图标轨道位置固定，折叠时仅平滑收起文字；移动端通过屏幕左侧入口打开包含主导航、账号和文件夹的统一抽屉
+- 登录后的全局导航采用 248px 展开、72px 折叠的无顶栏侧栏；侧栏始终贯穿完整视口，图标轨道位置固定，折叠时仅平滑收起文字；移动端通过屏幕左侧入口打开包含主导航、账号和文件夹的统一抽屉
 - 邮件本地备份，默认写入 `/data/flymail/backup`；也可选择显式挂载到 `/data` 下的授权目录，并在新邮件同步后自动归档
 - 站内通知、WebSocket 实时推送，以及 Bark、Telegram、企业微信、钉钉、飞书和通用 Webhook 通知
 - Gmail 用户级 HTTP CONNECT 代理，覆盖 OAuth、令牌刷新、IMAP、SMTP、IDLE，并可由 Telegram/Webhook 复用
@@ -83,7 +84,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.13` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.14` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -126,7 +127,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.13 .
+docker build -t benxianyu/flymail:0.0.14 .
 ```
 
 登录 Docker Hub：
@@ -138,7 +139,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.13
+docker push benxianyu/flymail:0.0.14
 ```
 
 ## 数据存储
