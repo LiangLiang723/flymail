@@ -1,7 +1,8 @@
 <template>
-  <div class="contact-page ui-page ui-page--edge">
+  <PageFrame template="split" class="contact-page ui-page ui-page--edge">
+  <div class="contact-split">
   <!-- ============ 左侧：联系人列表 ============ -->
-  <aside class="contact-sidebar" :class="{ 'mobile-hidden': selectedId && isMobile }">
+  <aside class="contact-sidebar contact-split__sidebar" :class="{ 'mobile-hidden': selectedId && isMobile }">
   <!-- 顶部操作栏 -->
   <div class="sidebar-header">
   <div class="search-box">
@@ -60,17 +61,19 @@
   </aside>
 
   <!-- ============ 右侧：联系人详情面板 ============ -->
-  <section class="contact-detail" :class="{ 'mobile-show': selectedId && isMobile }">
+  <section class="contact-detail contact-split__detail" :class="{ 'mobile-show': selectedId && isMobile }">
   <!-- 未选择联系人 -->
-  <div v-if="!selectedContact" class="detail-empty">
-  <div class="detail-empty-icon">
-  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+  <UiEmptyState
+  v-if="!selectedContact"
+  title="选择左侧联系人查看详情"
+  description="或点击「新增」添加新联系人"
+  >
+  <template #icon>
+  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25">
   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
   </svg>
-  </div>
-  <p class="detail-empty-text">选择左侧联系人查看详情</p>
-  <p class="detail-empty-hint">或点击「新增」添加新联系人</p>
-  </div>
+  </template>
+  </UiEmptyState>
 
   <!-- 联系人详情 -->
   <div v-else class="detail-content">
@@ -198,6 +201,7 @@
   </div>
   </div>
   </section>
+  </div>
 
   <!-- ============ 新增/编辑弹窗 ============ -->
   <transition name="fade">
@@ -265,11 +269,13 @@
   </div>
   </div>
   </transition>
-  </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import { useContacts, type ContactItem, type ContactStats } from '../composables/useContacts';
 import { useUIStore } from '../stores/ui';
 import { getAvatarColor } from '../utils/mail-helpers';
@@ -514,15 +520,29 @@ onUnmounted(() => {
 
 <style scoped>
 .contact-page {
-  display: flex;
-  height: 100%;
   background: var(--bg-secondary);
+}
+
+.contact-split {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
   overflow: hidden;
+}
+
+.contact-split__sidebar,
+.contact-split__detail {
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ============ 左侧侧边栏 ============ */
 .contact-sidebar {
-  width: 320px;
+  width: 100%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1262,8 +1282,8 @@ onUnmounted(() => {
 
 /* ============ 移动端响应式 ============ */
 @media (max-width: 767px) {
-  .contact-page {
-  position: relative;
+  .contact-split {
+  grid-template-columns: minmax(0, 1fr);
   }
 
   .contact-sidebar {
