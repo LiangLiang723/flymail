@@ -1,12 +1,17 @@
 <template>
-  <div class="settings-page ui-page">
-    <div class="settings-header">
-      <h2>设置</h2>
-      <button class="about-trigger" type="button" @click="showAbout = true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-        关于
-      </button>
-    </div>
+  <PageFrame template="document" class="settings-page ui-page">
+    <template #header>
+      <PageHeader title="设置" description="管理外观、清理计划、Gmail OAuth 与用户级网络配置。">
+        <template #actions>
+          <button class="about-trigger" type="button" @click="showAbout = true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            关于
+          </button>
+        </template>
+      </PageHeader>
+    </template>
+
+    <div class="document-column settings-document">
 
     <div class="provider-card appearance-card">
       <div class="storage-card-body">
@@ -563,11 +568,14 @@
         <About />
       </div>
     </div>
-  </div>
+    </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import PageHeader from '../components/layout/PageHeader.vue';
 import About from './About.vue';
 import api from '../utils/api';
 import { themeController, type ThemePreference } from '../utils/theme';
@@ -849,14 +857,14 @@ onMounted(() => {
 
 <style scoped>
 .settings-page {
-  flex: 1;
   width: 100%;
-  height: 100%;
   min-height: 0;
   min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-6);
   background: var(--bg-secondary);
+}
+
+.settings-document {
+  align-content: start;
 }
 
 .settings-header {

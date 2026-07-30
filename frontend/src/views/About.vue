@@ -1,5 +1,10 @@
 <template>
-  <div class="about-page ui-page">
+  <PageFrame template="document" class="about-page ui-page">
+    <template #header>
+      <PageHeader title="关于 FlyMail" description="版本、项目能力与开源信息。" />
+    </template>
+
+    <div class="document-column about-document">
     <section class="about-card">
       <div class="brand-row">
         <img :src="base + 'icon-full.png'" alt="FlyMail" class="brand-logo" @error="onLogoError" />
@@ -57,11 +62,14 @@
     <div class="footer">
       <span>© 2026 luisa · GNU GPLv3</span>
     </div>
-  </div>
+    </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import PageHeader from '../components/layout/PageHeader.vue';
 import { useUIStore } from '../stores/ui';
 
 const version = import.meta.env.VITE_APP_VERSION || '0.0.0';
@@ -107,16 +115,13 @@ const techs = ['Vue 3', 'TypeScript', 'FastAPI', 'MySQL', 'IMAP', 'WebSocket', '
 
 <style scoped>
 .about-page {
-  flex: 1;
   width: 100%;
-  height: 100%;
   min-height: 0;
-  overflow-y: auto;
-  padding: 24px;
   background: var(--bg-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+}
+
+.about-document {
+  align-content: start;
 }
 
 .about-card {

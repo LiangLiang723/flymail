@@ -78,3 +78,12 @@ test('contacts use a full-height split template with two scroll owners', async (
   assert.match(source, /class="contact-detail contact-split__detail"/);
   assert.match(source, /<UiEmptyState/);
 });
+
+test('settings documents use the document template and shared header', async () => {
+  for (const file of ['Settings.vue', 'NotificationSettings.vue', 'About.vue']) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /<PageFrame[^>]*template="document"/);
+    assert.match(source, /<PageHeader/);
+    assert.match(source, /class="document-column/);
+  }
+});
