@@ -121,6 +121,22 @@ test('destructive secondary actions and attachment controls use explicit variant
   assert.match(componentCss, /\.attachment-action:disabled\s*\{/);
 });
 
+test('audited compact controls keep readable colors, labels and usable hit areas', async () => {
+  const mailSource = await readSource('src/views/MailList.vue');
+  const backupSource = await readSource('src/views/Backup.vue');
+  const composeSource = await readSource('src/views/ComposeEmail.vue');
+  const accountSource = await readSource('src/views/AccountList.vue');
+
+  assert.match(mailSource, /\.filter-btn\s*\{[^}]*color:\s*var\(--text-secondary\);/s);
+  assert.match(mailSource, /class="btn-icon mobile-filter-toggle"[^>]*aria-label="筛选邮件"/s);
+  assert.match(backupSource, /class="btn-icon mobile-filter-toggle"[^>]*aria-label="筛选备份邮件"/s);
+  assert.match(composeSource, /\.text-btn\s*\{[^}]*min-width:\s*var\(--ui-control-md\);/s);
+  assert.match(composeSource, /\.text-btn\s*\{[^}]*padding:\s*0 6px;/s);
+  assert.match(accountSource, /class="toggle-switch"[^>]*aria-label="获取历史邮件"[^>]*:aria-pressed="fetchHistory"/s);
+  assert.match(accountSource, /class="toggle-switch"[^>]*aria-label="隐藏邮箱地址"[^>]*:aria-pressed="editForm\.hide_email"/s);
+  assert.match(accountSource, /\.toggle-switch\s*\{[^}]*width:\s*44px;[^}]*height:\s*24px;/s);
+});
+
 test('manual refresh animates only while the latest page request is active', async () => {
   const source = await readSource('src/views/MailList.vue');
 

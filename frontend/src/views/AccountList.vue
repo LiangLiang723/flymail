@@ -112,7 +112,7 @@
         </div>
         <div class="form-field toggle-field">
           <span class="toggle-label">获取历史邮件</span>
-          <button class="toggle-switch" :class="{ active: fetchHistory }" @click="fetchHistory = !fetchHistory" type="button">
+          <button class="toggle-switch" :class="{ active: fetchHistory }" type="button" aria-label="获取历史邮件" :aria-pressed="fetchHistory" @click="fetchHistory = !fetchHistory">
             <span class="toggle-knob"></span>
           </button>
         </div>
@@ -313,7 +313,7 @@
           </div>
           <div class="form-field toggle-field">
             <span class="toggle-label">隐藏邮箱地址</span>
-            <button class="toggle-switch" :class="{ active: editForm.hide_email }" @click="editForm.hide_email = !editForm.hide_email" type="button">
+            <button class="toggle-switch" :class="{ active: editForm.hide_email }" type="button" aria-label="隐藏邮箱地址" :aria-pressed="editForm.hide_email" @click="editForm.hide_email = !editForm.hide_email">
               <span class="toggle-knob"></span>
             </button>
           </div>
@@ -1414,9 +1414,9 @@ async function reconnectAccount(account: any) {
 }
 
 .toggle-switch {
-  width: 36px;
-  height: 20px;
-  border-radius: 10px;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
   border: none;
   background: var(--bg-tertiary);
   position: relative;
@@ -1431,15 +1431,15 @@ async function reconnectAccount(account: any) {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--ui-text-inverse);
   transition: transform var(--transition-fast);
   box-shadow: var(--ui-shadow-xs);
 }
 
-.toggle-switch.active .toggle-knob { transform: translateX(16px); }
+.toggle-switch.active .toggle-knob { transform: translateX(20px); }
 
 /* 授权码与通用邮箱表单 */
 .qq-form { display: flex; flex-direction: column; gap: var(--space-4); }

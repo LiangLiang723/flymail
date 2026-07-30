@@ -42,7 +42,7 @@
   </div>
   <div class="toolbar-right">
   <!-- 移动端：筛选展开/收起按钮 -->
-  <button v-if="isMobile" class="btn-icon mobile-filter-toggle" :class="{ active: filterDeleted !== '' }" @click="showMobileFilters = !showMobileFilters">
+  <button v-if="isMobile" class="btn-icon mobile-filter-toggle" :class="{ active: filterDeleted !== '' }" type="button" title="筛选备份邮件" aria-label="筛选备份邮件" @click="showMobileFilters = !showMobileFilters">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
   </button>
   <!-- 立即备份：图标按钮风格，与 MailList 的 rebuild-btn 一致 -->

@@ -1247,12 +1247,14 @@ function formatSize(bytes: number): string {
 }
 
 .text-btn {
-  background: none;
+  min-width: var(--ui-control-md);
+  flex: 0 0 auto;
+  padding: 0 6px;
   border: none;
+  background: none;
   color: var(--ui-accent);
   cursor: pointer;
   font-size: 12px;
-  padding: 0;
 }
 
 .text-btn:hover {

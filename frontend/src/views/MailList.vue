@@ -97,7 +97,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </button>
           <!-- 移动端：筛选展开/收起按钮 -->
-          <button class="btn-icon mobile-filter-toggle" :class="{ active: hasActiveFilter }" @click="showMobileFilters = !showMobileFilters">
+          <button class="btn-icon mobile-filter-toggle" :class="{ active: hasActiveFilter }" type="button" title="筛选邮件" aria-label="筛选邮件" @click="showMobileFilters = !showMobileFilters">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           </button>
           <button
@@ -1738,7 +1738,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
