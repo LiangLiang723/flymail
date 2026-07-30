@@ -30,6 +30,7 @@ class Attachment(BaseModel):
     part_number: int = 0        # IMAP part 编号（用于下载）
     content_id: str = ""        # Content-ID（内嵌图片标识）
     is_inline: bool = False     # 是否为内嵌附件
+    data: bytes | None = Field(default=None, exclude=True, repr=False)
 
 
 class Message(BaseModel):

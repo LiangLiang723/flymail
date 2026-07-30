@@ -61,6 +61,15 @@ test('mail workspace roots do not declare page-level vertical scrolling', async 
   }
 });
 
+test('history sync distinguishes summary progress, active phase and failure time', async () => {
+  const source = await read('src/views/HistorySync.vue');
+
+  assert.match(source, /邮件摘要/);
+  assert.match(source, /syncPhaseText\(item\)/);
+  assert.match(source, /失败时间/);
+  assert.match(source, /正在补全正文和附件/);
+});
+
 test('management pages use the management template and shared header', async () => {
   for (const file of ['UnifiedInbox.vue', 'HistorySync.vue', 'AccountList.vue', 'UserManagement.vue']) {
     const source = await read(`src/views/${file}`);

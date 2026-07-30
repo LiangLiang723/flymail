@@ -44,9 +44,14 @@
           <span>已删除文件：{{ item.clear_job.downloaded_attachments || 0 }}</span>
         </div>
 
+        <div v-if="syncPhaseText(item)" class="sync-phase-row" role="status">
+          <span class="sync-phase-dot"></span>
+          <span>{{ syncPhaseText(item) }}</span>
+        </div>
+
         <div class="progress-grid">
           <div class="progress-item progress-summary">
-            <span class="progress-label">已同步邮件</span>
+            <span class="progress-label">邮件摘要</span>
             <span class="progress-value">{{ syncedMessageCount(item) }} / {{ totalMessageCount(item) }}</span>
           </div>
           <div
@@ -63,7 +68,9 @@
 
         <div class="time-row">
           <span>更新时间：{{ formatTime(item.job?.updated_at) }}</span>
-          <span v-if="item.job?.finished_at">完成时间：{{ formatTime(item.job?.finished_at) }}</span>
+          <span v-if="item.job?.finished_at">
+            {{ item.status === 'failed' ? '失败时间' : '完成时间' }}：{{ formatTime(item.job?.finished_at) }}
+          </span>
         </div>
       </section>
     </div>
@@ -311,6 +318,32 @@ function folderProgress(item: HistorySyncItem) {
   return item.folder_progress || [];
 }
 
+function currentFolderLabel(item: HistorySyncItem) {
+  const folderName = String(item.job?.current_folder || '').trim();
+  if (!folderName) return '当前邮箱';
+  const folder = folderProgress(item).find((entry) => entry.folder === folderName);
+  return folder?.label || folderName;
+}
+
+function syncPhaseText(item: HistorySyncItem) {
+  if (!isFullSyncActive(item) || !item.job) return '';
+  const folderLabel = currentFolderLabel(item);
+  const waiting = item.status === 'pending';
+  if (item.job.current_page === 2) {
+    return waiting
+      ? `等待继续补全正文和附件 · ${folderLabel}`
+      : `正在补全正文和附件 · ${folderLabel}`;
+  }
+  if (item.job.current_page === 3) {
+    return waiting
+      ? `等待继续同步已读状态 · ${folderLabel}`
+      : `正在同步已读状态 · ${folderLabel}`;
+  }
+  return waiting
+    ? `等待检查最新邮件摘要 · ${folderLabel}`
+    : `正在检查最新邮件摘要 · ${folderLabel}`;
+}
+
 function syncedMessageCount(item: HistorySyncItem) {
   return folderProgress(item).reduce((sum, folder) => sum + (folder.cached_count || 0), 0);
 }
@@ -464,7 +497,8 @@ onBeforeUnmount(() => {
 }
 
 .time-row,
-.clear-job-row {
+.clear-job-row,
+.sync-phase-row {
   display: flex;
   gap: var(--space-5);
   flex-wrap: wrap;
@@ -480,6 +514,25 @@ onBeforeUnmount(() => {
   background: var(--ui-danger-soft);
   border: 1px solid color-mix(in srgb, var(--ui-danger) 24%, var(--ui-border));
   color: var(--text-primary);
+}
+
+.sync-phase-row {
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--ui-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, var(--ui-border));
+  color: var(--text-primary);
+}
+
+.sync-phase-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ui-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 
 .error-box {

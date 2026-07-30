@@ -29,6 +29,7 @@ from db import (
     list_cached_messages_needing_body_check,
     mark_cached_messages_empty_body_checked,
     mark_cached_messages_body_checked,
+    touch_history_sync_job,
     update_history_sync_job,
     upsert_cached_attachments,
     upsert_cached_messages,
@@ -48,6 +49,7 @@ from utils.tasks import create_background_task
 logger = get_logger("history_sync")
 RECENT_SYNC_PAGE_SIZE = 50
 BODY_CHECK_BATCH_SIZE = 100
+HISTORY_SYNC_HEARTBEAT_SECONDS = 30
 
 
 def _strip_cid(content_id: str) -> str:
@@ -131,6 +133,24 @@ async def _load_job_or_none(job_id: str) -> dict | None:
 async def _is_paused(job_id: str) -> bool:
     job = await _load_job_or_none(job_id)
     return bool(job and job.get("status") == "paused")
+
+
+async def _heartbeat_history_sync_job(
+    job_id: str,
+    stop_event: asyncio.Event,
+    *,
+    interval_seconds: float = HISTORY_SYNC_HEARTBEAT_SECONDS,
+) -> None:
+    """Keep a live background sync from being mistaken for a stale task."""
+    while not stop_event.is_set():
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=max(float(interval_seconds), 0.01))
+        except TimeoutError:
+            try:
+                if not await touch_history_sync_job(job_id):
+                    return
+            except Exception as exc:
+                logger.debug("history sync heartbeat failed: job=%s error=%s", job_id, exc)
 
 
 async def schedule_history_sync(account_id: str) -> bool:
@@ -650,17 +670,19 @@ async def _cache_message_assets(receiver, account, folder_name: str, detail) -> 
                 downloaded_attachments += 1
             continue
 
-        try:
-            att_data = await receiver.fetch_attachment_data(str(detail.uid), folder_name, attachment.part_number)
-        except Exception as exc:
-            logger.debug(
-                "history sync attachment download failed: account=%s uid=%s part=%s error=%s",
-                account.email,
-                detail.uid,
-                attachment.part_number,
-                exc,
-            )
-            continue
+        att_data = getattr(attachment, "data", None)
+        if att_data is None:
+            try:
+                att_data = await receiver.fetch_attachment_data(str(detail.uid), folder_name, attachment.part_number)
+            except Exception as exc:
+                logger.debug(
+                    "history sync attachment download failed: account=%s uid=%s part=%s error=%s",
+                    account.email,
+                    detail.uid,
+                    attachment.part_number,
+                    exc,
+                )
+                continue
 
         if not att_data:
             continue
@@ -852,6 +874,8 @@ async def run_history_sync(
 
     ensure_data_dirs()
     receiver = None
+    heartbeat_stop: asyncio.Event | None = None
+    heartbeat_task: asyncio.Task | None = None
 
     if job_id:
         job = await get_history_sync_job_by_id(job_id)
@@ -880,6 +904,13 @@ async def run_history_sync(
             "finished_at": 0,
         }
         await create_history_sync_job(job)
+
+    assert job_id is not None
+    heartbeat_stop = asyncio.Event()
+    heartbeat_task = asyncio.create_task(
+        _heartbeat_history_sync_job(job_id, heartbeat_stop),
+        name=f"history_sync_heartbeat:{job_id}",
+    )
 
     try:
         await sync_service.suspend_account(account.id)
@@ -971,6 +1002,14 @@ async def run_history_sync(
             if await _is_paused(job_id):
                 return
 
+            await update_history_sync_job(
+                job_id,
+                current_folder=folder_name,
+                current_page=2,
+                fetched_messages=fetched_messages,
+                downloaded_attachments=downloaded_attachments,
+                downloaded_inline_images=downloaded_inline_images,
+            )
             att_delta, inline_delta = await _fill_unchecked_message_bodies(
                 receiver, account, folder_name, unseen_uids
             )
@@ -987,6 +1026,14 @@ async def run_history_sync(
                     downloaded_inline_images=downloaded_inline_images,
                 )
                 return
+            await update_history_sync_job(
+                job_id,
+                current_folder=folder_name,
+                current_page=3,
+                fetched_messages=fetched_messages,
+                downloaded_attachments=downloaded_attachments,
+                downloaded_inline_images=downloaded_inline_images,
+            )
             await _sync_cached_read_state(receiver, account, folder_name, unseen_uids)
 
             await update_history_sync_job(
@@ -1022,6 +1069,13 @@ async def run_history_sync(
             finished_at=time.time(),
         )
     finally:
+        if heartbeat_stop is not None:
+            heartbeat_stop.set()
+        if heartbeat_task is not None:
+            try:
+                await heartbeat_task
+            except Exception as exc:
+                logger.debug("history sync heartbeat stop failed: job=%s error=%s", job_id, exc)
         if receiver:
             try:
                 await receiver.disconnect()

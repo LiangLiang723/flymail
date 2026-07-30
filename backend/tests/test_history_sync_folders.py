@@ -1,9 +1,13 @@
+import asyncio
 import importlib.util
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+
+from providers.base import Attachment
 
 
 def _load_history_sync_module():
@@ -25,6 +29,7 @@ def _load_history_sync_module():
         "list_cached_messages_needing_body_check",
         "mark_cached_messages_empty_body_checked",
         "mark_cached_messages_body_checked",
+        "touch_history_sync_job",
         "update_history_sync_job",
         "upsert_cached_attachments",
         "upsert_cached_messages",
@@ -136,6 +141,62 @@ class HistorySyncFolderResolutionTest(unittest.TestCase):
 
 
 class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
+    async def test_heartbeat_keeps_long_running_job_fresh(self):
+        history_sync = _load_history_sync_module()
+        stop_event = asyncio.Event()
+
+        async def touch_once(_job_id):
+            stop_event.set()
+            return True
+
+        with patch.object(history_sync, "touch_history_sync_job", AsyncMock(side_effect=touch_once)) as touch_job:
+            await history_sync._heartbeat_history_sync_job("job-1", stop_event, interval_seconds=0.01)
+
+        touch_job.assert_awaited_once_with("job-1")
+
+    async def test_cached_attachment_payload_avoids_second_full_message_fetch(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        detail = types.SimpleNamespace(
+            uid=101,
+            date="2026-07-03T00:00:00Z",
+            body_html="",
+            attachments=[
+                Attachment(
+                    filename="report.bin",
+                    content_type="application/octet-stream",
+                    size=7,
+                    part_number=2,
+                    data=b"payload",
+                )
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "report.bin"
+            with (
+                patch.object(history_sync, "get_cached_message_detail", AsyncMock(return_value=None)),
+                patch.object(history_sync, "get_cached_attachment", AsyncMock(return_value=None)),
+                patch.object(
+                    history_sync,
+                    "ensure_message_file_location",
+                    return_value=("2026/07/101", target, False),
+                ),
+            ):
+                _html, _storage, attachment_count, _inline_count, records = await history_sync._cache_message_assets(
+                    receiver,
+                    account,
+                    "INBOX",
+                    detail,
+                )
+
+            self.assertEqual(target.read_bytes(), b"payload")
+
+        self.assertEqual(attachment_count, 1)
+        self.assertEqual(len(records), 1)
+        receiver.fetch_attachment_data.assert_not_awaited()
+
     async def test_recent_stage_stops_after_cached_message(self):
         history_sync = _load_history_sync_module()
         account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")

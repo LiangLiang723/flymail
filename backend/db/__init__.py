@@ -1199,6 +1199,19 @@ async def update_history_sync_job(job_id: str, **fields) -> None:
     await db.commit()
 
 
+async def touch_history_sync_job(job_id: str) -> bool:
+    """Refresh the heartbeat timestamp without changing the task status."""
+    db = await get_db()
+    cursor = await db.execute(
+        """UPDATE history_sync_jobs
+           SET updated_at = ?
+           WHERE id = ? AND status IN ('pending', 'running')""",
+        (time.time(), job_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
 async def get_history_sync_job(account_id: str) -> Optional[dict]:
     db = await get_db()
     cursor = await db.execute(

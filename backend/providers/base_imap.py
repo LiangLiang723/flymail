@@ -385,6 +385,7 @@ class BaseIMAPReceiver(MailReceiver):
                             part_number=part_index,
                             content_id=content_id,
                             is_inline=bool(content_id),
+                            data=img_data,
                         ))
                 elif not content_type.startswith("multipart/"):
                     # 其他非文本 part（如 application/* 等），作为附件
@@ -400,6 +401,7 @@ class BaseIMAPReceiver(MailReceiver):
                             part_number=part_index,
                             content_id=content_id,
                             is_inline=is_inline,
+                            data=payload,
                         ))
                 part_index += 1
         else:

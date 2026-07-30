@@ -68,6 +68,36 @@ class ImapDateParsingTest(unittest.TestCase):
         self.assertEqual(messages[0].uid, 43)
         self.assertEqual(messages[0].date, "2018-07-13T12:35:00Z")
 
+    def test_detail_fetch_reuses_decoded_attachment_payload_without_serializing_it(self):
+        raw_email = (
+            b"Subject: Attachment\r\n"
+            b"From: a@example.com\r\n"
+            b"To: b@example.com\r\n"
+            b"Date: Thu, 12 Jul 2018 19:35:00 +0800\r\n"
+            b"MIME-Version: 1.0\r\n"
+            b"Content-Type: multipart/mixed; boundary=flymail\r\n\r\n"
+            b"--flymail\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nBody\r\n"
+            b"--flymail\r\nContent-Type: application/octet-stream\r\n"
+            b"Content-Disposition: attachment; filename=report.bin\r\n"
+            b"Content-Transfer-Encoding: base64\r\n\r\ncGF5bG9hZA==\r\n"
+            b"--flymail--\r\n"
+        )
+
+        class FakeConn:
+            def select(self, folder, readonly=True):
+                return "OK", []
+
+            def uid(self, command, uid, query):
+                return "OK", [(b'1 (UID 42 BODY[] {512}', raw_email), b")"]
+
+        receiver = DummyReceiver()
+        receiver._conn = FakeConn()
+
+        message = receiver._fetch_detail_sync("42", "INBOX")
+
+        self.assertEqual(message.attachments[0].data, b"payload")
+        self.assertNotIn("data", message.model_dump()["attachments"][0])
+
     def test_detail_fetch_uses_internaldate_when_header_date_missing(self):
         class FakeConn:
             def select(self, folder, readonly=True):

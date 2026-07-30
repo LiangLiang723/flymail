@@ -44,6 +44,22 @@ class _FakeDb:
 
 
 class HistorySyncJobStalenessTests(unittest.IsolatedAsyncioTestCase):
+    async def test_touch_updates_only_active_job_timestamp(self):
+        database = AsyncMock()
+        database.execute.return_value = type("Cursor", (), {"rowcount": 1})()
+
+        with (
+            patch.object(db, "get_db", AsyncMock(return_value=database)),
+            patch.object(db.time, "time", return_value=702.0),
+        ):
+            touched = await db.touch_history_sync_job("job-1")
+
+        self.assertTrue(touched)
+        sql, params = database.execute.await_args.args
+        self.assertIn("status IN ('pending', 'running')", sql)
+        self.assertEqual(params, (702.0, "job-1"))
+        database.commit.assert_awaited_once()
+
     async def test_list_marks_stale_running_job_failed(self):
         row = (
             "job-1",
