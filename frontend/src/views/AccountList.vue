@@ -1,5 +1,9 @@
 <template>
-  <div class="account-page ui-page">
+  <PageFrame template="management" class="account-page ui-page">
+    <template #header>
+      <PageHeader title="账号管理" description="添加、分组和维护用于收发邮件的邮箱账号。" />
+    </template>
+    <template #toolbar>
     <!-- 操作栏 -->
     <div class="toolbar">
       <div class="sort-toggle">
@@ -13,7 +17,9 @@
         添加账号
       </button>
     </div>
+    </template>
 
+    <div class="management-stack account-stack">
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-state">
       <div class="loading-dot"></div>
@@ -323,11 +329,14 @@
         </div>
       </div>
     </div>
-  </div>
+    </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import PageHeader from '../components/layout/PageHeader.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 import { useMailStore } from '../stores/mail';
@@ -962,21 +971,18 @@ async function reconnectAccount(account: any) {
 
 <style scoped>
 .account-page {
-  flex: 1;
   width: 100%;
-  height: 100%;
   min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-6);
+  min-height: 0;
   background: var(--bg-secondary);
 }
 
 /* ==================== 工具栏 ==================== */
 .toolbar {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-5);
 }
 
 .sort-toggle {

@@ -1,5 +1,11 @@
 <template>
-  <section class="page-frame" :class="`page-frame--${template}`">
+  <section
+    class="page-frame"
+    :class="[
+      `page-frame--${template}`,
+      { 'page-frame--has-header': Boolean($slots.header), 'page-frame--has-toolbar': Boolean($slots.toolbar) },
+    ]"
+  >
     <div v-if="$slots.header" class="page-frame__header">
       <slot name="header" />
     </div>

@@ -1,27 +1,23 @@
 <template>
-  <section class="unified-page ui-page">
-    <header class="unified-header">
-      <div>
-        <h2>聚合收件箱</h2>
-        <p>统一查看所选邮箱的收件箱邮件。</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn btn-secondary" type="button" @click="settingsOpen = !settingsOpen">
-          选择邮箱
-        </button>
-        <button class="btn btn-secondary" type="button" :disabled="loading" @click="loadMessages">
-          刷新
-        </button>
-        <button
-          class="btn btn-primary"
-          type="button"
-          :disabled="loading || !selectedAccountIds.length || unreadTotal === 0"
-          @click="markAllRead"
-        >
-          全部已读
-        </button>
-      </div>
-    </header>
+  <PageFrame template="management" class="unified-page ui-page">
+    <template #header>
+      <PageHeader title="聚合收件箱" description="统一查看所选邮箱的收件箱邮件。">
+        <template #actions>
+          <button class="btn btn-secondary" type="button" @click="settingsOpen = !settingsOpen">选择邮箱</button>
+          <button class="btn btn-secondary" type="button" :disabled="loading" @click="loadMessages">刷新</button>
+          <button
+            class="btn btn-primary"
+            type="button"
+            :disabled="loading || !selectedAccountIds.length || unreadTotal === 0"
+            @click="markAllRead"
+          >
+            全部已读
+          </button>
+        </template>
+      </PageHeader>
+    </template>
+
+    <div class="management-stack unified-stack">
 
     <div v-if="settingsOpen" class="settings-card">
       <div class="settings-title">参与聚合的邮箱</div>
@@ -96,11 +92,14 @@
       <span>第 {{ page }} / {{ totalPages }} 页</span>
       <button class="btn btn-secondary" type="button" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">下一页</button>
     </footer>
-  </section>
+    </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import PageHeader from '../components/layout/PageHeader.vue';
 import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import type { Message } from '../types/mail';
@@ -277,7 +276,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.unified-page { height: 100%; overflow: auto; padding: 24px; background: var(--ui-canvas); }
+.unified-page { background: var(--ui-canvas); }
 .unified-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .unified-header h2 { margin: 0 0 6px; font-size: 24px; }
 .unified-header p { margin: 0; color: var(--ui-text-3); }

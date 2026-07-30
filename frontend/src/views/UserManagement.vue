@@ -1,16 +1,15 @@
 <template>
-  <div class="user-page ui-page">
-    <div class="header">
-      <div>
-        <h2>用户管理</h2>
-        <p>管理员可创建普通用户、重置密码、启用或禁用账号。</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn btn-primary" @click="openCreateModal">新增用户</button>
-        <button class="btn btn-secondary" @click="loadUsers">刷新</button>
-      </div>
-    </div>
+  <PageFrame template="management" class="user-page ui-page">
+    <template #header>
+      <PageHeader title="用户管理" description="管理员可创建普通用户、重置密码、启用或禁用账号。">
+        <template #actions>
+          <button class="btn btn-primary" @click="openCreateModal">新增用户</button>
+          <button class="btn btn-secondary" @click="loadUsers">刷新</button>
+        </template>
+      </PageHeader>
+    </template>
 
+    <template #toolbar>
     <div class="filters">
       <input v-model="filters.keyword" placeholder="筛选用户名" />
       <select v-model="filters.role">
@@ -24,7 +23,9 @@
         <option value="disabled">禁用</option>
       </select>
     </div>
+    </template>
 
+    <div class="management-stack user-stack">
     <div class="user-table-wrap">
       <table class="user-table">
         <thead>
@@ -103,11 +104,14 @@
         </div>
       </form>
     </div>
-  </div>
+    </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import PageHeader from '../components/layout/PageHeader.vue';
 import api from '../utils/api';
 
 const users = ref<any[]>([]);
@@ -224,13 +228,9 @@ onMounted(loadUsers);
 
 <style scoped>
 .user-page {
-  flex: 1;
   width: 100%;
-  height: 100%;
   min-height: 0;
   min-width: 0;
-  overflow-y: auto;
-  padding: 24px;
   background: var(--bg-secondary);
 }
 

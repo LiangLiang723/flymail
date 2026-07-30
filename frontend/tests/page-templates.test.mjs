@@ -26,6 +26,16 @@ test('the page viewport clips outer overflow and delegates scrolling to template
   assert.match(shell, /\.app-page-viewport\s*\{[^}]*overflow:\s*hidden/s);
 });
 
+test('page frames adapt their rows to optional headers and toolbars', async () => {
+  const frame = await read('src/components/layout/PageFrame.vue');
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(frame, /page-frame--has-header/);
+  assert.match(frame, /page-frame--has-toolbar/);
+  assert.match(layout, /\.page-frame\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/s);
+  assert.match(layout, /\.page-frame--has-header\.page-frame--has-toolbar[^}]*grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/s);
+});
+
 test('each page template owns a deterministic scroll model', async () => {
   const layout = await read('src/styles/layout-system.css');
 
@@ -48,5 +58,13 @@ test('mail workspace roots do not declare page-level vertical scrolling', async 
     const source = await read(`src/views/${file}`);
     const styles = [...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1]).join('\n');
     assert.doesNotMatch(styles, /\.(mail-view|compose-page|backup-page)[^{]*\{[^}]*overflow-y:\s*auto/s);
+  }
+});
+
+test('management pages use the management template and shared header', async () => {
+  for (const file of ['UnifiedInbox.vue', 'HistorySync.vue', 'AccountList.vue', 'UserManagement.vue']) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /<PageFrame[^>]*template="management"/);
+    assert.match(source, /<PageHeader/);
   }
 });

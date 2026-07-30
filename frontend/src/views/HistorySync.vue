@@ -1,14 +1,16 @@
 <template>
-  <div class="history-sync-page ui-page">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">同步管理</h2>
-        <p class="page-subtitle">查看每个邮箱的同步进度，支持暂停、继续、刷新、清空和失败重试。</p>
-      </div>
-      <button class="btn btn-secondary" :disabled="manualRefreshing" @click="loadJobs({ showError: true, manual: true })">
-        {{ manualRefreshing ? '刷新中...' : '刷新进度' }}
-      </button>
-    </div>
+  <PageFrame template="management" class="history-sync-page ui-page">
+    <template #header>
+      <PageHeader title="同步管理" description="查看每个邮箱的同步进度，支持暂停、继续、刷新、清空和失败重试。">
+        <template #actions>
+          <button class="btn btn-secondary" :disabled="manualRefreshing" @click="loadJobs({ showError: true, manual: true })">
+            {{ manualRefreshing ? '刷新中...' : '刷新进度' }}
+          </button>
+        </template>
+      </PageHeader>
+    </template>
+
+    <div class="management-stack history-sync-stack">
 
     <div v-if="initialLoading && jobs.length === 0" class="loading-state">
       <div class="loading-dot"></div>
@@ -65,11 +67,14 @@
         </div>
       </section>
     </div>
-  </div>
+    </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
+import PageHeader from '../components/layout/PageHeader.vue';
 import { useWebSocket } from '../composables/useWebSocket';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
@@ -336,13 +341,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .history-sync-page {
-  flex: 1;
   width: 100%;
-  height: 100%;
   min-height: 0;
   min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-6);
   background: var(--bg-secondary);
 }
 
