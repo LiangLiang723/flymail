@@ -318,7 +318,7 @@
         </div>
 
         <div v-if="selectedMessage.body_html || selectedMessage.body_text" class="detail-content-wrap">
-          <div v-html="renderMessageBody(selectedMessage)" class="detail-content"></div>
+          <div v-html="renderMessageBody(selectedMessage)" class="detail-content" @click="handleMailBodyClick"></div>
         </div>
         <!-- 正文加载中：显示骨架屏 -->
         <div v-else class="body-skeleton">
@@ -333,12 +333,12 @@
         </div>
 
         <!-- 附件列表（放在正文后面，随正文一起滚动） -->
-        <div class="attachment-list" v-if="selectedMessage.attachments && selectedMessage.attachments.length > 0">
+        <div class="attachment-list" v-if="regularAttachments.length > 0">
           <div class="attachment-header">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-            <span>附件 ({{ selectedMessage.attachments.length }})</span>
+            <span>附件 ({{ regularAttachments.length }})</span>
           </div>
-          <div class="attachment-item" v-for="att in selectedMessage.attachments" :key="att.part_number">
+          <div class="attachment-item" v-for="att in regularAttachments" :key="att.part_number">
             <div class="att-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
@@ -359,6 +359,12 @@
         </div>
       </div>
       <NasPathPicker v-model="showAttachmentNasPicker" mode="dir" title="选择 NAS 保存目录" @confirm="saveAttachmentToSelectedNas" />
+      <ImageViewer
+        :open="imageViewerOpen"
+        :images="viewerImages"
+        :initial-index="viewerInitialIndex"
+        @close="imageViewerOpen = false"
+      />
     </div>
     </div>
   </PageFrame>
@@ -383,12 +389,16 @@ import { exportMailToPDF } from '../utils/export-pdf';
 import AppIcon from '../components/AppIcon.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import NasPathPicker from '../components/NasPathPicker.vue';
+import ImageViewer, { type ViewerImage } from '../components/mail/ImageViewer.vue';
 
 const mailStore = useMailStore();
 const uiStore = useUIStore();
 const { quickAddContact } = useContacts();
 const showAttachmentNasPicker = ref(false);
 const attachmentForNas = ref<Attachment | null>(null);
+const imageViewerOpen = ref(false);
+const viewerImages = ref<ViewerImage[]>([]);
+const viewerInitialIndex = ref(0);
 
 function accountDisplayName(account: any) {
   return String(account?.remark || '').trim() || account?.email || '';
@@ -455,6 +465,38 @@ function foldersMatchForRefresh(eventFolder: string, currentFolder: string): boo
 function renderMessageBody(message: Message | null) {
   if (!message) return '';
   return renderMailBody(message.body_html, message.body_text);
+}
+
+const regularAttachments = computed(() =>
+  (selectedMessage.value?.attachments || []).filter((attachment) => !attachment.is_inline),
+);
+
+function handleMailBodyClick(event: MouseEvent) {
+  const container = event.currentTarget as HTMLElement;
+  const target = event.target as Element | null;
+  const clickedImage = target?.closest('img') as HTMLImageElement | null;
+  if (!clickedImage || !container.contains(clickedImage)) return;
+
+  const images = Array.from(container.querySelectorAll('img'))
+    .map((image) => ({
+      element: image,
+      src: image.currentSrc || image.src,
+      alt: image.alt || selectedMessage.value?.subject || '邮件图片',
+    }))
+    .filter((item) => Boolean(item.src));
+  if (!images.length) return;
+
+  const uniqueImages: Array<{ element: HTMLImageElement; src: string; alt: string }> = [];
+  const seen = new Set<string>();
+  for (const item of images) {
+    if (seen.has(item.src)) continue;
+    seen.add(item.src);
+    uniqueImages.push(item);
+  }
+  const clickedSrc = clickedImage.currentSrc || clickedImage.src;
+  viewerImages.value = uniqueImages.map(({ src, alt }) => ({ src, alt }));
+  viewerInitialIndex.value = Math.max(0, uniqueImages.findIndex((item) => item.src === clickedSrc));
+  imageViewerOpen.value = true;
 }
 
 const isDraftFolder = computed(() => {
@@ -2395,6 +2437,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   max-width: 100%;
   height: auto;
   border-radius: var(--border-radius-md);
+  cursor: zoom-in;
 }
 
 .detail-body :deep(a) {

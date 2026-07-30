@@ -30,7 +30,9 @@
       <table class="user-table">
         <thead>
           <tr>
+            <th>头像</th>
             <th>用户名</th>
+            <th>昵称</th>
             <th>角色</th>
             <th>状态</th>
             <th>创建时间</th>
@@ -39,11 +41,19 @@
         </thead>
         <tbody>
           <tr v-for="user in filteredUsers" :key="user.id">
+            <td>
+              <span class="table-avatar">
+                <img v-if="user.avatar_url" :src="user.avatar_url" alt="" />
+                <span v-else>{{ userInitial(user) }}</span>
+              </span>
+            </td>
             <td>{{ user.username }}</td>
+            <td>{{ user.nickname || '—' }}</td>
             <td>{{ roleText(user.role) }}</td>
             <td>{{ statusText(user.status) }}</td>
             <td>{{ formatTime(user.created_at) }}</td>
             <td class="actions">
+              <button class="btn btn-secondary" @click="openEditModal(user)">编辑资料</button>
               <button class="btn btn-secondary" @click="promptReset(user.id)">重置密码</button>
               <button class="btn btn-secondary" @click="toggleStatus(user.id)">
                 {{ user.status === 'active' ? '禁用' : '启用' }}
@@ -52,7 +62,7 @@
             </td>
           </tr>
           <tr v-if="filteredUsers.length === 0">
-            <td class="empty" colspan="5">没有匹配的用户</td>
+            <td class="empty" colspan="7">没有匹配的用户</td>
           </tr>
         </tbody>
       </table>
@@ -104,6 +114,40 @@
         </div>
       </form>
     </div>
+
+    <div v-if="showEditModal" class="modal-overlay" @click.self="closeEditModal">
+      <form class="modal-card" @submit.prevent="saveEditedUser">
+        <div class="modal-header">
+          <h3>编辑用户资料</h3>
+          <button class="icon-btn" type="button" title="关闭" @click="closeEditModal">×</button>
+        </div>
+        <div class="edit-avatar-row">
+          <span class="edit-avatar-preview">
+            <img v-if="editingUser?.avatar_url" :src="editingUser.avatar_url" alt="" />
+            <span v-else>{{ userInitial(editingUser) }}</span>
+          </span>
+          <div class="edit-avatar-actions">
+            <label class="btn btn-secondary avatar-upload">
+              <input type="file" accept="image/*" @change="editAvatar" />
+              更换头像
+            </label>
+            <button v-if="editingUser?.avatar_url" class="btn btn-danger" type="button" @click="removeEditedAvatar">移除头像</button>
+          </div>
+        </div>
+        <label class="field">
+          <span>用户名</span>
+          <input v-model.trim="editForm.username" autocomplete="username" maxlength="191" />
+        </label>
+        <label class="field">
+          <span>昵称</span>
+          <input v-model.trim="editForm.nickname" maxlength="191" placeholder="界面显示名称" />
+        </label>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" type="button" @click="closeEditModal">取消</button>
+          <button class="btn btn-primary" type="submit">保存资料</button>
+        </div>
+      </form>
+    </div>
     </div>
   </PageFrame>
 </template>
@@ -126,6 +170,9 @@ const filters = reactive({
   status: '',
 });
 const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const editingUser = ref<any | null>(null);
+const editForm = reactive({ username: '', nickname: '' });
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 
@@ -180,6 +227,72 @@ function closeCreateModal() {
   form.username = '';
   form.password = '';
   form.confirmPassword = '';
+}
+
+function userInitial(user: any) {
+  return String(user?.nickname || user?.username || 'U').trim().charAt(0).toUpperCase() || 'U';
+}
+
+function openEditModal(user: any) {
+  editingUser.value = user;
+  editForm.username = user.username || '';
+  editForm.nickname = user.nickname || '';
+  showEditModal.value = true;
+}
+
+function closeEditModal() {
+  showEditModal.value = false;
+  editingUser.value = null;
+}
+
+async function saveEditedUser() {
+  const user = editingUser.value;
+  if (!user) return;
+  if (editForm.username.length < 3) {
+    window.alert('用户名至少 3 位');
+    return;
+  }
+  try {
+    await api.patch(`/admin/users/${user.id}`, {
+      username: editForm.username,
+      nickname: editForm.nickname,
+    });
+    closeEditModal();
+    await loadUsers();
+  } catch (e: any) {
+    window.alert(e?.error || e?.message || '保存用户资料失败');
+  }
+}
+
+async function editAvatar(event: Event) {
+  const user = editingUser.value;
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!user || !file) return;
+  try {
+    const body = new FormData();
+    body.append('avatar', file);
+    const data = await api.post(`/admin/users/${user.id}/avatar`, body, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }) as any;
+    editingUser.value = data.user;
+    await loadUsers();
+  } catch (e: any) {
+    window.alert(e?.error || e?.message || '上传头像失败');
+  }
+}
+
+async function removeEditedAvatar() {
+  const user = editingUser.value;
+  if (!user) return;
+  try {
+    const data = await api.delete(`/admin/users/${user.id}/avatar`) as any;
+    editingUser.value = data.user;
+    await loadUsers();
+  } catch (e: any) {
+    window.alert(e?.error || e?.message || '移除头像失败');
+  }
 }
 
 async function promptReset(userId: string) {
@@ -397,6 +510,26 @@ onMounted(loadUsers);
   padding: 14px 12px;
   border-bottom: 1px solid var(--border-color);
 }
+
+.table-avatar,
+.edit-avatar-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--ui-accent), var(--ui-accent-secondary));
+  color: var(--ui-text-inverse);
+  font-weight: 700;
+}
+
+.table-avatar { width: 34px; height: 34px; }
+.edit-avatar-preview { width: 64px; height: 64px; flex: 0 0 64px; font-size: 22px; }
+.table-avatar img,
+.edit-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.edit-avatar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.edit-avatar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.avatar-upload { position: relative; overflow: hidden; }
+.avatar-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 .actions {
   display: flex;

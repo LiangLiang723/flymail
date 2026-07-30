@@ -23,21 +23,17 @@
       <button v-if="mobile" class="sidebar-mobile-close" type="button" aria-label="关闭导航" @click="$emit('close-mobile')">
         <AppIcon name="close" :size="19" />
       </button>
+      <button
+        v-else
+        class="sidebar-header-action"
+        type="button"
+        :title="collapsed ? '展开侧边栏' : '折叠侧边栏'"
+        :aria-label="collapsed ? '展开侧边栏' : '折叠侧边栏'"
+        @click="$emit('toggle-collapse')"
+      >
+        <AppIcon :name="collapsed ? 'panel-left-open' : 'panel-left-close'" :size="18" />
+      </button>
     </div>
-
-    <button
-      v-if="!mobile"
-      class="sidebar-row sidebar-collapse-row"
-      type="button"
-      :title="collapsed ? '展开侧边栏' : '折叠侧边栏'"
-      :aria-label="collapsed ? '展开侧边栏' : '折叠侧边栏'"
-      @click="$emit('toggle-collapse')"
-    >
-      <span class="sidebar-row-icon">
-        <AppIcon :name="collapsed ? 'panel-left-open' : 'panel-left-close'" :size="19" />
-      </span>
-      <span class="sidebar-label-pane">{{ collapsed ? '展开侧边栏' : '折叠侧边栏' }}</span>
-    </button>
 
     <div class="sidebar-scroll">
       <nav class="nav-list" aria-label="主导航">
@@ -108,7 +104,12 @@
         <span class="sidebar-label-pane">通知中心</span>
       </button>
 
-      <UserMenu :user="user" @change-password="$emit('change-password')" @logout="$emit('logout')" />
+      <UserMenu
+        :user="user"
+        @navigate="$emit('navigate', $event)"
+        @change-password="$emit('change-password')"
+        @logout="$emit('logout')"
+      />
 
       <div class="sidebar-version sidebar-label-pane">
         <span>FlyMail</span>
@@ -139,7 +140,13 @@ defineProps<{
   mobileOpen: boolean;
   currentView: string;
   navItems: NavItem[];
-  user: { username: string; role: string } | null;
+  user: {
+    username: string;
+    nickname?: string;
+    display_name?: string;
+    avatar_url?: string;
+    role: string;
+  } | null;
   appVersion: string;
 }>();
 

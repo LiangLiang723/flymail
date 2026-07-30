@@ -4,6 +4,8 @@ from pydantic import BaseModel
 class User(BaseModel):
     id: str
     username: str
+    nickname: str | None = ""
+    avatar_path: str | None = ""
     password_hash: str
     role: str = "user"
     status: str = "active"

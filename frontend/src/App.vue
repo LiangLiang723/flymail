@@ -53,6 +53,7 @@
             <AccountList v-else-if="currentView === 'accounts'" />
             <ContactList v-else-if="currentView === 'contacts'" />
             <Backup v-else-if="currentView === 'backup'" />
+            <Profile v-else-if="currentView === 'profile'" :user="currentUser" @updated="currentUser = $event" />
             <UserManagement v-else-if="currentView === 'users' && isAdmin" />
             <Settings v-else-if="currentView === 'settings'" />
             <NotificationSettings v-else-if="currentView === 'notifications'" />
@@ -124,6 +125,7 @@ import HistorySync from './views/HistorySync.vue';
 import LoginView from './views/LoginView.vue';
 import MailList from './views/MailList.vue';
 import NotificationSettings from './views/NotificationSettings.vue';
+import Profile from './views/Profile.vue';
 import Settings from './views/Settings.vue';
 import UnifiedInbox from './views/UnifiedInbox.vue';
 import UserManagement from './views/UserManagement.vue';
@@ -132,6 +134,9 @@ interface CurrentUser {
   id: string;
   uid: string;
   username: string;
+  nickname?: string;
+  display_name?: string;
+  avatar_url?: string;
   role: string;
   status: string;
 }
@@ -202,10 +207,6 @@ const navItems = computed(() => [
   { key: 'history-sync', label: '同步管理', icon: 'sync' },
   { key: 'accounts', label: '账号管理', icon: 'accounts' },
   { key: 'backup', label: '邮件备份', icon: 'backup' },
-  ...(isAdmin.value ? [{ key: 'users', label: '用户管理', icon: 'users' }] : []),
-  { key: 'notifications', label: '第三方通知', icon: 'notifications' },
-  { key: 'settings', label: '设置', icon: 'settings' },
-  { key: 'about', label: '关于', icon: 'info' },
 ]);
 
 function navigateFromSidebar(key: string) {
@@ -378,7 +379,9 @@ watch(currentView, (value) => {
     currentView.value = 'mail';
     return;
   }
-  if (value !== 'compose' && !navItems.value.some((item) => item.key === value)) {
+  const menuViews = ['profile', 'notifications', 'settings', 'about'];
+  if (isAdmin.value) menuViews.push('users');
+  if (value !== 'compose' && !navItems.value.some((item) => item.key === value) && !menuViews.includes(value)) {
     currentView.value = 'mail';
     return;
   }

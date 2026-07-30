@@ -1,8 +1,10 @@
 import asyncio
+import re
 import shutil
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlencode
 
 from data_paths import (
     DOWNLOADS_DIR,
@@ -59,13 +61,13 @@ def _strip_cid(content_id: str) -> str:
 def _replace_inline_cids(body_html: str, cid: str, data_uri: str) -> str:
     if not body_html or not cid:
         return body_html
-    body_html = body_html.replace(f"cid:{cid}", data_uri)
-    body_html = body_html.replace(f"cid:<{cid}>", data_uri)
-    return body_html
+    pattern = re.compile(rf"cid:\s*<?{re.escape(cid)}>?(?=[\"'\s>])", re.IGNORECASE)
+    return pattern.sub(data_uri, body_html)
 
 
 def _build_inline_attachment_url(account_id: str, folder_name: str, uid: int, part_number: int) -> str:
-    return f"/api/messages/{uid}/attachments/{part_number}?account_id={account_id}&folder={folder_name}"
+    query = urlencode({"account_id": account_id, "folder": folder_name})
+    return f"/api/messages/{uid}/attachments/{part_number}?{query}"
 
 
 async def _merge_history_sync_metrics(
@@ -714,7 +716,7 @@ async def _cache_message_detail(receiver, account, folder_name: str, message, un
             date=normalize_message_date(detail.date, fallback=effective_message_date),
             is_read=detail.is_read,
             is_starred=detail.is_starred,
-            has_attachments=bool(detail.attachments),
+            has_attachments=any(not attachment.is_inline for attachment in (detail.attachments or [])),
             body_text=detail.body_text,
             body_html=detail.body_html,
             body_checked=True,

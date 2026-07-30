@@ -6,7 +6,6 @@ IMAP 辅助方法（解码、解析、标记、移动等），统一提取到本
 """
 
 import asyncio
-import base64
 import datetime
 import email
 import re
@@ -354,7 +353,6 @@ class BaseIMAPReceiver(MailReceiver):
 
         body_text = ""
         body_html = ""
-        cid_map = {}  # {content_id: data_uri} 用于替换内嵌图片的 cid: 引用
         attachments = []
         part_index = 0  # part 编号，用于附件下载；part_index 从 0 递增，但 IMAP MIME part 编号从 1 开始；此处仅用于内部索引，实际 part_number 在 fetch 时由 IMAP 服务器分配
 
@@ -366,25 +364,19 @@ class BaseIMAPReceiver(MailReceiver):
                 elif content_type == "text/html":
                     body_html = self._decode_part(part)
                 elif content_type.startswith("image/"):
-                    # 收集内嵌图片：转为 base64 data URI，替换 body_html 中的 cid: 引用
-                    content_id = part.get("Content-ID", "").strip("<>")
-                    if content_id:
-                        img_data = part.get_payload(decode=True)
-                        if img_data:
-                            b64 = base64.b64encode(img_data).decode("ascii")
-                            data_uri = f"data:{content_type};base64,{b64}"
-                            cid_map[content_id] = data_uri
-                    # 同时记录为附件（含文件名的内嵌图片也可下载）
+                    content_id = part.get("Content-ID", "").strip().strip("<>")
                     filename = part.get_filename() or ""
-                    if filename or not content_id:
-                        img_data = part.get_payload(decode=True)
+                    img_data = part.get_payload(decode=True)
+                    disposition = part.get_content_disposition()
+                    is_inline = bool(content_id) and disposition != "attachment"
+                    if filename or content_id or img_data:
                         attachments.append(Attachment(
                             filename=self._decode_header(filename) if filename else "",
                             content_type=content_type,
                             size=len(img_data) if img_data else 0,
                             part_number=part_index,
                             content_id=content_id,
-                            is_inline=bool(content_id),
+                            is_inline=is_inline,
                             data=img_data,
                         ))
                 elif not content_type.startswith("multipart/"):
@@ -410,10 +402,6 @@ class BaseIMAPReceiver(MailReceiver):
             else:
                 body_text = self._decode_part(msg)
 
-        # 替换 body_html 中的 cid: 引用为 base64 data URI
-        if body_html and cid_map:
-            body_html = self._replace_cid_with_data_uri(body_html, cid_map)
-
         return Message(
             id=str(uid),
             uid=int(uid),
@@ -427,7 +415,7 @@ class BaseIMAPReceiver(MailReceiver):
             body_html=body_html,
             folder=folder,
             attachments=attachments,
-            has_attachments=len(attachments) > 0,
+            has_attachments=any(not attachment.is_inline for attachment in attachments),
             message_id=raw_message_id,
         )
 

@@ -395,6 +395,8 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id VARCHAR(191) PRIMARY KEY,
                 username VARCHAR(191) NOT NULL UNIQUE,
+                nickname VARCHAR(191) DEFAULT '',
+                avatar_path VARCHAR(1024) DEFAULT '',
                 password_hash VARCHAR(255) NOT NULL,
                 role VARCHAR(32) NOT NULL DEFAULT 'user',
                 status VARCHAR(32) NOT NULL DEFAULT 'active',
@@ -603,6 +605,17 @@ async def init_db():
             )
         """)
     await db.execute("CREATE INDEX IF NOT EXISTS idx_pending_read_sync_updated ON pending_read_sync(updated_at)")
+
+    for column, declaration in (
+        ("nickname", "VARCHAR(191) DEFAULT ''"),
+        ("avatar_path", "VARCHAR(1024) DEFAULT ''"),
+    ):
+        try:
+            await db.execute(f"ALTER TABLE users ADD COLUMN {column} {declaration}")
+        except Exception as e:
+            logger.debug("migration add users.%s ignored: %s", column, e)
+    await db.execute("UPDATE users SET nickname = '' WHERE nickname IS NULL")
+    await db.execute("UPDATE users SET avatar_path = '' WHERE avatar_path IS NULL")
 
     try:
         await db.execute("ALTER TABLE accounts ADD COLUMN hide_email INTEGER DEFAULT 0")
@@ -1306,7 +1319,7 @@ async def delete_history_sync_jobs_by_account(account_id: str, keep_job_id: str 
 async def list_users() -> List[User]:
     db = await get_db()
     cursor = await db.execute(
-        "SELECT id, username, password_hash, role, status, created_at, updated_at FROM users ORDER BY created_at ASC"
+        "SELECT id, username, nickname, avatar_path, password_hash, role, status, created_at, updated_at FROM users ORDER BY created_at ASC"
     )
     rows = await cursor.fetchall()
     return [User(**dict(zip([description[0] for description in cursor.description], row))) for row in rows]
@@ -1315,7 +1328,7 @@ async def list_users() -> List[User]:
 async def get_user_by_id(user_id: str) -> Optional[User]:
     db = await get_db()
     cursor = await db.execute(
-        "SELECT id, username, password_hash, role, status, created_at, updated_at FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, username, nickname, avatar_path, password_hash, role, status, created_at, updated_at FROM users WHERE id = ? LIMIT 1",
         (user_id,),
     )
     row = await cursor.fetchone()
@@ -1327,7 +1340,7 @@ async def get_user_by_id(user_id: str) -> Optional[User]:
 async def get_user_by_username(username: str) -> Optional[User]:
     db = await get_db()
     cursor = await db.execute(
-        "SELECT id, username, password_hash, role, status, created_at, updated_at FROM users WHERE username = ? LIMIT 1",
+        "SELECT id, username, nickname, avatar_path, password_hash, role, status, created_at, updated_at FROM users WHERE username = ? LIMIT 1",
         (username,),
     )
     row = await cursor.fetchone()
@@ -1339,9 +1352,12 @@ async def get_user_by_username(username: str) -> Optional[User]:
 async def create_user(user: User) -> User:
     db = await get_db()
     await db.execute(
-        """INSERT INTO users (id, username, password_hash, role, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (user.id, user.username, user.password_hash, user.role, user.status, user.created_at, user.updated_at),
+        """INSERT INTO users (id, username, nickname, avatar_path, password_hash, role, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            user.id, user.username, user.nickname, user.avatar_path, user.password_hash,
+            user.role, user.status, user.created_at, user.updated_at,
+        ),
     )
     await db.commit()
     return user
@@ -1369,6 +1385,26 @@ async def update_user_status(user_id: str, status: str) -> bool:
     cursor = await db.execute(
         "UPDATE users SET status = ?, updated_at = ? WHERE id = ?",
         (status, time.time(), user_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def update_user_profile(user_id: str, username: str, nickname: str) -> bool:
+    db = await get_db()
+    cursor = await db.execute(
+        "UPDATE users SET username = ?, nickname = ?, updated_at = ? WHERE id = ?",
+        (username, nickname, time.time(), user_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def update_user_avatar(user_id: str, avatar_path: str) -> bool:
+    db = await get_db()
+    cursor = await db.execute(
+        "UPDATE users SET avatar_path = ?, updated_at = ? WHERE id = ?",
+        (avatar_path, time.time(), user_id),
     )
     await db.commit()
     return cursor.rowcount > 0

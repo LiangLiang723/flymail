@@ -27,6 +27,7 @@
   --ui-accent-soft: rgba(94, 92, 230, 0.14);
   --ui-accent-secondary: #af52de;
   --ui-scrim: rgba(7, 8, 12, 0.48);
+  --ui-media-viewer-bg: rgba(9, 12, 18, 0.94);
   --ui-glass-edge: rgba(255, 255, 255, 0.04);
   --ui-success: #248a3d;
   --ui-success-soft: rgba(36, 138, 61, 0.13);
@@ -150,6 +151,7 @@
   --ui-accent-soft: rgba(124, 121, 255, 0.2);
   --ui-accent-secondary: #bf5af2;
   --ui-scrim: rgba(0, 0, 0, 0.62);
+  --ui-media-viewer-bg: rgba(9, 12, 18, 0.96);
   --ui-glass-edge: rgba(255, 255, 255, 0.055);
   --ui-success: #4cd964;
   --ui-success-soft: rgba(76, 217, 100, 0.16);
