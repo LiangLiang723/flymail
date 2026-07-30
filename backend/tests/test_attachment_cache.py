@@ -100,6 +100,34 @@ class AttachmentCacheRepositoryTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("content_sha256", update_sql)
         self.assertIn("last_accessed_at", update_sql)
 
+    async def test_existing_reference_with_unchanged_values_does_not_insert_duplicate_row(self):
+        fake_db = AsyncMock()
+        fake_db.execute.side_effect = [
+            _Cursor(),
+            _Cursor(row=("b" * 64,)),
+            _Cursor(rowcount=0),
+            _Cursor(),
+        ]
+        attachment = CachedAttachment(
+            account_id="account-1",
+            user_uid="user-1",
+            uid=10,
+            folder="INBOX",
+            part_number=1,
+            filename="report.pdf",
+            size=4,
+            local_path="/objects/bb",
+            content_sha256="b" * 64,
+            last_accessed_at=123.0,
+        )
+
+        with patch("db.get_db", new=AsyncMock(return_value=fake_db)):
+            old_hash = await db.replace_cached_attachment_object(attachment)
+
+        self.assertEqual(old_hash, "")
+        self.assertEqual(fake_db.execute.await_count, 4)
+        self.assertNotIn("INSERT INTO cached_attachments", fake_db.execute.await_args_list[2].args[0])
+
     async def test_user_usage_query_is_distinct_by_hash(self):
         fake_db = AsyncMock()
         fake_db.execute.return_value = _Cursor(row=(20,))

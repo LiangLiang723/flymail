@@ -1767,29 +1767,30 @@ async def replace_cached_attachment_object(attachment: CachedAttachment) -> str:
         )
         row = await cursor.fetchone()
         previous_hash = str((row or ("",))[0] or "")
-        cursor = await db.execute(
-            '''UPDATE cached_attachments
-               SET user_uid = ?, filename = ?, content_type = ?, size = ?, content_id = ?,
-                   is_inline = ?, local_path = ?, content_sha256 = ?, last_accessed_at = ?, cached_at = ?
-               WHERE account_id = ? AND folder = ? AND uid = ? AND part_number = ?''',
-            (
-                attachment.user_uid,
-                attachment.filename or "",
-                attachment.content_type or "",
-                int(attachment.size or 0),
-                attachment.content_id or "",
-                1 if attachment.is_inline else 0,
-                attachment.local_path or "",
-                attachment.content_sha256 or "",
-                float(attachment.last_accessed_at or 0),
-                float(attachment.cached_at or time.time()),
-                attachment.account_id,
-                attachment.folder,
-                int(attachment.uid),
-                int(attachment.part_number),
-            ),
-        )
-        if cursor.rowcount == 0:
+        if row is not None:
+            await db.execute(
+                '''UPDATE cached_attachments
+                   SET user_uid = ?, filename = ?, content_type = ?, size = ?, content_id = ?,
+                       is_inline = ?, local_path = ?, content_sha256 = ?, last_accessed_at = ?, cached_at = ?
+                   WHERE account_id = ? AND folder = ? AND uid = ? AND part_number = ?''',
+                (
+                    attachment.user_uid,
+                    attachment.filename or "",
+                    attachment.content_type or "",
+                    int(attachment.size or 0),
+                    attachment.content_id or "",
+                    1 if attachment.is_inline else 0,
+                    attachment.local_path or "",
+                    attachment.content_sha256 or "",
+                    float(attachment.last_accessed_at or 0),
+                    float(attachment.cached_at or time.time()),
+                    attachment.account_id,
+                    attachment.folder,
+                    int(attachment.uid),
+                    int(attachment.part_number),
+                ),
+            )
+        else:
             await db.execute(
                 '''INSERT INTO cached_attachments
                    (account_id, user_uid, uid, folder, part_number, filename, content_type,

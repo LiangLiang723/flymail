@@ -22,6 +22,13 @@ from db import (
     set_user_settings,
     update_account_credentials,
 )
+from services.attachment_cache import (
+    DEFAULT_ATTACHMENT_CACHE_LIMIT_MB,
+    enforce_user_attachment_cache_limit,
+    get_shared_attachment_cache_usage,
+    get_user_attachment_cache_usage,
+    validate_attachment_cache_limit_mb,
+)
 from services.history_sync import (
     is_full_history_sync_active,
     pause_history_sync,
@@ -288,7 +295,20 @@ async def get_settings(request: Request):
     """
     settings = await async_load_settings()
     uid = await get_uid(request)
-    user_settings = await get_user_settings(uid, ["gmail_proxy_enabled", "gmail_proxy_url"])
+    user_settings = await get_user_settings(
+        uid,
+        ["gmail_proxy_enabled", "gmail_proxy_url", "attachment_cache_limit_mb"],
+    )
+    try:
+        attachment_cache_limit_mb = validate_attachment_cache_limit_mb(
+            int(user_settings.get("attachment_cache_limit_mb", DEFAULT_ATTACHMENT_CACHE_LIMIT_MB))
+        )
+    except (TypeError, ValueError):
+        attachment_cache_limit_mb = DEFAULT_ATTACHMENT_CACHE_LIMIT_MB
+    attachment_cache_usage_bytes, attachment_cache_shared_physical_bytes = await asyncio.gather(
+        get_user_attachment_cache_usage(uid),
+        get_shared_attachment_cache_usage(),
+    )
     secret = settings.get("gmail_client_secret", "")
     if secret and len(secret) > 8:
         masked_secret = secret[:4] + "*" * (len(secret) - 8) + secret[-4:]
@@ -312,6 +332,9 @@ async def get_settings(request: Request):
         "has_outlook_credentials": bool(settings.get("outlook_client_id")) and bool(settings.get("outlook_client_secret")),
         "uploads_cleanup_weekday": int(settings.get("uploads_cleanup_weekday", 0) or 0),
         "uploads_cleanup_time": settings.get("uploads_cleanup_time", "02:00"),
+        "attachment_cache_limit_mb": attachment_cache_limit_mb,
+        "attachment_cache_usage_bytes": attachment_cache_usage_bytes,
+        "attachment_cache_shared_physical_bytes": attachment_cache_shared_physical_bytes,
     }
 
 
@@ -328,6 +351,8 @@ async def update_settings(request: Request, body: SettingsUpdateRequest):
     uid = await get_uid(request)
     proxy_enabled_update = update_data.pop("gmail_proxy_enabled", None)
     proxy_url_update = update_data.pop("gmail_proxy_url", None)
+    attachment_cache_limit_update = update_data.pop("attachment_cache_limit_mb", None)
+    attachment_cache_cleanup = None
 
     # client_secret 为空或包含星号（脱敏值）时不会覆盖已有密钥
     secret_in_body = update_data.get("gmail_client_secret", "")
@@ -364,6 +389,16 @@ async def update_settings(request: Request, body: SettingsUpdateRequest):
         })
         await apply_user_gmail_proxy(uid, proxy_enabled, proxy_url)
 
+    if attachment_cache_limit_update is not None:
+        attachment_cache_limit = validate_attachment_cache_limit_mb(attachment_cache_limit_update)
+        await set_user_settings(uid, {
+            "attachment_cache_limit_mb": attachment_cache_limit,
+        })
+        attachment_cache_cleanup = await enforce_user_attachment_cache_limit(
+            uid,
+            attachment_cache_limit,
+        )
+
     saved = await async_save_settings(update_data)
     sync_gmail_config(saved)
     sync_outlook_config(saved)
@@ -371,7 +406,10 @@ async def update_settings(request: Request, body: SettingsUpdateRequest):
         from services.upload_cleanup import restart_upload_cleanup
         await restart_upload_cleanup()
 
-    return {"success": True, "message": "设置已保存"}
+    response = {"success": True, "message": "设置已保存"}
+    if attachment_cache_cleanup is not None:
+        response["attachment_cache_cleanup"] = attachment_cache_cleanup.as_dict()
+    return response
 
 
 @router.post(

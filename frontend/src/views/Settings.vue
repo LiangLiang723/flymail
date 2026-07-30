@@ -110,6 +110,54 @@
       <div class="storage-card-body">
         <div class="storage-heading">
           <div>
+            <h3 class="storage-title">普通附件缓存</h3>
+            <p class="storage-desc">每个用户独立计算容量。普通附件按需下载；正文和内嵌图片不计入上限。</p>
+          </div>
+        </div>
+
+        <div class="attachment-cache-stats" aria-label="附件缓存用量">
+          <div class="attachment-cache-stat">
+            <span>当前用户逻辑用量</span>
+            <strong>{{ formatStorageBytes(attachmentCacheUsageBytes) }}</strong>
+          </div>
+          <div class="attachment-cache-stat">
+            <span>共享对象物理用量</span>
+            <strong>{{ formatStorageBytes(attachmentCacheSharedPhysicalBytes) }}</strong>
+          </div>
+        </div>
+
+        <div class="cleanup-form attachment-cache-form">
+          <div class="field cleanup-field">
+            <label class="field-label">容量上限（MB）</label>
+            <div class="field-input">
+              <input
+                v-model.number="form.attachment_cache_limit_mb"
+                class="input"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+              />
+              <span class="field-hint">默认 2048 MB；0 表示不限制；非零值最小为 100 MB。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="save-bar">
+          <button class="btn btn-primary btn-save" @click="saveSettings" :disabled="saving">
+            {{ saving ? '保存并清理中…' : '保存缓存设置' }}
+          </button>
+          <span v-if="attachmentCacheCleanupMessage" class="status-msg success">
+            {{ attachmentCacheCleanupMessage }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="provider-card">
+      <div class="storage-card-body">
+        <div class="storage-heading">
+          <div>
             <h3 class="storage-title">Gmail 网络代理</h3>
             <p class="field-hint">按当前用户生效，用于 Gmail IMAP、SMTP、IDLE 和 token 刷新。支持带认证的 HTTP CONNECT 代理。</p>
           </div>
@@ -578,6 +626,7 @@ import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
 import About from './About.vue';
 import api from '../utils/api';
+import { formatStorageBytes, isValidAttachmentCacheLimit } from '../utils/attachment-cache';
 import { themeController, type ThemePreference } from '../utils/theme';
 
 // ==================== 教程数据 ====================
@@ -720,6 +769,7 @@ function previewImage(src: string) {
 interface SettingsForm {
   uploads_cleanup_weekday: number;
   uploads_cleanup_time: string;
+  attachment_cache_limit_mb: number;
   gmail_client_id: string;
   gmail_client_secret: string;
   gmail_redirect_uri: string;
@@ -755,6 +805,7 @@ const weekdayOptions = [
 const form = ref<SettingsForm>({
   uploads_cleanup_weekday: 0,
   uploads_cleanup_time: '02:00',
+  attachment_cache_limit_mb: 2048,
   gmail_client_id: '',
   gmail_client_secret: '',
   gmail_redirect_uri: '',
@@ -773,6 +824,9 @@ const saveError = ref('');
 const proxyTesting = ref(false);
 const proxyTestMessage = ref('');
 const proxyTestSuccess = ref(false);
+const attachmentCacheUsageBytes = ref(0);
+const attachmentCacheSharedPhysicalBytes = ref(0);
+const attachmentCacheCleanupMessage = ref('');
 
 async function loadSettingsData() {
   try {
@@ -780,6 +834,7 @@ async function loadSettingsData() {
     form.value = {
       uploads_cleanup_weekday: Number(data.uploads_cleanup_weekday ?? 0),
       uploads_cleanup_time: data.uploads_cleanup_time || '02:00',
+      attachment_cache_limit_mb: Number(data.attachment_cache_limit_mb ?? 2048),
       gmail_client_id: data.gmail_client_id || '',
       gmail_client_secret: '',
       gmail_redirect_uri: data.gmail_redirect_uri || '',
@@ -789,6 +844,8 @@ async function loadSettingsData() {
       outlook_client_secret: '',
       outlook_redirect_uri: data.outlook_redirect_uri || '',
     };
+    attachmentCacheUsageBytes.value = Number(data.attachment_cache_usage_bytes || 0);
+    attachmentCacheSharedPhysicalBytes.value = Number(data.attachment_cache_shared_physical_bytes || 0);
     secretConfigured.value = !!(data.gmail_client_secret && data.gmail_client_secret.includes('*'));
     outlookSecretConfigured.value = !!(data.outlook_client_secret && data.outlook_client_secret.includes('*'));
   } catch (e) {
@@ -817,6 +874,12 @@ async function testProxy() {
 }
 
 async function saveSettings() {
+  const attachmentLimit = Number(form.value.attachment_cache_limit_mb);
+  if (!isValidAttachmentCacheLimit(attachmentLimit)) {
+    saveError.value = '附件缓存上限必须为 0，或不小于 100 MB 的整数';
+    setTimeout(() => { saveError.value = ''; }, 5000);
+    return;
+  }
   saving.value = true;
   saveSuccess.value = false;
   saveError.value = '';
@@ -824,6 +887,7 @@ async function saveSettings() {
     const payload: Record<string, string | number | boolean> = {
       uploads_cleanup_weekday: form.value.uploads_cleanup_weekday,
       uploads_cleanup_time: form.value.uploads_cleanup_time || '02:00',
+      attachment_cache_limit_mb: attachmentLimit,
       gmail_client_id: form.value.gmail_client_id,
       gmail_redirect_uri: form.value.gmail_redirect_uri,
       gmail_proxy_enabled: form.value.gmail_proxy_enabled,
@@ -837,7 +901,13 @@ async function saveSettings() {
     if (form.value.outlook_client_secret) {
       payload.outlook_client_secret = form.value.outlook_client_secret;
     }
-    await api.put('/settings', payload);
+    const result = await api.put('/settings', payload) as any;
+    const cleanup = result?.attachment_cache_cleanup;
+    if (cleanup) {
+      attachmentCacheCleanupMessage.value = `已释放 ${formatStorageBytes(Number(cleanup.before_bytes || 0) - Number(cleanup.after_bytes || 0))} 逻辑容量，实际回收 ${formatStorageBytes(cleanup.freed_physical_bytes || 0)}`;
+    } else {
+      attachmentCacheCleanupMessage.value = '';
+    }
     saveSuccess.value = true;
     await loadSettingsData();
     setTimeout(() => { saveSuccess.value = false; }, 3000);
@@ -1211,6 +1281,37 @@ onMounted(() => {
   gap: var(--space-4);
   align-items: flex-start;
   flex-wrap: wrap;
+}
+
+.attachment-cache-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.attachment-cache-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-secondary);
+}
+
+.attachment-cache-stat span {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.attachment-cache-stat strong {
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+}
+
+.attachment-cache-form .cleanup-field {
+  min-width: min(100%, 280px);
 }
 
 .cleanup-field {

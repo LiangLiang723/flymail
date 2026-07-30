@@ -40,6 +40,13 @@ def _load_settings_route_module():
     db_stub.set_user_settings = AsyncMock()
     db_stub.update_account_credentials = AsyncMock(return_value=True)
 
+    attachment_cache_stub = types.ModuleType("services.attachment_cache")
+    attachment_cache_stub.DEFAULT_ATTACHMENT_CACHE_LIMIT_MB = 2048
+    attachment_cache_stub.enforce_user_attachment_cache_limit = AsyncMock()
+    attachment_cache_stub.get_shared_attachment_cache_usage = AsyncMock(return_value=0)
+    attachment_cache_stub.get_user_attachment_cache_usage = AsyncMock(return_value=0)
+    attachment_cache_stub.validate_attachment_cache_limit_mb = lambda value: int(value)
+
     history_sync_stub = types.ModuleType("services.history_sync")
     for name in (
         "is_full_history_sync_active",
@@ -82,6 +89,7 @@ def _load_settings_route_module():
             "fastapi",
             "deps",
             "db",
+            "services.attachment_cache",
             "services.history_sync",
             "services.settings",
             "services.sync",
@@ -93,6 +101,7 @@ def _load_settings_route_module():
             "fastapi": fastapi_stub,
             "deps": deps_stub,
             "db": db_stub,
+            "services.attachment_cache": attachment_cache_stub,
             "services.history_sync": history_sync_stub,
             "services.settings": app_settings_stub,
             "services.sync": sync_stub,

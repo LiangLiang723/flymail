@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 from errors import AppError
 from models import Account
+from pydantic import ValidationError
 from providers.base import Attachment
-from routes import messages
+from routes import messages, settings
+from schemas import SettingsUpdateRequest
 from services import attachment_cache
 
 
@@ -135,6 +137,46 @@ class AttachmentReferenceCleanupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, (5, 3))
         release.assert_awaited_once_with(hashes)
+
+
+class AttachmentCacheSettingsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_get_settings_uses_current_user_limit_and_usage(self):
+        with (
+            patch("routes.settings.get_uid", new=AsyncMock(return_value="user-1")),
+            patch("routes.settings.async_load_settings", new=AsyncMock(return_value={})),
+            patch("routes.settings.get_user_settings", new=AsyncMock(return_value={"attachment_cache_limit_mb": 512})),
+            patch("routes.settings.get_user_attachment_cache_usage", new=AsyncMock(return_value=1234)),
+            patch("routes.settings.get_shared_attachment_cache_usage", new=AsyncMock(return_value=5678)),
+        ):
+            result = await settings.get_settings(object())
+        self.assertEqual(result["attachment_cache_limit_mb"], 512)
+        self.assertEqual(result["attachment_cache_usage_bytes"], 1234)
+        self.assertEqual(result["attachment_cache_shared_physical_bytes"], 5678)
+
+    async def test_lowering_limit_saves_current_user_and_returns_cleanup(self):
+        cleanup = attachment_cache.AttachmentCacheCleanup(
+            before_bytes=200,
+            after_bytes=100,
+            cleared_references=2,
+        )
+        body = SettingsUpdateRequest(attachment_cache_limit_mb=100)
+        with (
+            patch("routes.settings.get_uid", new=AsyncMock(return_value="user-1")),
+            patch("routes.settings.set_user_settings", new=AsyncMock()) as save_user,
+            patch("routes.settings.enforce_user_attachment_cache_limit", new=AsyncMock(return_value=cleanup)),
+            patch("routes.settings.async_save_settings", new=AsyncMock(return_value={})),
+        ):
+            result = await settings.update_settings(object(), body)
+        save_user.assert_awaited_once_with("user-1", {"attachment_cache_limit_mb": 100})
+        self.assertEqual(result["attachment_cache_cleanup"]["after_bytes"], 100)
+
+    def test_setting_schema_accepts_only_zero_or_at_least_100(self):
+        for value in (0, 100, 2048):
+            body = SettingsUpdateRequest(attachment_cache_limit_mb=value)
+            self.assertEqual(body.attachment_cache_limit_mb, value)
+        for value in (-1, 1, 99):
+            with self.assertRaises(ValidationError):
+                SettingsUpdateRequest(attachment_cache_limit_mb=value)
 
 
 if __name__ == "__main__":

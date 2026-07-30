@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -14,9 +14,21 @@ class UserResponse(BaseModel):
     username: str = Field(description="飞牛OS 用户名")
 
 
+class AttachmentCacheCleanupResponse(BaseModel):
+    before_bytes: int = Field(default=0, ge=0)
+    after_bytes: int = Field(default=0, ge=0)
+    cleared_references: int = Field(default=0, ge=0)
+    evicted_user_objects: int = Field(default=0, ge=0)
+    deleted_shared_objects: int = Field(default=0, ge=0)
+    freed_physical_bytes: int = Field(default=0, ge=0)
+
+
 class SettingsResponse(BaseModel):
     uploads_cleanup_weekday: int = Field(default=0, ge=0, le=6, description="Upload cleanup weekday, 0=Monday")
     uploads_cleanup_time: str = Field(default="02:00", description="Upload cleanup time, HH:MM")
+    attachment_cache_limit_mb: int = Field(default=2048, ge=0, description="当前用户普通附件缓存上限，0 表示不限制")
+    attachment_cache_usage_bytes: int = Field(default=0, ge=0, description="当前用户普通附件逻辑用量")
+    attachment_cache_shared_physical_bytes: int = Field(default=0, ge=0, description="全局共享附件对象物理用量")
     gmail_client_id: str = Field(description="Gmail OAuth 客户端ID（完整）")
     gmail_client_secret: str = Field(description="Gmail OAuth 客户端密钥（脱敏，仅显示首尾4位）")
     gmail_redirect_uri: str = Field(description="Gmail OAuth 回调地址")
@@ -32,6 +44,7 @@ class SettingsResponse(BaseModel):
 class SettingsUpdateResponse(BaseModel):
     success: bool = Field(description="是否保存成功")
     message: str = Field(description="结果消息")
+    attachment_cache_cleanup: Optional[AttachmentCacheCleanupResponse] = None
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -39,6 +52,7 @@ class SettingsUpdateRequest(BaseModel):
 
     uploads_cleanup_weekday: Optional[int] = Field(default=None, ge=0, le=6, description="Upload cleanup weekday, 0=Monday")
     uploads_cleanup_time: Optional[str] = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="Upload cleanup time, HH:MM")
+    attachment_cache_limit_mb: Optional[int] = Field(default=None, ge=0, description="普通附件缓存上限 MB，0 表示不限制")
     gmail_client_id: Optional[str] = Field(default=None, max_length=500, description="Gmail OAuth 客户端ID")
     gmail_client_secret: Optional[str] = Field(default=None, max_length=500, description="Gmail OAuth 客户端密钥")
     gmail_redirect_uri: Optional[str] = Field(default=None, max_length=500, description="Gmail OAuth 回调地址")
@@ -47,6 +61,13 @@ class SettingsUpdateRequest(BaseModel):
     outlook_client_id: Optional[str] = Field(default=None, max_length=500, description="Microsoft OAuth 客户端ID")
     outlook_client_secret: Optional[str] = Field(default=None, max_length=500, description="Microsoft OAuth 客户端密钥")
     outlook_redirect_uri: Optional[str] = Field(default=None, max_length=500, description="Microsoft OAuth 回调地址")
+
+    @field_validator("attachment_cache_limit_mb")
+    @classmethod
+    def validate_attachment_cache_limit_mb(cls, value: Optional[int]) -> Optional[int]:
+        if value is not None and 0 < value < 100:
+            raise ValueError("非零容量不能低于 100 MB")
+        return value
 
 
 class ProxyTestRequest(BaseModel):
