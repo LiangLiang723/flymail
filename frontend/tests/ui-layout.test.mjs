@@ -134,7 +134,33 @@ test('audited compact controls keep readable colors, labels and usable hit areas
   assert.match(composeSource, /\.text-btn\s*\{[^}]*padding:\s*0 6px;/s);
   assert.match(accountSource, /class="toggle-switch"[^>]*aria-label="获取历史邮件"[^>]*:aria-pressed="fetchHistory"/s);
   assert.match(accountSource, /class="toggle-switch"[^>]*aria-label="隐藏邮箱地址"[^>]*:aria-pressed="editForm\.hide_email"/s);
-  assert.match(accountSource, /\.toggle-switch\s*\{[^}]*width:\s*44px;[^}]*height:\s*24px;/s);
+  assert.match(accountSource, /\.toggle-switch\s*\{[^}]*width:\s*48px;[^}]*height:\s*28px;/s);
+});
+
+test('editor popovers preserve accessible names and compact touch targets', async () => {
+  const editorSource = await readSource('src/components/TiptapEditor.vue');
+  const composeSource = await readSource('src/views/ComposeEmail.vue');
+
+  assert.match(editorSource, /class="color-swatch"[^>]*:aria-label="`使用颜色 \$\{c\}`"/s);
+  assert.match(editorSource, /\.color-swatch\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;/s);
+  assert.match(editorSource, /\.emoji-tab\s*\{[^}]*min-height:\s*32px;/s);
+  assert.match(composeSource, /class="toolbar-btn primary"[^>]*aria-label="发送邮件"/s);
+  assert.match(composeSource, /class="toolbar-btn"[^>]*aria-label="保存草稿"[^>]*@click="saveDraft"/s);
+  assert.match(composeSource, /\.sig-customize-btn\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;/s);
+  assert.match(composeSource, /\.sig-customize-btn\s*\{[^}]*color:\s*var\(--ui-text-2\);/s);
+});
+
+test('data-dependent remove and preview controls keep explicit names and usable sizes', async () => {
+  const composeSource = await readSource('src/views/ComposeEmail.vue');
+  const settingsSource = await readSource('src/views/Settings.vue');
+
+  assert.match(composeSource, /class="tag-remove"[^>]*:aria-label="`移除收件人 \$\{addr\}`"/s);
+  assert.match(composeSource, /class="tag-remove"[^>]*:aria-label="`移除抄送人 \$\{addr\}`"/s);
+  assert.match(composeSource, /class="tag-remove"[^>]*:aria-label="`移除密送人 \$\{addr\}`"/s);
+  assert.match(composeSource, /class="att-remove"[^>]*:aria-label="`移除附件 \$\{att\.filename\}`"/s);
+  assert.match(composeSource, /\.sig-delete-btn\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;/s);
+  assert.match(composeSource, /\.sig-delete-btn:focus-visible\s*\{\s*opacity:\s*1;/s);
+  assert.match(settingsSource, /class="img-preview-close"[^>]*aria-label="关闭图片预览"/s);
 });
 
 test('manual refresh animates only while the latest page request is active', async () => {

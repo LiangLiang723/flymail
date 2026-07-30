@@ -1414,9 +1414,9 @@ async function reconnectAccount(account: any) {
 }
 
 .toggle-switch {
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
   border: none;
   background: var(--bg-tertiary);
   position: relative;
@@ -1431,8 +1431,8 @@ async function reconnectAccount(account: any) {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--ui-text-inverse);
   transition: transform var(--transition-fast);

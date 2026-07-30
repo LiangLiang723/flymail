@@ -39,7 +39,7 @@
   <!-- 颜色下拉 -->
   <template v-if="btn.dropdownType === 'color'">
   <div class="color-grid">
-  <button v-for="c in presetColors" :key="c" class="color-swatch" :style="{ background: c }" @click="applyColor(c)"></button>
+  <button v-for="c in presetColors" :key="c" class="color-swatch" :aria-label="`使用颜色 ${c}`" :title="`使用颜色 ${c}`" :style="{ background: c }" type="button" @click="applyColor(c)"></button>
   </div>
   <button class="dropdown-item" @click="applyColor(null)">默认颜色</button>
   </template>
@@ -678,8 +678,8 @@ const toolbarButtons = [
 }
 
 .color-swatch {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border: 2px solid transparent;
   border-radius: 4px;
   cursor: pointer;
@@ -838,7 +838,8 @@ const toolbarButtons = [
 }
 
 .emoji-tab {
-  padding: 3px 10px;
+  min-height: 32px;
+  padding: 0 10px;
   border: none;
   background: none;
   color: var(--text-secondary);

@@ -10,7 +10,7 @@
 
     <!-- 顶部工具栏 -->
     <div class="compose-toolbar">
-      <button class="toolbar-btn primary" @click="sendMail" :disabled="sending || attachmentOverLimit">
+      <button class="toolbar-btn primary" type="button" title="发送邮件" aria-label="发送邮件" @click="sendMail" :disabled="sending || attachmentOverLimit">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         <span>{{ sending ? '发送中...' : '发送' }}</span>
       </button>
@@ -18,7 +18,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <span>定时</span>
       </button>
-      <button class="toolbar-btn" @click="saveDraft" :disabled="savingDraft">
+      <button class="toolbar-btn" type="button" title="保存草稿" aria-label="保存草稿" @click="saveDraft" :disabled="savingDraft">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         <span>{{ savingDraft ? '保存中...' : '草稿' }}</span>
       </button>
@@ -159,7 +159,7 @@
         <div class="tag-input">
           <span v-for="(addr, i) in toList" :key="'to'+i" class="tag">
             {{ addr }}
-            <button class="tag-remove" @click="toList.splice(i, 1)">&times;</button>
+            <button class="tag-remove" type="button" :aria-label="`移除收件人 ${addr}`" @click="toList.splice(i, 1)">&times;</button>
           </span>
           <input v-model="toInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="toField.onInput" @keydown="handleRecipientKeydown('to', $event)" @keydown.comma.prevent="addRecipient('to')" @change="addRecipient('to')" @blur="closeRecipientSuggestions('to')" placeholder="输入姓名或邮箱" class="tag-input-field" />
           <div v-if="toField.showSuggestions.value" class="contact-suggestions">
@@ -176,7 +176,7 @@
         <div class="tag-input">
           <span v-for="(addr, i) in ccList" :key="'cc'+i" class="tag">
             {{ addr }}
-            <button class="tag-remove" @click="ccList.splice(i, 1)">&times;</button>
+            <button class="tag-remove" type="button" :aria-label="`移除抄送人 ${addr}`" @click="ccList.splice(i, 1)">&times;</button>
           </span>
           <input v-model="ccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="ccField.onInput" @keydown="handleRecipientKeydown('cc', $event)" @keydown.comma.prevent="addRecipient('cc')" @change="addRecipient('cc')" @blur="closeRecipientSuggestions('cc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
           <div v-if="ccField.showSuggestions.value" class="contact-suggestions">
@@ -193,7 +193,7 @@
         <div class="tag-input">
           <span v-for="(addr, i) in bccList" :key="'bcc'+i" class="tag">
             {{ addr }}
-            <button class="tag-remove" @click="bccList.splice(i, 1)">&times;</button>
+            <button class="tag-remove" type="button" :aria-label="`移除密送人 ${addr}`" @click="bccList.splice(i, 1)">&times;</button>
           </span>
           <input v-model="bccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="bccField.onInput" @keydown="handleRecipientKeydown('bcc', $event)" @keydown.comma.prevent="addRecipient('bcc')" @change="addRecipient('bcc')" @blur="closeRecipientSuggestions('bcc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
           <div v-if="bccField.showSuggestions.value" class="contact-suggestions">
@@ -236,7 +236,7 @@
             <span class="att-name">{{ att.filename }}</span>
             <span v-if="att.source === 'nas'" class="att-source">NAS</span>
             <span class="att-size">{{ formatSize(att.size) }}</span>
-            <button class="att-remove" @click="removeAttachment(i)">&times;</button>
+            <button class="att-remove" type="button" :aria-label="`移除附件 ${att.filename}`" @click="removeAttachment(i)">&times;</button>
           </div>
         </div>
       </div>
@@ -1840,15 +1840,16 @@ function formatSize(bytes: number): string {
 .sig-customize-btn {
   position: absolute;
   top: 4px; right: 4px;
-  width: 20px; height: 20px;
+  width: 28px; height: 28px;
   border: none; border-radius: 50%;
-  background: var(--ui-fill-muted); color: var(--ui-text-3);
+  background: var(--ui-fill-muted); color: var(--ui-text-2);
   font-size: 10px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: all 0.15s;
   flex-shrink: 0;
 }
-.sig-preset-card:hover .sig-customize-btn { opacity: 1; }
+.sig-preset-card:hover .sig-customize-btn,
+.sig-customize-btn:focus-visible { opacity: 1; }
 .sig-customize-btn:hover {
   background: var(--ui-accent);
   color: var(--ui-text-inverse);
@@ -1940,14 +1941,15 @@ function formatSize(bytes: number): string {
 }
 
 .sig-delete-btn {
-  width: 18px; height: 18px;
+  width: 28px; height: 28px;
   border: none; border-radius: 50%;
   background: transparent; color: var(--text-tertiary);
   font-size: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; opacity: 0; transition: all 0.12s;
 }
-.sig-user-item:hover .sig-delete-btn { opacity: 1; }
+.sig-user-item:hover .sig-delete-btn,
+.sig-delete-btn:focus-visible { opacity: 1; }
 .sig-delete-btn:hover { background: var(--ui-danger-soft); color: var(--ui-danger); }
 
 .sig-empty-hint {
