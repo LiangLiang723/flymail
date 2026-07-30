@@ -19,6 +19,9 @@ LOGS_DIR = BASE_DATA_DIR / "logs"
 FILES_DIR = BASE_DATA_DIR / "files"
 DOWNLOADS_DIR = FILES_DIR / "download"
 UPLOADS_DIR = FILES_DIR / "uploads"
+ATTACHMENT_OBJECTS_DIR = FILES_DIR / "objects"
+ATTACHMENT_SHA256_DIR = ATTACHMENT_OBJECTS_DIR / "sha256"
+ATTACHMENT_CACHE_TMP_DIR = ATTACHMENT_OBJECTS_DIR / ".tmp"
 BACKUP_DIR = BASE_DATA_DIR / "backup"
 
 
@@ -89,6 +92,13 @@ def get_message_storage_key(message_date: str, account_id: str, account_email: s
     return str(Path(get_account_storage_slug(account_id, account_email)) / f"{dt.year:04d}" / f"{dt.month:02d}" / str(uid))
 
 
+def build_attachment_object_path(content_sha256: str) -> Path:
+    digest = str(content_sha256 or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("invalid SHA-256 digest")
+    return ATTACHMENT_SHA256_DIR / digest[:2] / digest
+
+
 def build_message_file_path(
     *,
     message_date: str,
@@ -150,6 +160,9 @@ def ensure_data_dirs() -> None:
         LOGS_DIR,
         UPLOADS_DIR,
         DOWNLOADS_DIR,
+        ATTACHMENT_OBJECTS_DIR,
+        ATTACHMENT_SHA256_DIR,
+        ATTACHMENT_CACHE_TMP_DIR,
         BACKUP_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

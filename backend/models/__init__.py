@@ -63,6 +63,8 @@ class CachedAttachment(BaseModel):
     content_id: str = ""
     is_inline: bool = False
     local_path: str = ""
+    content_sha256: str = ""
+    last_accessed_at: float = 0.0
     cached_at: float = 0.0
 
 

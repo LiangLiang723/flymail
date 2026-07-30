@@ -456,8 +456,18 @@ async def init_db():
                 content_id VARCHAR(512) DEFAULT '',
                 is_inline INTEGER DEFAULT 0,
                 local_path LONGTEXT,
+                content_sha256 CHAR(64) DEFAULT '',
+                last_accessed_at REAL DEFAULT 0,
                 cached_at REAL DEFAULT 0,
                 PRIMARY KEY (account_id, folder, uid, part_number)
+            )
+        """)
+    await db.execute("""
+            CREATE TABLE IF NOT EXISTS attachment_cache_objects (
+                content_sha256 CHAR(64) PRIMARY KEY,
+                size BIGINT NOT NULL,
+                local_path LONGTEXT NOT NULL,
+                created_at REAL DEFAULT 0
             )
         """)
     await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_user ON cached_messages(user_uid)")
@@ -617,6 +627,18 @@ async def init_db():
         await db.execute("ALTER TABLE cached_messages ADD COLUMN body_checked INTEGER DEFAULT 0")
     except Exception as e:
         logger.debug("migration add cached_messages.body_checked ignored: %s", e)
+
+    for column, declaration in (
+        ("content_sha256", "CHAR(64) DEFAULT ''"),
+        ("last_accessed_at", "REAL DEFAULT 0"),
+    ):
+        try:
+            await db.execute(f"ALTER TABLE cached_attachments ADD COLUMN {column} {declaration}")
+        except Exception as e:
+            logger.debug("migration add cached_attachments.%s ignored: %s", column, e)
+
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_cached_attachments_sha256 ON cached_attachments(content_sha256)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_cached_attachments_user_inline_access ON cached_attachments(user_uid, is_inline, last_accessed_at)")
 
     try:
         await db.execute("ALTER TABLE notifications ADD COLUMN type VARCHAR(64) DEFAULT 'new_mail'")
@@ -1628,13 +1650,357 @@ async def mark_cached_messages_empty_body_checked(account_id: str, folder: str, 
 async def get_cached_attachment_rows(account_id: str) -> list[dict]:
     db = await get_db()
     cursor = await db.execute(
-        '''SELECT is_inline, local_path
+        '''SELECT account_id, user_uid, uid, folder, part_number, filename, content_type,
+                  size, content_id, is_inline, local_path, content_sha256,
+                  last_accessed_at, cached_at
            FROM cached_attachments
            WHERE account_id = ?''',
         (account_id,),
     )
     rows = await cursor.fetchall()
-    return [{"is_inline": bool(row[0]), "local_path": row[1] or ""} for row in rows]
+    keys = (
+        "account_id", "user_uid", "uid", "folder", "part_number", "filename",
+        "content_type", "size", "content_id", "is_inline", "local_path",
+        "content_sha256", "last_accessed_at", "cached_at",
+    )
+    result = []
+    for row in rows:
+        item = dict(zip(keys, row))
+        item["is_inline"] = bool(item.get("is_inline"))
+        item["local_path"] = item.get("local_path") or ""
+        item["content_sha256"] = item.get("content_sha256") or ""
+        item["last_accessed_at"] = float(item.get("last_accessed_at") or 0)
+        result.append(item)
+    return result
+
+
+async def upsert_attachment_cache_object(
+    content_sha256: str,
+    size: int,
+    local_path: str,
+    created_at: float | None = None,
+) -> None:
+    db = await get_db()
+    await db.execute(
+        '''INSERT INTO attachment_cache_objects (content_sha256, size, local_path, created_at)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE size = VALUES(size), local_path = VALUES(local_path)''',
+        (content_sha256, int(size or 0), local_path, created_at or time.time()),
+    )
+    await db.commit()
+
+
+async def get_attachment_cache_object(content_sha256: str) -> Optional[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        '''SELECT content_sha256, size, local_path, created_at
+           FROM attachment_cache_objects WHERE content_sha256 = ? LIMIT 1''',
+        (content_sha256,),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "content_sha256": row[0] or "",
+        "size": int(row[1] or 0),
+        "local_path": row[2] or "",
+        "created_at": float(row[3] or 0),
+    }
+
+
+async def pop_unreferenced_attachment_cache_object(content_sha256: str) -> Optional[dict]:
+    db = await get_db()
+    await db.execute("BEGIN")
+    try:
+        cursor = await db.execute(
+            '''SELECT content_sha256, size, local_path, created_at
+               FROM attachment_cache_objects WHERE content_sha256 = ? FOR UPDATE''',
+            (content_sha256,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            await db.execute("COMMIT")
+            return None
+        cursor = await db.execute(
+            '''SELECT COUNT(*) FROM cached_attachments
+               WHERE content_sha256 = ?''',
+            (content_sha256,),
+        )
+        count_row = await cursor.fetchone()
+        if int((count_row or (0,))[0] or 0) > 0:
+            await db.execute("COMMIT")
+            return None
+        await db.execute(
+            "DELETE FROM attachment_cache_objects WHERE content_sha256 = ?",
+            (content_sha256,),
+        )
+        await db.execute("COMMIT")
+        return {
+            "content_sha256": row[0] or "",
+            "size": int(row[1] or 0),
+            "local_path": row[2] or "",
+            "created_at": float(row[3] or 0),
+        }
+    except Exception:
+        await db.execute("ROLLBACK")
+        raise
+
+
+async def restore_attachment_cache_object(record: dict) -> None:
+    await upsert_attachment_cache_object(
+        str(record.get("content_sha256") or ""),
+        int(record.get("size") or 0),
+        str(record.get("local_path") or ""),
+        float(record.get("created_at") or time.time()),
+    )
+
+
+async def replace_cached_attachment_object(attachment: CachedAttachment) -> str:
+    db = await get_db()
+    await db.execute("BEGIN")
+    try:
+        cursor = await db.execute(
+            '''SELECT content_sha256 FROM cached_attachments
+               WHERE account_id = ? AND folder = ? AND uid = ? AND part_number = ?
+               FOR UPDATE''',
+            (attachment.account_id, attachment.folder, attachment.uid, attachment.part_number),
+        )
+        row = await cursor.fetchone()
+        previous_hash = str((row or ("",))[0] or "")
+        cursor = await db.execute(
+            '''UPDATE cached_attachments
+               SET user_uid = ?, filename = ?, content_type = ?, size = ?, content_id = ?,
+                   is_inline = ?, local_path = ?, content_sha256 = ?, last_accessed_at = ?, cached_at = ?
+               WHERE account_id = ? AND folder = ? AND uid = ? AND part_number = ?''',
+            (
+                attachment.user_uid,
+                attachment.filename or "",
+                attachment.content_type or "",
+                int(attachment.size or 0),
+                attachment.content_id or "",
+                1 if attachment.is_inline else 0,
+                attachment.local_path or "",
+                attachment.content_sha256 or "",
+                float(attachment.last_accessed_at or 0),
+                float(attachment.cached_at or time.time()),
+                attachment.account_id,
+                attachment.folder,
+                int(attachment.uid),
+                int(attachment.part_number),
+            ),
+        )
+        if cursor.rowcount == 0:
+            await db.execute(
+                '''INSERT INTO cached_attachments
+                   (account_id, user_uid, uid, folder, part_number, filename, content_type,
+                    size, content_id, is_inline, local_path, content_sha256,
+                    last_accessed_at, cached_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (
+                    attachment.account_id,
+                    attachment.user_uid,
+                    int(attachment.uid),
+                    attachment.folder,
+                    int(attachment.part_number),
+                    attachment.filename or "",
+                    attachment.content_type or "",
+                    int(attachment.size or 0),
+                    attachment.content_id or "",
+                    1 if attachment.is_inline else 0,
+                    attachment.local_path or "",
+                    attachment.content_sha256 or "",
+                    float(attachment.last_accessed_at or 0),
+                    float(attachment.cached_at or time.time()),
+                ),
+            )
+        await db.execute("COMMIT")
+        if previous_hash and previous_hash != (attachment.content_sha256 or ""):
+            return previous_hash
+        return ""
+    except Exception:
+        await db.execute("ROLLBACK")
+        raise
+
+
+async def touch_cached_attachment_object(
+    account_id: str,
+    uid: int,
+    folder: str,
+    part_number: int,
+    accessed_at: float,
+) -> bool:
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ",".join("?" * len(aliases))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''UPDATE cached_attachments SET last_accessed_at = ?
+            WHERE account_id = ? AND uid = ? AND folder IN ({placeholders})
+              AND part_number = ? AND content_sha256 <> '' ''',
+        [accessed_at, account_id, int(uid)] + aliases + [int(part_number)],
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def clear_cached_attachment_storage(
+    account_id: str,
+    uid: int,
+    folder: str,
+    part_number: int,
+) -> str:
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ",".join("?" * len(aliases))
+    db = await get_db()
+    await db.execute("BEGIN")
+    try:
+        cursor = await db.execute(
+            f'''SELECT content_sha256 FROM cached_attachments
+                WHERE account_id = ? AND uid = ? AND folder IN ({placeholders})
+                  AND part_number = ? LIMIT 1 FOR UPDATE''',
+            [account_id, int(uid)] + aliases + [int(part_number)],
+        )
+        row = await cursor.fetchone()
+        previous_hash = str((row or ("",))[0] or "")
+        await db.execute(
+            f'''UPDATE cached_attachments
+                SET content_sha256 = '', local_path = '', last_accessed_at = 0
+                WHERE account_id = ? AND uid = ? AND folder IN ({placeholders})
+                  AND part_number = ?''',
+            [account_id, int(uid)] + aliases + [int(part_number)],
+        )
+        await db.execute("COMMIT")
+        return previous_hash
+    except Exception:
+        await db.execute("ROLLBACK")
+        raise
+
+
+async def clear_user_attachment_hash_references(user_uid: str, content_sha256: str) -> int:
+    db = await get_db()
+    cursor = await db.execute(
+        '''UPDATE cached_attachments
+           SET content_sha256 = '', local_path = '', last_accessed_at = 0
+           WHERE user_uid = ? AND is_inline = 0 AND content_sha256 = ?''',
+        (user_uid, content_sha256),
+    )
+    await db.commit()
+    return cursor.rowcount
+
+
+async def get_user_attachment_cache_usage_bytes(user_uid: str) -> int:
+    db = await get_db()
+    cursor = await db.execute(
+        '''SELECT COALESCE(SUM(objects.size), 0)
+           FROM attachment_cache_objects objects
+           JOIN (
+               SELECT DISTINCT content_sha256
+               FROM cached_attachments
+               WHERE user_uid = ? AND is_inline = 0 AND content_sha256 <> ''
+           ) refs ON refs.content_sha256 = objects.content_sha256''',
+        (user_uid,),
+    )
+    row = await cursor.fetchone()
+    return int((row or (0,))[0] or 0)
+
+
+async def get_shared_attachment_cache_usage_bytes() -> int:
+    db = await get_db()
+    cursor = await db.execute("SELECT COALESCE(SUM(size), 0) FROM attachment_cache_objects")
+    row = await cursor.fetchone()
+    return int((row or (0,))[0] or 0)
+
+
+async def list_user_attachment_cache_lru(user_uid: str) -> list[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        '''SELECT refs.content_sha256, objects.size, refs.last_accessed_at
+           FROM attachment_cache_objects objects
+           JOIN (
+               SELECT content_sha256, MAX(last_accessed_at) AS last_accessed_at
+               FROM cached_attachments
+               WHERE user_uid = ? AND is_inline = 0 AND content_sha256 <> ''
+               GROUP BY content_sha256
+           ) refs ON refs.content_sha256 = objects.content_sha256
+           ORDER BY refs.last_accessed_at ASC, refs.content_sha256 ASC''',
+        (user_uid,),
+    )
+    return [
+        {
+            "content_sha256": row[0] or "",
+            "size": int(row[1] or 0),
+            "last_accessed_at": float(row[2] or 0),
+        }
+        for row in await cursor.fetchall()
+    ]
+
+
+async def list_attachment_hashes_for_messages(
+    account_id: str,
+    folder: str = "",
+    uids: Optional[list[int]] = None,
+) -> set[str]:
+    conditions = ["account_id = ?", "content_sha256 <> ''"]
+    params: list[Any] = [account_id]
+    if folder:
+        aliases = _expand_folder_aliases(folder)
+        conditions.append(f"folder IN ({','.join('?' * len(aliases))})")
+        params.extend(aliases)
+    if uids is not None:
+        if not uids:
+            return set()
+        conditions.append(f"uid IN ({','.join('?' * len(uids))})")
+        params.extend(int(uid) for uid in uids)
+    db = await get_db()
+    cursor = await db.execute(
+        f"SELECT DISTINCT content_sha256 FROM cached_attachments WHERE {' AND '.join(conditions)}",
+        params,
+    )
+    return {str(row[0]) for row in await cursor.fetchall() if row and row[0]}
+
+
+async def list_all_cached_attachment_rows() -> list[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        '''SELECT account_id, user_uid, uid, folder, part_number, filename, content_type,
+                  size, content_id, is_inline, local_path, content_sha256,
+                  last_accessed_at, cached_at
+           FROM cached_attachments'''
+    )
+    keys = (
+        "account_id", "user_uid", "uid", "folder", "part_number", "filename",
+        "content_type", "size", "content_id", "is_inline", "local_path",
+        "content_sha256", "last_accessed_at", "cached_at",
+    )
+    result = []
+    for row in await cursor.fetchall():
+        item = dict(zip(keys, row))
+        item["is_inline"] = bool(item.get("is_inline"))
+        result.append(item)
+    return result
+
+
+async def list_all_attachment_cache_objects() -> list[dict]:
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT content_sha256, size, local_path, created_at FROM attachment_cache_objects"
+    )
+    return [
+        {
+            "content_sha256": row[0] or "",
+            "size": int(row[1] or 0),
+            "local_path": row[2] or "",
+            "created_at": float(row[3] or 0),
+        }
+        for row in await cursor.fetchall()
+    ]
+
+
+async def list_cached_attachment_local_paths() -> set[str]:
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT DISTINCT local_path FROM cached_attachments WHERE local_path <> ''"
+    )
+    return {str(row[0]) for row in await cursor.fetchall() if row and row[0]}
 
 
 async def get_cached_is_read(account_id: str, uid: int, folder: str) -> Optional[bool]:
@@ -1692,7 +2058,8 @@ async def get_cached_attachment(account_id: str, uid: int, folder: str, part_num
     placeholders = ','.join('?' * len(aliases))
     db = await get_db()
     cursor = await db.execute(
-        f'''SELECT account_id, uid, folder, part_number, filename, content_type, size, content_id, is_inline, local_path
+        f'''SELECT account_id, user_uid, uid, folder, part_number, filename, content_type, size,
+                   content_id, is_inline, local_path, content_sha256, last_accessed_at, cached_at
             FROM cached_attachments
             WHERE account_id = ? AND uid = ? AND folder IN ({placeholders}) AND part_number = ?
             LIMIT 1''',
@@ -1702,9 +2069,11 @@ async def get_cached_attachment(account_id: str, uid: int, folder: str, part_num
     if not row:
         return None
     return {
-        'account_id': row[0], 'uid': row[1], 'folder': row[2], 'part_number': row[3],
-        'filename': row[4] or '', 'content_type': row[5] or '', 'size': row[6] or 0,
-        'content_id': row[7] or '', 'is_inline': bool(row[8]), 'local_path': row[9] or '',
+        'account_id': row[0], 'user_uid': row[1] or '', 'uid': row[2], 'folder': row[3],
+        'part_number': row[4], 'filename': row[5] or '', 'content_type': row[6] or '',
+        'size': row[7] or 0, 'content_id': row[8] or '', 'is_inline': bool(row[9]),
+        'local_path': row[10] or '', 'content_sha256': row[11] or '',
+        'last_accessed_at': float(row[12] or 0), 'cached_at': float(row[13] or 0),
     }
 
 
@@ -1713,7 +2082,8 @@ async def list_cached_attachments(account_id: str, uid: int, folder: str):
     placeholders = ','.join('?' * len(aliases))
     db = await get_db()
     cursor = await db.execute(
-        f'''SELECT part_number, filename, content_type, size, content_id, is_inline, local_path
+        f'''SELECT part_number, filename, content_type, size, content_id, is_inline,
+                   local_path, content_sha256, last_accessed_at, cached_at
             FROM cached_attachments
             WHERE account_id = ? AND uid = ? AND folder IN ({placeholders})
             ORDER BY part_number ASC''',
@@ -1723,7 +2093,9 @@ async def list_cached_attachments(account_id: str, uid: int, folder: str):
     return [
         {
             'part_number': row[0], 'filename': row[1] or '', 'content_type': row[2] or '',
-            'size': row[3] or 0, 'content_id': row[4] or '', 'is_inline': bool(row[5]), 'local_path': row[6] or '',
+            'size': row[3] or 0, 'content_id': row[4] or '', 'is_inline': bool(row[5]),
+            'local_path': row[6] or '', 'content_sha256': row[7] or '',
+            'last_accessed_at': float(row[8] or 0), 'cached_at': float(row[9] or 0),
         }
         for row in rows
     ]
@@ -1984,20 +2356,35 @@ async def upsert_cached_attachments(attachments: list[CachedAttachment]) -> int:
     for att in attachments:
         cursor = await db.execute(
             '''INSERT INTO cached_attachments
-               (account_id, user_uid, uid, folder, part_number, filename, content_type, size, content_id, is_inline, local_path, cached_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (account_id, user_uid, uid, folder, part_number, filename, content_type, size,
+                content_id, is_inline, local_path, content_sha256, last_accessed_at, cached_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
+               user_uid = VALUES(user_uid),
                filename = VALUES(filename),
                content_type = VALUES(content_type),
                size = VALUES(size),
                content_id = VALUES(content_id),
                is_inline = VALUES(is_inline),
-               local_path = VALUES(local_path),
+               content_sha256 = CASE
+                   WHEN VALUES(content_sha256) <> '' THEN VALUES(content_sha256)
+                   ELSE cached_attachments.content_sha256
+               END,
+               local_path = CASE
+                   WHEN VALUES(content_sha256) <> '' THEN VALUES(local_path)
+                   ELSE cached_attachments.local_path
+               END,
+               last_accessed_at = CASE
+                   WHEN VALUES(content_sha256) <> '' THEN VALUES(last_accessed_at)
+                   ELSE cached_attachments.last_accessed_at
+               END,
                cached_at = VALUES(cached_at)''',
             (
                 att.account_id, att.user_uid, att.uid, att.folder, att.part_number,
                 att.filename or '', att.content_type or '', att.size or 0,
-                att.content_id or '', 1 if att.is_inline else 0, att.local_path or '', att.cached_at or time.time(),
+                att.content_id or '', 1 if att.is_inline else 0, att.local_path or '',
+                att.content_sha256 or '', att.last_accessed_at or 0,
+                att.cached_at or time.time(),
             ),
         )
         affected += cursor.rowcount
