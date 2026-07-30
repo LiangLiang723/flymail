@@ -1,5 +1,5 @@
 <template>
-  <div class="backup-page ui-page">
+  <PageFrame template="workspace" class="backup-page ui-page">
   <!-- 主体：账号tabs + 列表 + 详情（文件夹由侧边栏 backupStore 管理） -->
   <div class="backup-content">
   <!-- 顶部：账号切换 tabs -->
@@ -262,11 +262,12 @@
   </div>
   </div>
   </div>
-  </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import PageFrame from '../components/layout/PageFrame.vue';
 import api from '../utils/api';
 import { renderMailBody, handleMailLinkClick } from '../utils/sanitize';
 import { providerIcon } from '../utils/provider';
@@ -522,15 +523,14 @@ function downloadAttachment(att: BackupAttachment) {
 
 <style scoped>
 .backup-page {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
   background: var(--ui-canvas);
 }
 
 /* ==================== 内容区 ==================== */
 .backup-content {
-  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

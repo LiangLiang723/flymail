@@ -48,6 +48,18 @@
   overflow: hidden;
 }
 
+.mail-view > .page-frame__body,
+.compose-page > .page-frame__body,
+.backup-page > .page-frame__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.mail-view > .page-frame__body > .mail-shell {
+  flex: 1;
+  min-height: 0;
+}
+
 .page-frame__header {
   min-width: 0;
   padding: 16px 20px 12px;

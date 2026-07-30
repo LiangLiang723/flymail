@@ -1,5 +1,5 @@
 <template>
-  <div class="mail-view ui-page ui-page--edge">
+  <PageFrame template="workspace" class="mail-view ui-page ui-page--edge">
     <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>
@@ -361,7 +361,7 @@
       <NasPathPicker v-model="showAttachmentNasPicker" mode="dir" title="选择 NAS 保存目录" @confirm="saveAttachmentToSelectedNas" />
     </div>
     </div>
-  </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
@@ -381,6 +381,7 @@ import { useContacts } from '../composables/useContacts';
 import { buildForwardDraft, buildReplyDraft } from '../composables/useReplyForward';
 import { exportMailToPDF } from '../utils/export-pdf';
 import AppIcon from '../components/AppIcon.vue';
+import PageFrame from '../components/layout/PageFrame.vue';
 import NasPathPicker from '../components/NasPathPicker.vue';
 
 const mailStore = useMailStore();
@@ -1320,11 +1321,9 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
 <style scoped>
 .mail-view {
-  flex: 1;
   width: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
 }
 
 .mail-view,
@@ -1487,10 +1486,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  position: relative;
   width: 100%;
   min-width: 0;
   min-height: 0;

@@ -35,3 +35,18 @@ test('each page template owns a deterministic scroll model', async () => {
   assert.match(layout, /\.page-frame--split[^}]*overflow:\s*hidden/s);
   assert.match(layout, /\.page-frame--document[\s\S]*\.page-frame__body[^}]*overflow-y:\s*auto/s);
 });
+
+test('mail workspace pages use the workspace template', async () => {
+  for (const file of ['MailList.vue', 'ComposeEmail.vue', 'Backup.vue']) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /<PageFrame[^>]*template="workspace"/);
+  }
+});
+
+test('mail workspace roots do not declare page-level vertical scrolling', async () => {
+  for (const file of ['MailList.vue', 'ComposeEmail.vue', 'Backup.vue']) {
+    const source = await read(`src/views/${file}`);
+    const styles = [...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1]).join('\n');
+    assert.doesNotMatch(styles, /\.(mail-view|compose-page|backup-page)[^{]*\{[^}]*overflow-y:\s*auto/s);
+  }
+});

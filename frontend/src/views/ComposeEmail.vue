@@ -1,5 +1,5 @@
 <template>
-  <div class="compose-page ui-page ui-page--edge" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+  <PageFrame template="workspace" class="compose-page ui-page ui-page--edge" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
     <!-- 拖拽上传遮罩 -->
     <div v-if="isDragging" class="drop-overlay">
       <div class="drop-hint">
@@ -341,7 +341,7 @@
         <span>{{ toast.message }}</span>
       </div>
     </Transition>
-  </div>
+  </PageFrame>
 </template>
 
 <script setup lang="ts">
@@ -349,6 +349,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import api from '../utils/api';
 import { useMailStore } from '../stores/mail';
 import NasPathPicker from '../components/NasPathPicker.vue';
+import PageFrame from '../components/layout/PageFrame.vue';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { useContactAutocomplete } from '../composables/useContactAutocomplete';
 import type { ContactSuggestion } from '../composables/useContacts';
@@ -1004,11 +1005,7 @@ function formatSize(bytes: number): string {
 
 <style scoped>
 .compose-page {
-  flex: 1;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
   min-height: 0;
   min-width: 0;
   position: relative;
