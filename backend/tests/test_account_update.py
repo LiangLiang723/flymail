@@ -27,8 +27,13 @@ def _load_accounts_route_module():
 
     fastapi_stub.APIRouter = _Router
     fastapi_stub.Body = lambda *args, **kwargs: None
+    fastapi_stub.File = lambda *args, **kwargs: None
     fastapi_stub.Path = lambda *args, **kwargs: None
     fastapi_stub.Request = object
+    fastapi_stub.UploadFile = object
+
+    fastapi_responses_stub = types.ModuleType("fastapi.responses")
+    fastapi_responses_stub.FileResponse = object
 
     errors_stub = types.ModuleType("errors")
     errors_stub.AppError = Exception
@@ -41,6 +46,7 @@ def _load_accounts_route_module():
         "deactivate_account",
         "list_history_sync_jobs",
         "update_account_info",
+        "update_account_icon",
     ):
         setattr(db_stub, name, AsyncMock())
 
@@ -65,6 +71,22 @@ def _load_accounts_route_module():
         "_extract_oauth_uid_from_state",
     ):
         setattr(auth_stub, name, object())
+
+    account_icons_stub = types.ModuleType("services.account_icons")
+    account_icons_stub.ACCOUNT_ICON_PRESET_IDS = frozenset({"work"})
+    account_icons_stub.MAX_ACCOUNT_ICON_BYTES = 10 * 1024 * 1024
+    account_icons_stub.commit_staged_account_icon = Mock()
+    account_icons_stub.delete_account_icon = Mock()
+    account_icons_stub.resolve_account_icon = Mock(return_value=None)
+    account_icons_stub.rollback_staged_account_icon = Mock()
+    account_icons_stub.stage_account_icon = Mock()
+
+    account_presenter_stub = types.ModuleType("services.account_presenter")
+    account_presenter_stub.account_icon_fields = lambda _account: {
+        "icon_type": "default",
+        "icon_value": "",
+        "icon_url": "",
+    }
 
     history_sync_stub = types.ModuleType("services.history_sync")
     for name in ("schedule_history_sync", "start_clear_cache", "start_delete_account"):
@@ -103,6 +125,8 @@ def _load_accounts_route_module():
         "AccountListResponse",
         "AccountTestResponse",
         "AccountUpdateRequest",
+        "AccountIconPresetRequest",
+        "AccountIconResponse",
         "AuthCodeAccountRequest",
         "CustomAccountRequest",
         "AuthUrlRequest",
@@ -114,6 +138,7 @@ def _load_accounts_route_module():
 
     modules = {
         "fastapi": fastapi_stub,
+        "fastapi.responses": fastapi_responses_stub,
         "errors": errors_stub,
         "db": db_stub,
         "deps": deps_stub,
@@ -121,6 +146,8 @@ def _load_accounts_route_module():
         "providers.base": providers_base_stub,
         "providers.factory": factory_stub,
         "routes.auth": auth_stub,
+        "services.account_icons": account_icons_stub,
+        "services.account_presenter": account_presenter_stub,
         "services.history_sync": history_sync_stub,
         "services.mail_cache": mail_cache_stub,
         "services.settings": app_settings_stub,

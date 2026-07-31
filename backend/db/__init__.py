@@ -417,6 +417,8 @@ async def init_db():
                 hide_email INTEGER DEFAULT 0,
                 sort_order INTEGER DEFAULT 0,
                 poll_interval_seconds INTEGER DEFAULT 10,
+                icon_type VARCHAR(32) NOT NULL DEFAULT 'default',
+                icon_value VARCHAR(255) NOT NULL DEFAULT '',
                 created_at REAL DEFAULT 0,
                 updated_at REAL DEFAULT 0
             )
@@ -625,6 +627,16 @@ async def init_db():
         await db.execute("ALTER TABLE accounts ADD COLUMN poll_interval_seconds INTEGER DEFAULT 10")
     except Exception as e:
         logger.debug("migration add accounts.poll_interval_seconds ignored: %s", e)
+    for column, declaration in (
+        ("icon_type", "VARCHAR(32) NOT NULL DEFAULT 'default'"),
+        ("icon_value", "VARCHAR(255) NOT NULL DEFAULT ''"),
+    ):
+        try:
+            await db.execute(f"ALTER TABLE accounts ADD COLUMN {column} {declaration}")
+        except Exception as e:
+            logger.debug("migration add accounts.%s ignored: %s", column, e)
+    await db.execute("UPDATE accounts SET icon_type = 'default' WHERE icon_type IS NULL OR icon_type = ''")
+    await db.execute("UPDATE accounts SET icon_value = '' WHERE icon_value IS NULL")
 
     try:
         await db.execute("ALTER TABLE cached_messages ADD COLUMN has_attachments INTEGER DEFAULT 0")
@@ -1534,6 +1546,23 @@ async def update_account_info(
            SET remark = ?, group_name = ?, hide_email = ?, poll_interval_seconds = ?, updated_at = ?
            WHERE id = ? AND user_uid = ?''',
         (remark, group_name, 1 if hide_email else 0, interval, time.time(), account_id, user_uid),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def update_account_icon(
+    account_id: str,
+    user_uid: str,
+    icon_type: str,
+    icon_value: str = '',
+) -> bool:
+    db = await get_db()
+    cursor = await db.execute(
+        '''UPDATE accounts
+           SET icon_type = ?, icon_value = ?, updated_at = ?
+           WHERE id = ? AND user_uid = ?''',
+        (icon_type, icon_value, time.time(), account_id, user_uid),
     )
     await db.commit()
     return cursor.rowcount > 0

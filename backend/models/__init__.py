@@ -27,6 +27,8 @@ class Account(BaseModel):
     hide_email: bool = False
     sort_order: int = 0
     poll_interval_seconds: int = 10
+    icon_type: str = "default"
+    icon_value: str = ""
     created_at: float = 0.0
     updated_at: float = 0.0
 

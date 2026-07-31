@@ -120,6 +120,9 @@ class AccountInfo(BaseModel):
     hide_email: bool = Field(description="是否隐藏邮箱地址")
     sort_order: int = Field(default=0, description="排序序号")
     poll_interval_seconds: int = Field(default=10, description="新邮件后台轮询间隔（秒）")
+    icon_type: str = Field(default="default", description="账号图标模式")
+    icon_value: str = Field(default="", description="内置图标 ID")
+    icon_url: str = Field(default="", description="上传图标的受保护地址")
     created_at: float = Field(description="创建时间戳")
 
 
@@ -143,6 +146,17 @@ class AccountUpdateRequest(BaseModel):
     group_name: str = Field(default="", description="分组名称")
     hide_email: bool = Field(default=False, description="是否隐藏邮箱地址")
     poll_interval_seconds: int = Field(default=10, ge=5, le=3600, description="新邮件后台轮询间隔（秒）")
+
+
+class AccountIconPresetRequest(BaseModel):
+    preset_id: str = Field(min_length=1, max_length=64, description="内置图标 ID")
+
+
+class AccountIconResponse(BaseModel):
+    success: bool = Field(default=True, description="是否成功")
+    icon_type: str = Field(description="账号图标模式")
+    icon_value: str = Field(default="", description="内置图标 ID")
+    icon_url: str = Field(default="", description="上传图标的受保护地址")
 
 
 class StatusResponse(BaseModel):

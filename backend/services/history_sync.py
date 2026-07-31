@@ -37,6 +37,7 @@ from db import (
 )
 from models import CachedAttachment, CachedMessage
 from providers.factory import ProviderFactory
+from services.account_icons import delete_account_icon
 from services.attachment_cache import (
     batch_delete_cached_messages_and_release,
     cache_attachment_bytes,
@@ -513,7 +514,9 @@ async def run_delete_account(account_id: str) -> None:
         clear_account_storage(account.id, account.email)
 
         await delete_history_sync_jobs_by_account(account.id, keep_job_id=job_id)
-        await delete_account(account.id, account.user_uid)
+        deleted = await delete_account(account.id, account.user_uid)
+        if deleted:
+            delete_account_icon(account.user_uid, account.id)
         await update_history_sync_job(
             job_id,
             status="completed",

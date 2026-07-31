@@ -8,7 +8,8 @@ import ssl
 import time
 import uuid
 
-from fastapi import APIRouter, Request, Body, Path as FastAPIPath
+from fastapi import APIRouter, Request, Body, File, UploadFile, Path as FastAPIPath
+from fastapi.responses import FileResponse
 
 from errors import AppError
 
@@ -19,11 +20,22 @@ from db import (
     deactivate_account,
     list_history_sync_jobs,
     update_account_info,
+    update_account_icon,
 )
 from deps import get_uid
 from models import Account
 from providers.base import Credentials
 from providers.factory import ProviderFactory
+from services.account_icons import (
+    ACCOUNT_ICON_PRESET_IDS,
+    MAX_ACCOUNT_ICON_BYTES,
+    commit_staged_account_icon,
+    delete_account_icon,
+    resolve_account_icon,
+    rollback_staged_account_icon,
+    stage_account_icon,
+)
+from services.account_presenter import account_icon_fields
 from services.history_sync import schedule_history_sync, start_clear_cache, start_delete_account
 from services.mail_cache import initial_sync
 from services.settings import async_load_settings, async_save_settings
@@ -36,6 +48,8 @@ from schemas import (
     AccountListResponse,
     AccountTestResponse,
     AccountUpdateRequest,
+    AccountIconPresetRequest,
+    AccountIconResponse,
     AuthCodeAccountRequest,
     CustomAccountRequest,
     AuthUrlRequest,
@@ -228,6 +242,13 @@ from routes.auth import (
 # ==================== 账号管理接口 ====================
 
 
+def _owned_account(accounts: list[Account], account_id: str) -> Account:
+    account = next((item for item in accounts if item.id == account_id), None)
+    if not account:
+        raise AppError(404, "Account not found")
+    return account
+
+
 @router.get("", response_model=AccountListResponse, summary="获取所有邮箱账号")
 async def list_accounts(request: Request):
     """获取当前飞牛用户下所有已绑定的邮箱账号列表"""
@@ -247,8 +268,92 @@ async def list_accounts(request: Request):
             "poll_interval_seconds": acc.poll_interval_seconds,
             "created_at": acc.created_at,
             "reauth_needed": acc.id in sync_service.reauth_account_ids,
+            **account_icon_fields(acc),
         })
     return {"accounts": safe_accounts}
+
+
+def _icon_response(account: Account) -> dict:
+    return {"success": True, **account_icon_fields(account)}
+
+
+@router.put("/{account_id}/icon/preset", response_model=AccountIconResponse, summary="选择账号内置图标")
+async def set_account_icon_preset(
+    account_id: str,
+    request: Request,
+    body: AccountIconPresetRequest,
+):
+    uid = await get_uid(request)
+    account = _owned_account(await get_accounts(uid), account_id)
+    preset_id = body.preset_id.strip()
+    if preset_id not in ACCOUNT_ICON_PRESET_IDS:
+        raise AppError(400, "内置图标不存在")
+    if not await update_account_icon(account.id, uid, "preset", preset_id):
+        raise AppError(404, "Account not found")
+    delete_account_icon(uid, account.id)
+    account.icon_type = "preset"
+    account.icon_value = preset_id
+    account.updated_at = time.time()
+    return _icon_response(account)
+
+
+@router.post("/{account_id}/icon/upload", response_model=AccountIconResponse, summary="上传账号图标")
+async def upload_account_icon(
+    account_id: str,
+    request: Request,
+    icon: UploadFile = File(...),
+):
+    uid = await get_uid(request)
+    account = _owned_account(await get_accounts(uid), account_id)
+    data = await icon.read(MAX_ACCOUNT_ICON_BYTES + 1)
+    try:
+        staged = stage_account_icon(uid, account.id, data)
+    except ValueError as exc:
+        raise AppError(400, str(exc)) from exc
+
+    previous_type = account.icon_type
+    previous_value = account.icon_value
+    if not await update_account_icon(account.id, uid, "upload", ""):
+        rollback_staged_account_icon(staged)
+        raise AppError(404, "Account not found")
+    try:
+        commit_staged_account_icon(staged)
+    except Exception as exc:
+        rollback_staged_account_icon(staged)
+        await update_account_icon(account.id, uid, previous_type, previous_value)
+        raise AppError(500, "保存图标失败，请重试") from exc
+
+    account.icon_type = "upload"
+    account.icon_value = ""
+    account.updated_at = time.time()
+    return _icon_response(account)
+
+
+@router.delete("/{account_id}/icon", response_model=AccountIconResponse, summary="恢复账号默认图标")
+async def reset_account_icon(account_id: str, request: Request):
+    uid = await get_uid(request)
+    account = _owned_account(await get_accounts(uid), account_id)
+    if not await update_account_icon(account.id, uid, "default", ""):
+        raise AppError(404, "Account not found")
+    delete_account_icon(uid, account.id)
+    account.icon_type = "default"
+    account.icon_value = ""
+    account.updated_at = time.time()
+    return _icon_response(account)
+
+
+@router.get("/{account_id}/icon", summary="读取账号上传图标")
+async def get_account_icon(account_id: str, request: Request):
+    uid = await get_uid(request)
+    account = _owned_account(await get_accounts(uid), account_id)
+    icon_path = resolve_account_icon(uid, account.id)
+    if account.icon_type != "upload" or not icon_path or not icon_path.is_file():
+        raise AppError(404, "图标不存在")
+    return FileResponse(
+        icon_path,
+        media_type="image/webp",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @router.get("/delete-jobs", summary="获取账号删除任务")
