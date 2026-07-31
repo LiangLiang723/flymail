@@ -20,6 +20,8 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 - 缓存邮件正文和内嵌图片；多张 CID 正文图片会分别缓存和显示，不会混入附件列表；旧版因 base64 正文截断而缺图的缓存邮件会在账号在线时于下次打开自动重新拉取；普通附件首次点击时按需下载并缓存
 - 本机临时附件与 NAS 授权目录附件双通道，支持附件保存到 NAS
 - 邮件正文图片支持点击放大、滚轮/按钮缩放、键盘切换，以及移动端双指缩放、拖动和左右滑动切换同一封邮件中的图片
+- HTML 邮件正文会分别针对浅色和深色阅读背景计算文字对比度，普通文字统一保障不低于 WCAG `4.5:1`；转换只作用于安全渲染结果，不修改原始邮件、回复、转发或 PDF 内容，也不会反转图片和品牌 Logo
+- 每个邮箱账号可使用服务商默认图标、FlyMail 内置图标或用户上传图片；上传时提供一致的正方形裁剪界面，最终由前后端共同规范化为 `256 × 256 WebP`，并在账号管理、邮件管理、移动侧栏、备份和聚合收件箱中统一显示
 - 邮件导出 PDF、PWA 安装壳和移动端适配
 - 统一语义化设计系统覆盖浅色和深色主题，按钮、输入框、卡片、徽标、分段控件、弹窗、状态提示与页面层级复用同一套组件和视觉规范；危险操作、附件操作、编辑器弹层、禁用态和移动端图标按钮均经过双主题全页面审计
 - 登录后的全部一级页面使用明确的页面模板和宽度模式：邮件管理、聚合收件箱、联系人、账号管理、同步管理、用户管理、写信和邮件备份采用流体工作台，充分利用 1440px、1920px 和超宽屏可用空间；设置、个人资料和第三方通知采用左对齐的 1120px 表单列，关于页采用 960px 阅读列；所有页面共享统一页边距、圆角面板、加载态和空状态，移动工作区保持边到边适配
@@ -85,7 +87,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.23` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.24` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -128,7 +130,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.23 .
+docker build -t benxianyu/flymail:0.0.24 .
 ```
 
 登录 Docker Hub：
@@ -140,7 +142,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.23
+docker push benxianyu/flymail:0.0.24
 ```
 
 ## 数据存储
@@ -166,6 +168,7 @@ docker push benxianyu/flymail:0.0.23
 - `/data/flymail/config/`: 应用配置、通知设置及运行时密钥文件
 - `/data/flymail/files/uploads/`: 写信时上传的临时附件，默认每周一 02:00 自动清理
 - `/data/flymail/files/avatars/`: 用户头像，统一裁剪并保存为 256 × 256 WebP
+- `/data/flymail/files/account-icons/`: 自定义邮箱账号图标，按用户和账号隔离保存为 256 × 256 WebP
 - `/data/flymail/files/objects/sha256/`: 普通附件与内嵌图片的 SHA-256 共享对象
 - `/data/flymail/files/download/`: 仅用于升级迁移的旧版附件目录；迁移完成后不会继续写入
 - `/data/flymail/logs/`: 运行日志
