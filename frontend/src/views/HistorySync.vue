@@ -1,16 +1,35 @@
 <template>
-  <PageFrame template="management" class="history-sync-page ui-page">
+  <PageFrame template="management" width="fluid" class="history-sync-page ui-page">
     <template #header>
       <PageHeader title="同步管理" description="查看每个邮箱的同步进度，支持暂停、继续、刷新、清空和失败重试。">
         <template #actions>
-          <button class="btn btn-secondary" :disabled="manualRefreshing" @click="loadJobs({ showError: true, manual: true })">
-            {{ manualRefreshing ? '刷新中...' : '刷新进度' }}
-          </button>
+          <UiButton variant="secondary" :loading="manualRefreshing" @click="loadJobs({ showError: true, manual: true })">
+            刷新进度
+          </UiButton>
         </template>
       </PageHeader>
     </template>
 
     <div class="management-stack history-sync-stack">
+
+    <div v-if="jobs.length" class="sync-summary-grid ui-stat-grid">
+      <div class="ui-stat">
+        <strong class="ui-stat__value">{{ jobs.length }}</strong>
+        <span class="ui-stat__label">邮箱任务</span>
+      </div>
+      <div class="ui-stat">
+        <strong class="ui-stat__value">{{ activeJobCount }}</strong>
+        <span class="ui-stat__label">正在执行</span>
+      </div>
+      <div class="ui-stat">
+        <strong class="ui-stat__value">{{ failedJobCount }}</strong>
+        <span class="ui-stat__label">需要处理</span>
+      </div>
+      <div class="ui-stat">
+        <strong class="ui-stat__value">{{ cachedMessageTotal }}</strong>
+        <span class="ui-stat__label">本地邮件摘要</span>
+      </div>
+    </div>
 
     <UiLoadingState
       v-if="initialLoading && jobs.length === 0"
@@ -31,13 +50,13 @@
       </template>
     </UiEmptyState>
 
-    <div v-else class="job-list">
+    <div v-else class="job-list sync-card-grid">
       <section v-for="item in jobs" :key="item.account_id" class="job-card">
         <div class="job-header">
           <div>
             <div class="job-title-row">
               <h3 class="job-title">{{ accountDisplayName(item) }}</h3>
-              <span class="status-badge" :class="statusClass(item.status)">{{ statusText(item.status) }}</span>
+              <UiBadge :tone="statusTone(item.status)">{{ statusText(item.status) }}</UiBadge>
             </div>
             <p class="job-provider">{{ providerName(item.provider) }}</p>
           </div>
@@ -91,9 +110,11 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiBadge from '../components/ui/UiBadge.vue';
+import UiButton from '../components/ui/UiButton.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import { useWebSocket } from '../composables/useWebSocket';
@@ -146,6 +167,9 @@ const ui = useUIStore();
 const jobs = ref<HistorySyncItem[]>([]);
 const initialLoading = ref(false);
 const manualRefreshing = ref(false);
+const activeJobCount = computed(() => jobs.value.filter((item) => ['pending', 'running', 'paused'].includes(item.status)).length);
+const failedJobCount = computed(() => jobs.value.filter((item) => item.status === 'failed').length);
+const cachedMessageTotal = computed(() => jobs.value.reduce((total, item) => total + syncedMessageCount(item), 0));
 let pollTimer: number | null = null;
 let wsRefreshTimer: number | null = null;
 
@@ -312,8 +336,12 @@ function canRetry(status: string) {
   return status === 'failed';
 }
 
-function statusClass(status: string) {
-  return `status-${status || 'idle'}`;
+function statusTone(status: string): 'neutral' | 'accent' | 'success' | 'warning' | 'danger' {
+  if (status === 'completed') return 'success';
+  if (status === 'failed') return 'danger';
+  if (status === 'paused') return 'warning';
+  if (status === 'pending' || status === 'running') return 'accent';
+  return 'neutral';
 }
 
 function statusText(status: string, jobType = 'history_sync') {
@@ -417,17 +445,23 @@ onBeforeUnmount(() => {
   font-size: 15px;
 }
 
-.job-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+.sync-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.job-list,
+.sync-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: var(--ui-space-4);
 }
 
 .job-card {
+  min-width: 0;
   background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  padding: var(--space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  padding: var(--ui-space-4);
   box-shadow: var(--shadow-sm);
 }
 
@@ -577,13 +611,17 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1080px) {
+  .sync-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .progress-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 720px) {
   .page-header,
   .job-header { flex-direction: column; }
-  .job-actions { width: 100%; justify-content: flex-start; }
+  .sync-summary-grid,
+  .job-list,
+  .sync-card-grid,
   .progress-grid { grid-template-columns: 1fr; }
+  .job-actions { width: 100%; justify-content: flex-start; }
 }
 </style>

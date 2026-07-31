@@ -28,6 +28,20 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
 
+test('management consoles use fluid responsive product layouts', async () => {
+  const contracts = {
+    'AccountList.vue': ['account-card-grid', 'UiSegmentedControl', 'UiBadge'],
+    'HistorySync.vue': ['sync-summary-grid', 'sync-card-grid', 'UiBadge'],
+    'UserManagement.vue': ['user-list', 'UiField', 'UiBadge'],
+  };
+
+  for (const [file, required] of Object.entries(contracts)) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /<PageFrame[^>]*width="fluid"/);
+    for (const value of required) assert.match(source, new RegExp(value));
+  }
+});
+
 test('unified inbox is a fluid workspace built from shared sections', async () => {
   const source = await read('src/views/UnifiedInbox.vue');
 

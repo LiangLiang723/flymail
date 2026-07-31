@@ -1,10 +1,10 @@
 <template>
-  <PageFrame template="management" class="user-page ui-page">
+  <PageFrame template="management" width="fluid" class="user-page ui-page">
     <template #header>
       <PageHeader title="用户管理" description="管理员可创建普通用户、重置密码、启用或禁用账号。">
         <template #actions>
-          <button class="btn btn-primary" @click="openCreateModal">新增用户</button>
-          <button class="btn btn-secondary" @click="loadUsers">刷新</button>
+          <UiButton variant="primary" @click="openCreateModal">新增用户</UiButton>
+          <UiButton variant="secondary" @click="loadUsers">刷新</UiButton>
         </template>
       </PageHeader>
     </template>
@@ -12,23 +12,26 @@
     <template #toolbar>
       <PageToolbar>
         <div class="filters">
-          <input v-model="filters.keyword" placeholder="筛选用户名" />
-          <select v-model="filters.role">
+          <UiField class="filter-keyword" for-id="user-filter-keyword">
+            <input id="user-filter-keyword" v-model="filters.keyword" class="ui-input" placeholder="筛选用户名" aria-label="筛选用户名" />
+          </UiField>
+          <select v-model="filters.role" class="ui-select" aria-label="筛选角色">
             <option value="">全部角色</option>
             <option value="admin">管理员</option>
             <option value="user">普通用户</option>
           </select>
-          <select v-model="filters.status">
+          <select v-model="filters.status" class="ui-select" aria-label="筛选状态">
             <option value="">全部状态</option>
             <option value="active">启用</option>
             <option value="disabled">禁用</option>
           </select>
+          <UiBadge size="md">{{ filteredUsers.length }} / {{ users.length }}</UiBadge>
         </div>
       </PageToolbar>
     </template>
 
     <div class="management-stack user-stack">
-    <div class="user-table-wrap">
+    <div class="user-table-wrap user-list">
       <table class="user-table">
         <thead>
           <tr>
@@ -43,18 +46,18 @@
         </thead>
         <tbody>
           <tr v-for="user in filteredUsers" :key="user.id">
-            <td>
+            <td data-label="头像">
               <span class="table-avatar">
                 <img v-if="user.avatar_url" :src="user.avatar_url" alt="" />
                 <span v-else>{{ userInitial(user) }}</span>
               </span>
             </td>
-            <td>{{ user.username }}</td>
-            <td>{{ user.nickname || '—' }}</td>
-            <td>{{ roleText(user.role) }}</td>
-            <td>{{ statusText(user.status) }}</td>
-            <td>{{ formatTime(user.created_at) }}</td>
-            <td class="actions">
+            <td data-label="用户名">{{ user.username }}</td>
+            <td data-label="昵称">{{ user.nickname || '—' }}</td>
+            <td data-label="角色"><UiBadge :tone="roleTone(user.role)">{{ roleText(user.role) }}</UiBadge></td>
+            <td data-label="状态"><UiBadge :tone="statusTone(user.status)">{{ statusText(user.status) }}</UiBadge></td>
+            <td data-label="创建时间">{{ formatTime(user.created_at) }}</td>
+            <td class="actions" data-label="操作">
               <button class="btn btn-secondary" @click="openEditModal(user)">编辑资料</button>
               <button class="btn btn-secondary" @click="promptReset(user.id)">重置密码</button>
               <button class="btn btn-secondary" @click="toggleStatus(user.id)">
@@ -159,6 +162,9 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
 import PageToolbar from '../components/layout/PageToolbar.vue';
+import UiBadge from '../components/ui/UiBadge.vue';
+import UiButton from '../components/ui/UiButton.vue';
+import UiField from '../components/ui/UiField.vue';
 import api from '../utils/api';
 
 const users = ref<any[]>([]);
@@ -331,8 +337,16 @@ function roleText(role: string) {
   return role === 'admin' ? '管理员' : '普通用户';
 }
 
+function roleTone(role: string): 'neutral' | 'accent' {
+  return role === 'admin' ? 'accent' : 'neutral';
+}
+
 function statusText(status: string) {
   return status === 'disabled' ? '禁用' : '启用';
+}
+
+function statusTone(status: string): 'success' | 'warning' {
+  return status === 'disabled' ? 'warning' : 'success';
 }
 
 function formatTime(timestamp: number) {
@@ -379,7 +393,8 @@ onMounted(loadUsers);
 }
 
 .filters {
-  grid-template-columns: 1.2fr 180px 180px;
+  grid-template-columns: minmax(220px, 1fr) 180px 180px auto;
+  align-items: center;
 }
 
 .filters input,
@@ -494,10 +509,13 @@ onMounted(loadUsers);
   line-height: 1;
 }
 
-.user-table-wrap {
+.user-table-wrap,
+.user-list {
   overflow-x: auto;
-  border-radius: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
   background: var(--bg-primary);
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .user-table {
@@ -576,7 +594,69 @@ onMounted(loadUsers);
   }
 
   .filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-keyword {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .filters {
     grid-template-columns: 1fr;
+  }
+
+  .filter-keyword {
+    grid-column: auto;
+  }
+
+  .user-table-wrap,
+  .user-list {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .user-table,
+  .user-table tbody {
+    min-width: 0;
+    display: grid;
+    gap: var(--ui-space-3);
+    background: transparent;
+  }
+
+  .user-table thead {
+    display: none;
+  }
+
+  .user-table tr {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: var(--ui-space-3);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface-1);
+  }
+
+  .user-table td {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--ui-space-3);
+    padding: var(--ui-space-2) 0;
+    border: 0;
+  }
+
+  .user-table td::before {
+    content: attr(data-label);
+    color: var(--ui-text-3);
+    font-size: var(--ui-text-xs);
+  }
+
+  .user-table td.actions {
+    align-items: stretch;
   }
 }
 </style>

@@ -1,23 +1,28 @@
 <template>
-  <PageFrame template="management" class="account-page ui-page">
+  <PageFrame template="management" width="fluid" class="account-page ui-page">
     <template #header>
       <PageHeader title="账号管理" description="添加、分组和维护用于收发邮件的邮箱账号。" />
     </template>
     <template #toolbar>
       <PageToolbar>
         <template #start>
-          <div class="sort-toggle">
-            <button class="toggle-btn" :class="{ active: sortBy === 'group' }" @click="sortBy = 'group'">按分组</button>
-            <button class="toggle-btn" :class="{ active: sortBy === 'platform' }" @click="sortBy = 'platform'">按平台</button>
-          </div>
+          <UiSegmentedControl
+            :model-value="sortBy"
+            :options="sortOptions"
+            label="账号分组方式"
+            @update:model-value="setSortBy"
+          />
+          <UiBadge size="md">{{ mailStore.accounts.length }} 个账号</UiBadge>
         </template>
         <template #end>
-          <button class="btn btn-primary" type="button" @click="showAddDialog = true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
+          <UiButton variant="primary" @click="showAddDialog = true">
+            <template #leading>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </template>
             添加账号
-          </button>
+          </UiButton>
         </template>
       </PageToolbar>
     </template>
@@ -39,7 +44,7 @@
           <path d="M22 4L12 13L2 4"/>
         </svg>
       </template>
-      <button class="btn btn-primary" type="button" @click="showAddDialog = true">添加账号</button>
+      <UiButton variant="primary" @click="showAddDialog = true">添加账号</UiButton>
     </UiEmptyState>
 
     <!-- 账号列表 -->
@@ -60,10 +65,10 @@
         <div class="section-header">
           <span class="section-icon" v-html="section.icon"></span>
           <h3 class="section-title">{{ section.title }}</h3>
-          <span class="section-count">{{ section.accounts.length }}</span>
+          <UiBadge>{{ section.accounts.length }}</UiBadge>
         </div>
         <!-- 账号卡片 -->
-        <div class="account-list">
+        <div class="account-list account-card-grid">
           <div v-for="account in section.accounts" :key="account.id" class="account-card" @click="openEditDialog(account)">
             <!-- 平台图标头像 -->
             <div class="account-avatar" :class="account.provider" v-html="providerIcon(account.provider)"></div>
@@ -79,10 +84,7 @@
               <div class="info-meta">
                 <span class="meta-provider">{{ providerName(account.provider) }}</span>
                 <span class="meta-sep">·</span>
-                <div class="account-status" :class="account.status">
-                  <span class="status-dot"></span>
-                  {{ statusText(account.status) }}
-                </div>
+                <UiBadge :tone="statusTone(account.status)">{{ statusText(account.status) }}</UiBadge>
               </div>
             </div>
             <!-- 操作按钮 -->
@@ -342,8 +344,11 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
 import PageToolbar from '../components/layout/PageToolbar.vue';
+import UiBadge from '../components/ui/UiBadge.vue';
+import UiButton from '../components/ui/UiButton.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
+import UiSegmentedControl from '../components/ui/UiSegmentedControl.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 import { useMailStore } from '../stores/mail';
@@ -377,6 +382,21 @@ const { connect: connectWs } = useWebSocket(handleWsMessage);
 // 使用 store 中的账号列表，不再维护本地副本
 const loading = ref(true);
 const sortBy = ref<'group' | 'platform'>('platform');
+const sortOptions = [
+  { value: 'group', label: '按分组' },
+  { value: 'platform', label: '按平台' },
+];
+
+function setSortBy(value: string) {
+  if (value === 'group' || value === 'platform') sortBy.value = value;
+}
+
+function statusTone(status: string): 'neutral' | 'accent' | 'success' | 'warning' | 'danger' {
+  if (status === 'connected') return 'success';
+  if (status === 'offline') return 'accent';
+  if (status === 'error') return 'danger';
+  return 'neutral';
+}
 const showAddDialog = ref(false);
 const showQQDialog = ref(false);
 const showNeteaseDialog = ref(false);
@@ -1089,20 +1109,24 @@ async function reconnectAccount(account: any) {
 }
 
 /* ==================== 账号列表 ==================== */
-.account-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.account-list,
+.account-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--ui-space-3);
 }
 
 /* 账号卡片 */
 .account-card {
+  min-width: 0;
+  min-height: 88px;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
   background: var(--bg-card);
-  border-radius: var(--border-radius-lg);
+  border-radius: var(--ui-radius-lg);
   box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: all 0.2s ease;
