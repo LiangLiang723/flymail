@@ -131,9 +131,9 @@ test('high-density layout measurements are centralized as semantic tokens', asyn
   const layout = await readSource('src/styles/layout-system.css');
 
   for (const declaration of [
-    '--page-padding: 20px',
-    '--page-padding-compact: 16px',
-    '--page-gap: 12px',
+    '--page-gutter: 24px',
+    '--page-gutter-compact: 16px',
+    '--page-section-gap: 16px',
     '--panel-padding: 16px',
     '--control-height-md: 36px',
     '--toolbar-height: 48px',
@@ -141,8 +141,8 @@ test('high-density layout measurements are centralized as semantic tokens', asyn
   ]) {
     assert.match(tokens, new RegExp(declaration.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
-  assert.match(layout, /padding:\s*var\(--page-padding\)/);
-  assert.match(layout, /gap:\s*var\(--page-gap\)/);
+  assert.match(layout, /padding:\s*var\(--page-gutter\)/);
+  assert.match(layout, /gap:\s*var\(--page-section-gap\)/);
   assert.match(layout, /min-height:\s*var\(--toolbar-height\)/);
   assert.match(layout, /scrollbar-gutter:\s*stable/);
 });
@@ -158,6 +158,16 @@ test('layout primitives expose the four approved page templates', async () => {
   assert.match(layout, /\.page-frame--split/);
   assert.match(layout, /\.page-frame--document/);
   assert.match(empty, /ui-empty-state/);
+});
+
+test('page width tokens distinguish fluid workspaces from bounded forms', async () => {
+  const tokens = await readSource('src/styles/tokens.css');
+
+  assert.match(tokens, /--page-gutter:\s*24px/);
+  assert.match(tokens, /--page-gutter-compact:\s*16px/);
+  assert.match(tokens, /--page-form-max:\s*1120px/);
+  assert.match(tokens, /--page-reading-max:\s*960px/);
+  assert.doesNotMatch(tokens, /--page-content-max:\s*1280px/);
 });
 
 test('main stylesheet order establishes tokens before compatibility styles', async () => {

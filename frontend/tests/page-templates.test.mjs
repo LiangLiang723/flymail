@@ -100,31 +100,29 @@ test('settings documents use the document template and shared header', async () 
 test('desktop page templates share one outer content gutter', async () => {
   const layout = await read('src/styles/layout-system.css');
 
-  assert.match(layout, /\.page-frame--workspace > \.page-frame__body,[\s\S]*\.page-frame--split > \.page-frame__body\s*\{[^}]*margin:\s*var\(--page-padding\)/s);
-  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--workspace > \.page-frame__body,[\s\S]*\.page-frame--split > \.page-frame__body\s*\{[^}]*margin:\s*0/s);
-  assert.match(layout, /\.page-frame__header\s*\{[^}]*padding:\s*var\(--page-padding\) var\(--page-padding\) var\(--page-gap\)/s);
+  assert.match(layout, /\.page-frame\s*\{[^}]*padding:\s*var\(--page-gutter\)/s);
+  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--workspace,[\s\S]*\.page-frame--split\s*\{[^}]*padding:\s*0/s);
+  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--management,[\s\S]*\.page-frame--document\s*\{[^}]*padding:\s*var\(--page-gutter-compact\)/s);
 });
 
-test('bounded page columns stay pinned to the shared left gutter', async () => {
-  const tokens = await read('src/styles/tokens.css');
+test('page frames expose explicit fluid form and reading widths', async () => {
+  const frame = await read('src/components/layout/PageFrame.vue');
   const layout = await read('src/styles/layout-system.css');
 
-  assert.match(tokens, /--page-content-max:\s*1280px/);
-  assert.match(tokens, /--page-document-max:\s*960px/);
-  assert.match(layout, /\.page-frame--management \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-content-max\)\);[^}]*margin-inline:\s*0 auto/s);
-  assert.match(layout, /\.page-frame--document \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-document-max\)\);[^}]*margin-inline:\s*0 auto/s);
-  assert.match(layout, /\.document-column\s*\{[^}]*margin-inline:\s*0 auto/s);
-  assert.match(layout, /\.management-stack\s*\{[^}]*max-width:\s*var\(--page-content-max\);[^}]*margin-inline:\s*0 auto/s);
-  assert.match(layout, /\.page-frame--management \.page-frame__toolbar\s*\{[^}]*width:\s*min\([^;]*var\(--page-content-max\)[^;]*\);[^}]*margin:\s*0 auto var\(--page-gap\) var\(--page-padding\);[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-md\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
-  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--management \.page-frame__toolbar\s*\{[^}]*margin-left:\s*var\(--page-padding-compact\)/s);
-  assert.doesNotMatch(layout, /(?:page-frame--management|page-frame--document|document-column|management-stack)[^{]*\{[^}]*margin-inline:\s*auto\s*;/s);
+  assert.match(frame, /type PageWidth = 'fluid' \| 'form' \| 'reading'/);
+  assert.match(frame, /width\?: PageWidth/);
+  assert.match(frame, /page-frame__shell/);
+  assert.match(layout, /\.page-frame--width-fluid\s*\{[^}]*--page-frame-max:\s*none/s);
+  assert.match(layout, /\.page-frame--width-form\s*\{[^}]*--page-frame-max:\s*var\(--page-form-max\)/s);
+  assert.match(layout, /\.page-frame--width-reading\s*\{[^}]*--page-frame-max:\s*var\(--page-reading-max\)/s);
+  assert.match(layout, /\.page-frame__shell\s*\{[^}]*max-width:\s*var\(--page-frame-max\);[^}]*margin-right:\s*auto/s);
 });
 
 test('split pages use a rounded desktop surface and edge-to-edge mobile layout', async () => {
   const layout = await read('src/styles/layout-system.css');
 
-  assert.match(layout, /\.page-frame--split > \.page-frame__body\s*\{[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-lg\);[^}]*background:\s*var\(--ui-surface-1\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
-  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--split > \.page-frame__body\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*box-shadow:\s*none/s);
+  assert.match(layout, /\.page-frame--split \.page-frame__body\s*\{[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-lg\);[^}]*background:\s*var\(--ui-surface-1\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
+  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--split \.page-frame__body\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*box-shadow:\s*none/s);
 });
 
 test('shared empty state supports compact panel variants', async () => {

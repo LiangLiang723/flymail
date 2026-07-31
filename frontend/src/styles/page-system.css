@@ -236,7 +236,7 @@
   background: var(--ui-canvas) !important;
 }
 
-.compose-page > .page-frame__body {
+.compose-page .page-frame__body {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface-1);
@@ -572,7 +572,7 @@
 @media (max-width: 768px) {
   .mail-view .mail-shell,
   .backup-page .backup-content,
-  .compose-page > .page-frame__body {
+  .compose-page .page-frame__body {
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
