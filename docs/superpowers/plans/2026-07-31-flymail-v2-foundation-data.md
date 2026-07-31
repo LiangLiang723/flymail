@@ -345,7 +345,7 @@ git commit -m "🗄️ 建立 V2 数据库连接池与事务边界"
 - Produces: `current_schema_version(connection) -> int`
 - Produces schema version `4` from an empty database.
 
-- [ ] **Step 1: Write empty-database migration tests**
+- [x] **Step 1: Write empty-database migration tests**
 
 Tests must:
 
@@ -378,11 +378,11 @@ EXPECTED_TABLES = {
 }
 ```
 
-- [ ] **Step 2: Verify failure before implementation**
+- [x] **Step 2: Verify failure before implementation**
 
 Run `tests.v2.test_migrations`; expected import or missing-table failures.
 
-- [ ] **Step 3: Implement migration locking**
+- [x] **Step 3: Implement migration locking**
 
 Use MySQL advisory lock:
 
@@ -392,7 +392,7 @@ SELECT GET_LOCK('flymail_v2_schema_migration', 30)
 
 Release with `RELEASE_LOCK` in `finally`. Create `schema_migrations` before discovering current version. Each migration version is inserted in the same transaction as its statements.
 
-- [ ] **Step 4: Implement identity migration**
+- [x] **Step 4: Implement identity migration**
 
 `v0001_identity.py` creates:
 
@@ -409,7 +409,7 @@ Release with `RELEASE_LOCK` in `finally`. Create `schema_migrations` before disc
 
 All IDs use `VARCHAR(64)` ASCII collation. Email display strings use `utf8mb4`.
 
-- [ ] **Step 5: Implement mail migration**
+- [x] **Step 5: Implement mail migration**
 
 `v0002_mail.py` creates mailboxes, messages, headers, remote instances, memberships, threads, thread messages and projections.
 
@@ -431,7 +431,7 @@ Critical cursor index:
 thread_projections(user_uid, semantic_mailbox, latest_message_at DESC, thread_id DESC)
 ```
 
-- [ ] **Step 6: Implement jobs migration**
+- [x] **Step 6: Implement jobs migration**
 
 `v0003_jobs.py` creates operations, outbox, jobs, attempts, cursors, runtime state, realtime events, notification events/deliveries, drafts and sending tables. OAuth states, proxy configurations, notification channels/rules and image publishers remain identity/configuration tables created by `v0001_identity.py`; job payloads reference their IDs and never duplicate encrypted secrets.
 
@@ -447,17 +447,17 @@ Outbox unpublished index:
 outbox_events(published_at, created_at, id)
 ```
 
-- [ ] **Step 7: Implement content and search migration**
+- [x] **Step 7: Implement content and search migration**
 
 `v0004_content_search.py` creates content objects, references, bodies, attachment metadata, FULLTEXT search documents, saved searches, search history and backup jobs.
 
 Create MySQL FULLTEXT index over normalized subject, participants and cached body text. Chinese search uses MySQL ngram parser only after a container capability test confirms it is installed; otherwise create the standard FULLTEXT index and record the limitation for the search plan. Do not silently issue unsupported SQL.
 
-- [ ] **Step 8: Verify indexes with information_schema**
+- [x] **Step 8: Verify indexes with information_schema**
 
 Tests assert named indexes and exact column order for list, jobs, remote identity and content reference queries.
 
-- [ ] **Step 9: Run migration tests twice**
+- [x] **Step 9: Run migration tests twice**
 
 Run:
 
@@ -468,7 +468,7 @@ FLYMAIL_TEST_DATABASE_URL='mysql://...' python -m unittest tests.v2.test_migrati
 
 Expected: first run applies versions 1–4; second run applies none; all tests PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add backend/flymail/infrastructure/db/migrations backend/tests/v2/test_migrations.py
