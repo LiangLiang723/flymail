@@ -28,6 +28,16 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
 
+test('unified inbox is a fluid workspace built from shared sections', async () => {
+  const source = await read('src/views/UnifiedInbox.vue');
+
+  assert.match(source, /<PageFrame[^>]*template="management"[^>]*width="fluid"/);
+  assert.match(source, /<UiCard/);
+  assert.match(source, /<UiSegmentedControl/);
+  assert.match(source, /class="unified-account-layout"/);
+  assert.match(source, /class="ui-list-row message-row"/);
+});
+
 test('anonymous and global floating surfaces use shared product primitives', async () => {
   const login = await read('src/views/LoginView.vue');
   const boot = await read('src/components/app/AppBootScreen.vue');
