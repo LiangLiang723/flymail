@@ -1,22 +1,26 @@
 <template>
-  <PageFrame template="split" class="contact-page ui-page">
-  <div class="contact-split">
+  <PageFrame template="split" width="fluid" class="contact-page ui-page">
+  <div class="contact-workspace split-grid">
   <!-- ============ 左侧：联系人列表 ============ -->
-  <aside class="contact-sidebar contact-split__sidebar" :class="{ 'mobile-hidden': selectedId && isMobile }">
+  <aside class="contact-list-pane ui-scroll-region ui-scroll-region--y contact-sidebar contact-split__sidebar" :class="{ 'mobile-hidden': selectedId && isMobile }">
   <!-- 顶部操作栏 -->
-  <div class="sidebar-header">
+  <div class="contact-toolbar">
+  <UiField class="contact-search-field" for-id="contact-search">
   <div class="search-box">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
   </svg>
-  <input v-model="searchKeyword" placeholder="搜索姓名或邮箱" class="search-input" />
+  <input id="contact-search" v-model="searchKeyword" placeholder="搜索姓名或邮箱" class="ui-input search-input" />
   </div>
-  <button class="btn-add" @click="openAddDialog()">
+  </UiField>
+  <UiButton variant="primary" size="sm" @click="openAddDialog()">
+  <template #leading>
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
   <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
+  </template>
   新增
-  </button>
+  </UiButton>
   </div>
 
   <!-- 加载状态 -->
@@ -35,7 +39,7 @@
   <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
   </svg>
   </template>
-  <button v-if="!searchKeyword" class="btn btn-primary" type="button" @click="openAddDialog()">新增联系人</button>
+  <UiButton v-if="!searchKeyword" variant="primary" @click="openAddDialog()">新增联系人</UiButton>
   </UiEmptyState>
 
   <!-- 联系人列表 -->
@@ -43,7 +47,7 @@
   <div
   v-for="contact in filteredContacts"
   :key="contact.id"
-  class="contact-item"
+  class="ui-list-row contact-item"
   :class="{ active: contact.id === selectedId }"
   @click="selectContact(contact.id)"
   >
@@ -62,7 +66,7 @@
   </aside>
 
   <!-- ============ 右侧：联系人详情面板 ============ -->
-  <section class="contact-detail contact-split__detail" :class="{ 'mobile-show': selectedId && isMobile }">
+  <section class="contact-detail-pane ui-scroll-region ui-scroll-region--y contact-detail contact-split__detail" :class="{ 'mobile-show': selectedId && isMobile }">
   <!-- 未选择联系人 -->
   <UiEmptyState
   v-if="!selectedContact"
@@ -276,7 +280,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
+import UiButton from '../components/ui/UiButton.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiField from '../components/ui/UiField.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import { useContacts, type ContactItem, type ContactStats } from '../composables/useContacts';
 import { useUIStore } from '../stores/ui';
@@ -525,7 +531,7 @@ onUnmounted(() => {
   background: var(--bg-secondary);
 }
 
-.contact-split {
+.contact-workspace {
   position: relative;
   width: 100%;
   height: 100%;
@@ -552,12 +558,21 @@ onUnmounted(() => {
   border-right: 1px solid var(--border-color);
 }
 
-.sidebar-header {
+.contact-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border);
   align-items: center;
+  background: var(--ui-surface-1);
+}
+
+.contact-search-field {
+  min-width: 0;
+  flex: 1;
 }
 
 .search-box {
@@ -633,8 +648,8 @@ onUnmounted(() => {
 /* ============ 联系人列表 ============ */
 .contact-list {
   flex: 1;
-  overflow-y: auto;
-  padding: 4px;
+  overflow: visible;
+  padding: var(--ui-space-1);
 }
 
 .contact-item {
@@ -709,7 +724,6 @@ onUnmounted(() => {
 /* ============ 右侧详情面板 ============ */
 .contact-detail {
   flex: 1;
-  overflow-y: auto;
   background: var(--bg-secondary);
   position: relative;
 }
@@ -1242,7 +1256,7 @@ onUnmounted(() => {
 
 /* ============ 移动端响应式 ============ */
 @media (max-width: 767px) {
-  .contact-split {
+  .contact-workspace {
   grid-template-columns: minmax(0, 1fr);
   }
 

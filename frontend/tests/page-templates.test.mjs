@@ -81,10 +81,10 @@ test('management pages use the management template and shared header', async () 
 test('contacts use a full-height split template with two scroll owners', async () => {
   const source = await read('src/views/ContactList.vue');
 
-  assert.match(source, /<PageFrame[^>]*template="split"/);
-  assert.match(source, /class="contact-split"/);
-  assert.match(source, /class="contact-sidebar contact-split__sidebar"/);
-  assert.match(source, /class="contact-detail contact-split__detail"/);
+  assert.match(source, /<PageFrame[^>]*template="split"[^>]*width="fluid"/);
+  assert.match(source, /class="contact-workspace split-grid"/);
+  assert.match(source, /class="contact-list-pane ui-scroll-region ui-scroll-region--y/);
+  assert.match(source, /class="contact-detail-pane ui-scroll-region ui-scroll-region--y/);
   assert.match(source, /<UiEmptyState/);
 });
 

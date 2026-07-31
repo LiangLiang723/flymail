@@ -28,6 +28,17 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
 
+test('contacts render one bounded split workspace with two scroll owners', async () => {
+  const source = await read('src/views/ContactList.vue');
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(source, /<PageFrame[^>]*template="split"[^>]*width="fluid"/);
+  assert.match(source, /class="contact-workspace split-grid"/);
+  assert.match(source, /class="contact-list-pane ui-scroll-region ui-scroll-region--y/);
+  assert.match(source, /class="contact-detail-pane ui-scroll-region ui-scroll-region--y/);
+  assert.match(layout, /\.page-frame--split \.page-frame__body\s*\{[^}]*border:\s*1px solid var\(--ui-border\)/s);
+});
+
 test('management consoles use fluid responsive product layouts', async () => {
   const contracts = {
     'AccountList.vue': ['account-card-grid', 'UiSegmentedControl', 'UiBadge'],
