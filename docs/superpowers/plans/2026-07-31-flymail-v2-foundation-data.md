@@ -578,7 +578,7 @@ git commit -m "🔒 建立 V2 密码会话与凭证加密原语"
 - Produces: `QuotaService.get_user_usage(user_uid: str, kinds: set[ObjectKind]) -> int`
 - Produces: `QuotaService.evict_body_cache(user_uid: str, limit_bytes: int) -> EvictionResult`.
 
-- [ ] **Step 1: Write object store tests**
+- [x] **Step 1: Write object store tests**
 
 Tests cover:
 
@@ -592,11 +592,11 @@ Tests cover:
 - `0` quota means unlimited;
 - drafts, pending-send, user avatar, account icon, contact avatar and notification asset object kinds are never selected for body/attachment quota eviction.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run `tests.v2.test_object_store`; expected FAIL.
 
-- [ ] **Step 3: Implement safe path building**
+- [x] **Step 3: Implement safe path building**
 
 ```python
 def object_path(root: Path, digest: str) -> Path:
@@ -608,7 +608,7 @@ def object_path(root: Path, digest: str) -> Path:
 
 No user filename is used in physical paths.
 
-- [ ] **Step 4: Implement atomic streaming writes**
+- [x] **Step 4: Implement atomic streaming writes**
 
 Required sequence:
 
@@ -622,11 +622,11 @@ Required sequence:
 8. return digest and sizes;
 9. always clean temp file on cancellation or exception.
 
-- [ ] **Step 5: Implement object Repository transactions**
+- [x] **Step 5: Implement object Repository transactions**
 
 The database reference may only be attached after the final file exists. Detaching a reference occurs in a transaction; physical deletion happens after commit and rechecks global references. A file deletion failure is logged for maintenance retry and does not restore a removed business reference.
 
-- [ ] **Step 6: Implement body quota eviction contract**
+- [x] **Step 6: Implement body quota eviction contract**
 
 Eviction ordering:
 
@@ -637,11 +637,11 @@ Eviction ordering:
 5. remove physical object only if no global references remain;
 6. return logical bytes released, physical bytes released, message count and object count.
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run object store tests with a temporary directory and real MySQL test database. Expected PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/flymail/infrastructure/object_store backend/flymail/repositories/objects.py backend/tests/v2/test_object_store.py
