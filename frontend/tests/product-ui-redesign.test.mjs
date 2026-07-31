@@ -18,3 +18,12 @@ test('shared page patterns own reusable controls and surfaces', async () => {
     assert.match(pages, new RegExp(selector.replace('.', '\\.')));
   }
 });
+
+test('sidebar header renders mutually exclusive desktop controls', async () => {
+  const source = await read('src/components/app/AppSidebar.vue');
+
+  assert.match(source, /v-if="collapsed && !mobile"[\s\S]*class="sidebar-collapsed-toggle"/);
+  assert.match(source, /v-if="!mobile"[\s\S]*class="sidebar-header-action"/);
+  assert.match(source, /v-else[\s\S]*class="sidebar-mobile-close"/);
+  assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
+});

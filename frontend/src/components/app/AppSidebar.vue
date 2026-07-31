@@ -14,25 +14,47 @@
   >
     <div class="sidebar-icon-rail" aria-hidden="true"></div>
 
-    <div class="sidebar-header sidebar-row">
-      <span class="sidebar-row-icon brand-icon"><img src="/icon.png" alt="FlyMail" /></span>
-      <span class="sidebar-label-pane brand-copy">
-        <strong>FlyMail</strong>
-        <small>Docker 多用户版</small>
-      </span>
-      <button v-if="mobile" class="sidebar-mobile-close" type="button" aria-label="关闭导航" @click="$emit('close-mobile')">
-        <AppIcon name="close" :size="19" />
-      </button>
+    <div class="sidebar-header">
       <button
-        v-else
-        class="sidebar-header-action"
+        v-if="collapsed && !mobile"
+        class="sidebar-collapsed-toggle"
         type="button"
-        :title="collapsed ? '展开侧边栏' : '折叠侧边栏'"
-        :aria-label="collapsed ? '展开侧边栏' : '折叠侧边栏'"
+        aria-label="展开侧边栏"
+        title="展开侧边栏"
         @click="$emit('toggle-collapse')"
       >
-        <AppIcon :name="collapsed ? 'panel-left-open' : 'panel-left-close'" :size="18" />
+        <img class="sidebar-collapsed-logo" src="/icon.png" alt="" />
+        <AppIcon class="sidebar-collapsed-expand" name="panel-left-open" :size="18" />
       </button>
+
+      <template v-else>
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-logo"><img src="/icon.png" alt="FlyMail" /></span>
+          <span class="sidebar-brand-copy">
+            <strong>FlyMail</strong>
+            <small>Docker 多用户版</small>
+          </span>
+        </div>
+        <button
+          v-if="!mobile"
+          class="sidebar-header-action"
+          type="button"
+          aria-label="折叠侧边栏"
+          title="折叠侧边栏"
+          @click="$emit('toggle-collapse')"
+        >
+          <AppIcon name="panel-left-close" :size="18" />
+        </button>
+        <button
+          v-else
+          class="sidebar-mobile-close"
+          type="button"
+          aria-label="关闭导航"
+          @click="$emit('close-mobile')"
+        >
+          <AppIcon name="close" :size="19" />
+        </button>
+      </template>
     </div>
 
     <div class="sidebar-scroll">

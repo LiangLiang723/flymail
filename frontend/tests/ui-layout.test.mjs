@@ -32,7 +32,8 @@ test('application shell uses extracted navigation components without legacy dupl
   assert.doesNotMatch(appSource, /v-if="false"/);
   assert.doesNotMatch(appSource, /<style scoped>/);
   assert.doesNotMatch(appSource, /class="topbar"/);
-  assert.match(sidebarSource, /class="sidebar-header sidebar-row"/);
+  assert.match(sidebarSource, /class="sidebar-header"/);
+  assert.match(sidebarSource, /class="sidebar-brand"/);
   assert.match(sidebarSource, /class="nav-list"/);
   assert.match(sidebarSource, /v-for="item in navItems"/);
   assert.doesNotMatch(sidebarSource, /class="nav-group-label"/);
@@ -97,21 +98,21 @@ test('responsive shell keeps a stable 72px icon rail and uses a mobile drawer', 
   assert.match(shellCss, /prefers-reduced-transparency/);
 });
 
-test('collapsed sidebar keeps the logo and reveals the expand action on interaction', async () => {
-  const shellCss = await readSource('src/styles/app-shell.css');
+test('collapsed sidebar swaps one brand slot from logo to expand icon on interaction', async () => {
+  const component = await readSource('src/components/app/AppSidebar.vue');
+  const css = await readSource('src/styles/app-shell.css');
 
-  assert.match(shellCss, /--sidebar-item-inset:\s*8px/);
-  assert.match(shellCss, /--sidebar-item-icon-column:\s*56px/);
-  assert.match(shellCss, /\.nav-item\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
-  assert.match(shellCss, /\.sidebar-bottom \.sidebar-row\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-profile-trigger\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) 0 0/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.brand-icon\s*\{[^}]*opacity:\s*1/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header-action\s*\{[^}]*right:\s*17px;[^}]*opacity:\s*0;[^}]*pointer-events:\s*none/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header:hover \.brand-icon,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-header:focus-within \.brand-icon\s*\{[^}]*opacity:\s*0/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header:hover \.sidebar-header-action,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-header:focus-within \.sidebar-header-action\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto/s);
-  assert.match(shellCss, /\.nav-item \.sidebar-label-pane,[\s\S]*\.sidebar-bottom \.sidebar-row \.sidebar-label-pane\s*\{[^}]*padding-left:\s*var\(--sidebar-item-inset\)/s);
-  assert.match(shellCss, /\.sidebar-profile-copy\s*\{[^}]*padding-left:\s*var\(--sidebar-item-inset\)/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-profile-copy\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/s);
+  assert.match(component, /sidebar-collapsed-toggle/);
+  assert.match(component, /sidebar-collapsed-logo/);
+  assert.match(component, /sidebar-collapsed-expand/);
+  assert.match(css, /\.sidebar-collapsed-toggle\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px/s);
+  assert.match(css, /\.sidebar-collapsed-logo\s*\{[^}]*opacity:\s*1/s);
+  assert.match(css, /\.sidebar-collapsed-expand\s*\{[^}]*opacity:\s*0/s);
+  assert.match(css, /\.sidebar-collapsed-toggle:hover \.sidebar-collapsed-logo,[\s\S]*\.sidebar-collapsed-toggle:focus-visible \.sidebar-collapsed-logo\s*\{[^}]*opacity:\s*0/s);
+  assert.match(css, /\.sidebar-collapsed-toggle:hover \.sidebar-collapsed-expand,[\s\S]*\.sidebar-collapsed-toggle:focus-visible \.sidebar-collapsed-expand\s*\{[^}]*opacity:\s*1/s);
+  assert.match(css, /--sidebar-item-icon-column:\s*56px/);
+  assert.match(css, /\.nav-item\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-profile-trigger\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) 0 0/s);
 });
 
 test('mobile mail view delegates account and folder navigation without horizontal overflow', async () => {
