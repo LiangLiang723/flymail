@@ -5,10 +5,12 @@
         <header class="viewer-toolbar">
           <span class="viewer-counter">{{ currentIndex + 1 }} / {{ images.length }}</span>
           <div class="viewer-controls">
-            <button type="button" title="缩小" aria-label="缩小图片" @click="zoomOut">−</button>
-            <button type="button" title="恢复原始大小" aria-label="恢复原始大小" @click="resetTransform">{{ Math.round(scale * 100) }}%</button>
-            <button type="button" title="放大" aria-label="放大图片" @click="zoomIn">＋</button>
-            <button type="button" title="关闭" aria-label="关闭图片查看器" @click="closeViewer">×</button>
+            <UiIconButton label="缩小图片" title="缩小" @click="zoomOut">−</UiIconButton>
+            <button class="viewer-scale" type="button" title="恢复原始大小" aria-label="恢复原始大小" @click="resetTransform">
+              {{ Math.round(scale * 100) }}%
+            </button>
+            <UiIconButton label="放大图片" title="放大" @click="zoomIn">＋</UiIconButton>
+            <UiIconButton label="关闭图片查看器" title="关闭" @click="closeViewer">×</UiIconButton>
           </div>
         </header>
 
@@ -41,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import UiIconButton from '../ui/UiIconButton.vue';
 import { clampScale, nextImageIndex, shouldChangeImageFromSwipe } from '../../utils/image-viewer';
 
 export interface ViewerImage {
@@ -252,7 +255,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .viewer-controls button { min-width: 40px; height: 40px; border-radius: 12px; font-size: 18px; }
-.viewer-controls button:nth-child(2) { min-width: 62px; font-size: 12px; }
+.viewer-controls .viewer-scale { min-width: 62px; font-size: 12px; }
 .viewer-stage {
   min-width: 0;
   min-height: 0;

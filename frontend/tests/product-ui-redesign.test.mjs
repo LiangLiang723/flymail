@@ -27,3 +27,20 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.match(source, /v-else[\s\S]*class="sidebar-mobile-close"/);
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
+
+test('anonymous and global floating surfaces use shared product primitives', async () => {
+  const login = await read('src/views/LoginView.vue');
+  const boot = await read('src/components/app/AppBootScreen.vue');
+  const app = await read('src/App.vue');
+  const viewer = await read('src/components/mail/ImageViewer.vue');
+
+  assert.match(login, /<UiCard/);
+  assert.match(login, /<UiField/);
+  assert.match(login, /<UiButton/);
+  assert.match(login, /<UiAlert/);
+  assert.match(boot, /<UiCard/);
+  assert.match(boot, /<UiSpinner/);
+  assert.match(boot, /<UiButton/);
+  assert.match(app, /confirm-dialog/);
+  assert.match(viewer, /UiIconButton/);
+});

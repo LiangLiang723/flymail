@@ -1,18 +1,22 @@
 <template>
   <main class="app-boot" :class="{ 'is-error': Boolean(message) }" aria-live="polite">
-    <section class="app-boot-card">
+    <UiCard class="app-boot-card" variant="raised" padding="lg">
       <img src="/icon.png" alt="" class="app-boot-logo" />
       <div class="app-boot-copy">
         <h1>FlyMail</h1>
         <p>{{ message || '正在恢复你的工作区…' }}</p>
       </div>
-      <span v-if="!message" class="app-boot-spinner" aria-hidden="true"></span>
-      <button v-else type="button" class="app-boot-retry" @click="$emit('retry')">重新连接</button>
-    </section>
+      <UiSpinner v-if="!message" :size="20" />
+      <UiButton v-else variant="primary" @click="$emit('retry')">重新连接</UiButton>
+    </UiCard>
   </main>
 </template>
 
 <script setup lang="ts">
+import UiButton from '../ui/UiButton.vue';
+import UiCard from '../ui/UiCard.vue';
+import UiSpinner from '../ui/UiSpinner.vue';
+
 defineProps<{
   message?: string;
 }>();
@@ -27,18 +31,20 @@ defineEmits<{
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  padding: var(--ui-space-6);
+  background: var(--ui-canvas);
+  color: var(--ui-text-1);
 }
 
 .app-boot-card {
   width: min(360px, 100%);
+  text-align: center;
+}
+
+.app-boot-card :deep(.ui-card__body) {
   display: grid;
   justify-items: center;
-  gap: 18px;
-  padding: 32px;
-  text-align: center;
+  gap: var(--ui-space-4);
 }
 
 .app-boot-logo {
@@ -49,43 +55,15 @@ defineEmits<{
 
 .app-boot-copy h1 {
   margin: 0;
+  color: var(--ui-text-1);
   font-size: 25px;
   line-height: 1.1;
   letter-spacing: -0.025em;
 }
 
 .app-boot-copy p {
-  margin: 8px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.app-boot-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-color-strong);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: app-boot-spin 0.75s linear infinite;
-}
-
-.app-boot-retry {
-  min-height: 40px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--color-accent);
-  color: var(--text-on-accent);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-@keyframes app-boot-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-boot-spinner { animation: none; }
+  margin: var(--ui-space-2) 0 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-text-sm);
 }
 </style>
