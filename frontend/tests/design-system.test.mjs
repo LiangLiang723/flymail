@@ -170,6 +170,21 @@ test('page width tokens distinguish fluid workspaces from bounded forms', async 
   assert.doesNotMatch(tokens, /--page-content-max:\s*1280px/);
 });
 
+test('product primitives cover fields badges segmented controls and card density', async () => {
+  const field = await readSource('src/components/ui/UiField.vue');
+  const badge = await readSource('src/components/ui/UiBadge.vue');
+  const segmented = await readSource('src/components/ui/UiSegmentedControl.vue');
+  const card = await readSource('src/components/ui/UiCard.vue');
+
+  assert.match(field, /error\?: string/);
+  assert.match(field, /ui-field__message/);
+  assert.match(badge, /'neutral' \| 'accent' \| 'success' \| 'warning' \| 'danger'/);
+  assert.match(segmented, /update:modelValue/);
+  assert.match(segmented, /aria-label/);
+  assert.match(card, /'default' \| 'subtle' \| 'raised'/);
+  assert.match(card, /'none' \| 'sm' \| 'md' \| 'lg'/);
+});
+
 test('main stylesheet order establishes tokens before compatibility styles', async () => {
   const source = await readSource('src/main.ts');
   const tokens = source.indexOf("./styles/tokens.css");
