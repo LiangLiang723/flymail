@@ -97,7 +97,7 @@ test('responsive shell keeps a stable 72px icon rail and uses a mobile drawer', 
   assert.match(shellCss, /prefers-reduced-transparency/);
 });
 
-test('collapsed sidebar keeps every control centered and separates brand from collapse action', async () => {
+test('collapsed sidebar keeps the logo and reveals the expand action on interaction', async () => {
   const shellCss = await readSource('src/styles/app-shell.css');
 
   assert.match(shellCss, /--sidebar-item-inset:\s*8px/);
@@ -105,8 +105,10 @@ test('collapsed sidebar keeps every control centered and separates brand from co
   assert.match(shellCss, /\.nav-item\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
   assert.match(shellCss, /\.sidebar-bottom \.sidebar-row\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
   assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-profile-trigger\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) 0 0/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.brand-icon\s*\{[^}]*opacity:\s*0/s);
-  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header-action\s*\{[^}]*right:\s*17px/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.brand-icon\s*\{[^}]*opacity:\s*1/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header-action\s*\{[^}]*right:\s*17px;[^}]*opacity:\s*0;[^}]*pointer-events:\s*none/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header:hover \.brand-icon,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-header:focus-within \.brand-icon\s*\{[^}]*opacity:\s*0/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header:hover \.sidebar-header-action,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-header:focus-within \.sidebar-header-action\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto/s);
   assert.match(shellCss, /\.nav-item \.sidebar-label-pane,[\s\S]*\.sidebar-bottom \.sidebar-row \.sidebar-label-pane\s*\{[^}]*padding-left:\s*var\(--sidebar-item-inset\)/s);
   assert.match(shellCss, /\.sidebar-profile-copy\s*\{[^}]*padding-left:\s*var\(--sidebar-item-inset\)/s);
   assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-profile-copy\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/s);

@@ -73,12 +73,12 @@
 
 .page-frame--management .page-frame__header {
   width: min(100%, var(--page-content-max));
-  margin-inline: auto;
+  margin-inline: 0 auto;
 }
 
 .page-frame--document .page-frame__header {
   width: min(100%, var(--page-document-max));
-  margin-inline: auto;
+  margin-inline: 0 auto;
 }
 
 .page-frame__toolbar {
@@ -92,7 +92,7 @@
 
 .page-frame--management .page-frame__toolbar {
   width: min(calc(100% - (2 * var(--page-padding))), var(--page-content-max));
-  margin: 0 auto var(--page-gap);
+  margin: 0 auto var(--page-gap) var(--page-padding);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   box-shadow: var(--ui-shadow-xs);
@@ -314,7 +314,7 @@
 
 .document-column {
   width: min(var(--page-document-max), 100%);
-  margin-inline: auto;
+  margin-inline: 0 auto;
   display: grid;
   gap: var(--page-gap);
   padding: var(--page-padding);
@@ -323,7 +323,7 @@
 .management-stack {
   width: 100%;
   max-width: var(--page-content-max);
-  margin-inline: auto;
+  margin-inline: 0 auto;
   display: grid;
   gap: var(--page-gap);
   padding: var(--page-padding);
@@ -356,6 +356,7 @@
 
   .page-frame--management .page-frame__toolbar {
     width: calc(100% - (2 * var(--page-padding-compact)));
+    margin-left: var(--page-padding-compact);
   }
 
   .document-column,

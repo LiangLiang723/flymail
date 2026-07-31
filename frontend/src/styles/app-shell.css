@@ -124,12 +124,11 @@ button.sidebar-row:active,
 .brand-icon {
   height: 58px;
   opacity: 1;
-  transition: opacity 80ms ease-out 120ms;
+  transition: opacity var(--ui-motion-fast);
 }
 
 .app-shell.sidebar-collapsed .brand-icon {
-  opacity: 0;
-  transition-delay: 0s;
+  opacity: 1;
 }
 
 .brand-icon img {
@@ -177,12 +176,26 @@ button.sidebar-row:active,
 .sidebar-header-action {
   transition:
     right var(--ui-motion-standard),
+    opacity var(--ui-motion-fast),
     background var(--ui-motion-fast),
     color var(--ui-motion-fast);
 }
 
 .app-shell.sidebar-collapsed .sidebar-header-action {
   right: 17px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-shell.sidebar-collapsed .sidebar-header:hover .brand-icon,
+.app-shell.sidebar-collapsed .sidebar-header:focus-within .brand-icon {
+  opacity: 0;
+}
+
+.app-shell.sidebar-collapsed .sidebar-header:hover .sidebar-header-action,
+.app-shell.sidebar-collapsed .sidebar-header:focus-within .sidebar-header-action {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-mobile-close:hover,

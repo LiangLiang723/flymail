@@ -105,16 +105,19 @@ test('desktop page templates share one outer content gutter', async () => {
   assert.match(layout, /\.page-frame__header\s*\{[^}]*padding:\s*var\(--page-padding\) var\(--page-padding\) var\(--page-gap\)/s);
 });
 
-test('management pages share a bounded content column and inset toolbar panel', async () => {
+test('bounded page columns stay pinned to the shared left gutter', async () => {
   const tokens = await read('src/styles/tokens.css');
   const layout = await read('src/styles/layout-system.css');
 
   assert.match(tokens, /--page-content-max:\s*1280px/);
   assert.match(tokens, /--page-document-max:\s*960px/);
-  assert.match(layout, /\.page-frame--management \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-content-max\)\);[^}]*margin-inline:\s*auto/s);
-  assert.match(layout, /\.page-frame--document \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-document-max\)\);[^}]*margin-inline:\s*auto/s);
-  assert.match(layout, /\.management-stack\s*\{[^}]*max-width:\s*var\(--page-content-max\);[^}]*margin-inline:\s*auto/s);
-  assert.match(layout, /\.page-frame--management \.page-frame__toolbar\s*\{[^}]*width:\s*min\([^;]*var\(--page-content-max\)[^;]*\);[^}]*margin:\s*0 auto var\(--page-gap\);[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-md\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
+  assert.match(layout, /\.page-frame--management \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-content-max\)\);[^}]*margin-inline:\s*0 auto/s);
+  assert.match(layout, /\.page-frame--document \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-document-max\)\);[^}]*margin-inline:\s*0 auto/s);
+  assert.match(layout, /\.document-column\s*\{[^}]*margin-inline:\s*0 auto/s);
+  assert.match(layout, /\.management-stack\s*\{[^}]*max-width:\s*var\(--page-content-max\);[^}]*margin-inline:\s*0 auto/s);
+  assert.match(layout, /\.page-frame--management \.page-frame__toolbar\s*\{[^}]*width:\s*min\([^;]*var\(--page-content-max\)[^;]*\);[^}]*margin:\s*0 auto var\(--page-gap\) var\(--page-padding\);[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-md\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
+  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--management \.page-frame__toolbar\s*\{[^}]*margin-left:\s*var\(--page-padding-compact\)/s);
+  assert.doesNotMatch(layout, /(?:page-frame--management|page-frame--document|document-column|management-stack)[^{]*\{[^}]*margin-inline:\s*auto\s*;/s);
 });
 
 test('split pages use a rounded desktop surface and edge-to-edge mobile layout', async () => {
