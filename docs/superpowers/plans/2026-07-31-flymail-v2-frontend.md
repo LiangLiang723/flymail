@@ -897,8 +897,9 @@ Desktop and mobile workflow tests cover:
 14. settings quota cleanup;
 15. admin user operation;
 16. backup create/inspect/restore validation;
-17. PWA install shell and server-unreachable state;
-18. WebSocket disconnect and resume.
+17. About/version information boundary;
+18. PWA install shell and server-unreachable state;
+19. WebSocket disconnect and resume.
 
 - [ ] **Step 2: Run all V2 frontend tests**
 
@@ -946,7 +947,7 @@ git push origin main
 - [ ] Local operations, undo and conflicts provide accurate feedback.
 - [ ] Compose, draft versioning, upload, immediate and scheduled send are complete.
 - [ ] Advanced search communicates cached-body boundary.
-- [ ] Settings, sync, admin and backup are complete and lazy-loaded.
+- [ ] Settings, sync, admin, backup and About/version are complete and appropriately lazy-loaded.
 - [ ] Profiles, contacts, signatures, account icons, notifications, image viewer, PDF export, authorized storage import and static-only PWA are complete.
 - [ ] Keyboard, screen reader, reduced motion and touch contracts pass.
 - [ ] Initial JS gzip is <= 180 KB and async page chunks <= 120 KB.

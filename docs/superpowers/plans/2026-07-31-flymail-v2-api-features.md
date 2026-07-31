@@ -798,8 +798,8 @@ git commit -m "👤 实现 V2 资料联系人图标签名与通知配置"
 
 Tests cover:
 
-- backup includes users, profiles, contacts, accounts, identities/signatures, avatar/account-icon objects, notification rules/channels, encrypted credentials, settings, metadata, memberships, threads, drafts, draft attachments, pending send data, operations, authorized storage-root configuration and cursors;
-- backup excludes remote body cache, inline image cache, ordinary attachment cache, raw `.eml`, regenerated body search docs and logs;
+- backup includes users, profiles, contacts, accounts, identities/signatures, avatar/account-icon objects, outbound proxy configurations, notification rules/channels/image-publisher configuration, encrypted mailbox/proxy/notification credentials, settings, metadata, memberships, threads, drafts, draft attachments, pending send data, operations, authorized storage-root configuration and cursors;
+- backup excludes transient OAuth authorization states, notification delivery attempts, temporary notification assets, remote body cache, inline image cache, ordinary attachment cache, raw `.eml`, regenerated body search docs and logs;
 - wrong password fails before database changes;
 - corrupted checksum fails before database changes;
 - backup credentials decrypt with backup password and re-encrypt under new instance key;

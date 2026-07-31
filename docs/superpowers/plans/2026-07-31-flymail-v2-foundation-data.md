@@ -364,13 +364,15 @@ EXPECTED_TABLES = {
     "users", "user_profiles", "user_sessions", "user_settings", "audit_events",
     "contacts", "authorized_storage_roots",
     "mail_accounts", "mail_identities", "provider_credentials",
+    "oauth_authorization_states", "outbound_proxy_configs",
     "mailboxes", "messages", "message_headers", "message_remote_instances",
     "message_memberships", "threads", "thread_messages", "thread_projections",
     "message_bodies", "message_attachments",
     "content_objects", "content_references", "body_search_documents",
     "mail_operations", "outbox_events", "worker_jobs", "job_attempts",
     "sync_cursors", "account_runtime_state", "realtime_events",
-    "notification_channels", "notification_rules", "notification_events", "notification_deliveries",
+    "notification_channels", "notification_rules", "notification_image_publishers",
+    "notification_events", "notification_deliveries",
     "drafts", "draft_recipients", "draft_attachments", "send_attempts",
     "saved_searches", "search_history", "backup_jobs",
 }
@@ -400,7 +402,9 @@ Release with `RELEASE_LOCK` in `finally`. Create `schema_migrations` before disc
 - user settings with body and attachment quotas;
 - contacts and administrator-authorized `/data` storage roots;
 - accounts, identities, signature fields and encrypted provider credentials;
-- notification channel/rule configuration with encrypted secret fields;
+- single-use OAuth authorization states with encrypted PKCE verifier, session binding and expiry;
+- user/account outbound proxy configuration with encrypted credentials and explicit traffic scope;
+- notification channel/rule/image-publisher configuration with encrypted secret fields;
 - audit events.
 
 All IDs use `VARCHAR(64)` ASCII collation. Email display strings use `utf8mb4`.
@@ -429,7 +433,7 @@ thread_projections(user_uid, semantic_mailbox, latest_message_at DESC, thread_id
 
 - [ ] **Step 6: Implement jobs migration**
 
-`v0003_jobs.py` creates operations, outbox, jobs, attempts, cursors, runtime state, realtime events, notification events/deliveries, drafts and sending tables.
+`v0003_jobs.py` creates operations, outbox, jobs, attempts, cursors, runtime state, realtime events, notification events/deliveries, drafts and sending tables. OAuth states, proxy configurations, notification channels/rules and image publishers remain identity/configuration tables created by `v0001_identity.py`; job payloads reference their IDs and never duplicate encrypted secrets.
 
 Task claim index must begin with:
 
@@ -711,7 +715,7 @@ Repository stores `EncryptedValue` fields. Decryption occurs in a dedicated appl
 New users get:
 
 - body quota `5 * 1024**3` bytes;
-- attachment quota equal to the current product default documented at implementation time, read from one constant;
+- attachment quota `2048 MB`, read from one shared constant; `0` means unlimited and nonzero values below `100 MB` are rejected;
 - theme `system`;
 - density `comfortable`.
 
