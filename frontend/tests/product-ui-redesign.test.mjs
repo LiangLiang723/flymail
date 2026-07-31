@@ -28,6 +28,20 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
 
+test('document pages use explicit form and reading widths with shared sections', async () => {
+  const formPages = ['Settings.vue', 'Profile.vue', 'NotificationSettings.vue'];
+  for (const file of formPages) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /<PageFrame[^>]*template="document"[^>]*width="form"/);
+    assert.match(source, /<UiCard/);
+    assert.match(source, /<UiField/);
+  }
+
+  const about = await read('src/views/About.vue');
+  assert.match(about, /<PageFrame[^>]*template="document"[^>]*width="reading"/);
+  assert.match(about, /<UiCard/);
+});
+
 test('compose and backup use shared fluid workspace surfaces', async () => {
   const compose = await read('src/views/ComposeEmail.vue');
   const backup = await read('src/views/Backup.vue');

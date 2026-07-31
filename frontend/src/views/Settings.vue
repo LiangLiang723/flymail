@@ -1,5 +1,5 @@
 <template>
-  <PageFrame template="document" class="settings-page ui-page">
+  <PageFrame template="document" width="form" class="settings-page ui-page">
     <template #header>
       <PageHeader title="设置" description="管理外观、清理计划、Gmail OAuth 与用户级网络配置。">
         <template #actions>
@@ -13,7 +13,7 @@
 
     <div class="document-column settings-document">
 
-    <div class="provider-card appearance-card">
+    <UiCard class="provider-card appearance-card" padding="none">
       <div class="storage-card-body">
         <div class="storage-heading">
           <div>
@@ -44,7 +44,7 @@
           </button>
         </div>
       </div>
-    </div>
+    </UiCard>
 
     <div class="provider-card">
       <div class="storage-card-body">
@@ -55,24 +55,19 @@
         </div>
 
         <div class="cleanup-form">
-          <div class="field cleanup-field">
-            <label class="field-label">清理日期</label>
-            <div class="field-input">
-              <select v-model.number="form.uploads_cleanup_weekday" class="input">
-                <option v-for="item in weekdayOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="field cleanup-field">
-            <label class="field-label">清理时间</label>
-            <div class="field-input">
-              <input
-                v-model="form.uploads_cleanup_time"
-                class="input"
-                type="time"
-              />
-            </div>
-          </div>
+          <UiField class="cleanup-field" label="清理日期" for-id="uploads-cleanup-weekday">
+            <select id="uploads-cleanup-weekday" v-model.number="form.uploads_cleanup_weekday" class="ui-select input">
+              <option v-for="item in weekdayOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </UiField>
+          <UiField class="cleanup-field" label="清理时间" for-id="uploads-cleanup-time">
+            <input
+              id="uploads-cleanup-time"
+              v-model="form.uploads_cleanup_time"
+              class="ui-input input"
+              type="time"
+            />
+          </UiField>
         </div>
 
         <div class="save-bar">
@@ -624,6 +619,8 @@
 import { ref, onMounted } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiCard from '../components/ui/UiCard.vue';
+import UiField from '../components/ui/UiField.vue';
 import About from './About.vue';
 import api from '../utils/api';
 import { formatStorageBytes, isValidAttachmentCacheLimit } from '../utils/attachment-cache';

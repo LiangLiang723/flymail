@@ -1,11 +1,11 @@
 <template>
-  <PageFrame template="document" class="profile-page ui-page">
+  <PageFrame template="document" width="form" class="profile-page ui-page">
     <template #header>
       <PageHeader title="个人资料" description="管理登录用户名、显示昵称和头像。" />
     </template>
 
     <div class="document-column profile-document">
-      <section class="profile-card">
+      <UiCard class="profile-card" variant="raised" padding="lg">
         <div class="avatar-section">
           <div class="profile-avatar" aria-hidden="true">
             <img v-if="user?.avatar_url" :src="user.avatar_url" alt="" />
@@ -27,23 +27,17 @@
         </div>
 
         <form class="profile-form" @submit.prevent="saveProfile">
-          <label class="profile-field">
-            <span>用户名</span>
-            <input v-model.trim="form.username" autocomplete="username" maxlength="191" />
-            <small>用于登录，至少 3 个字符。</small>
-          </label>
-          <label class="profile-field">
-            <span>昵称</span>
-            <input v-model.trim="form.nickname" maxlength="191" placeholder="在界面中显示的名称" />
-            <small>昵称为空时显示用户名。</small>
-          </label>
+          <UiField class="profile-field" label="用户名" for-id="profile-username" hint="用于登录，至少 3 个字符。">
+            <input id="profile-username" v-model.trim="form.username" class="ui-input" autocomplete="username" maxlength="191" />
+          </UiField>
+          <UiField class="profile-field" label="昵称" for-id="profile-nickname" hint="昵称为空时显示用户名。">
+            <input id="profile-nickname" v-model.trim="form.nickname" class="ui-input" maxlength="191" placeholder="在界面中显示的名称" />
+          </UiField>
           <div class="profile-actions">
-            <button class="btn btn-primary" type="submit" :disabled="saving">
-              {{ saving ? '保存中…' : '保存资料' }}
-            </button>
+            <UiButton variant="primary" type="submit" :loading="saving">保存资料</UiButton>
           </div>
         </form>
-      </section>
+      </UiCard>
     </div>
   </PageFrame>
 </template>
@@ -52,6 +46,9 @@
 import { computed, reactive, ref, watch } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiButton from '../components/ui/UiButton.vue';
+import UiCard from '../components/ui/UiCard.vue';
+import UiField from '../components/ui/UiField.vue';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
 

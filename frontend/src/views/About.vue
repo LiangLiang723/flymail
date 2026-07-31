@@ -1,11 +1,11 @@
 <template>
-  <PageFrame template="document" class="about-page ui-page">
+  <PageFrame template="document" width="reading" class="about-page ui-page">
     <template #header>
       <PageHeader title="关于 FlyMail" description="版本、项目能力与开源信息。" />
     </template>
 
     <div class="document-column about-document">
-    <section class="about-card">
+    <UiCard class="about-card" padding="lg">
       <div class="brand-row">
         <img :src="base + 'icon-full.png'" alt="FlyMail" class="brand-logo" @error="onLogoError" />
         <div class="brand-meta">
@@ -25,9 +25,9 @@
         当前 Docker 多用户版支持聚合收件箱、联系人、本地邮件备份、PDF 导出、NAS 附件、第三方通知、
         历史邮件断点同步、账号级 Gmail 代理，以及 MySQL 与本地文件持久化。
       </p>
-    </section>
+    </UiCard>
 
-    <section class="about-card">
+    <UiCard class="about-card" padding="lg">
       <div class="pill-row">
         <span class="pill" v-for="feature in features" :key="feature">
           <span class="pill-dot"></span>{{ feature }}
@@ -37,9 +37,9 @@
       <div class="pill-row">
         <span class="pill tech" v-for="tech in techs" :key="tech">{{ tech }}</span>
       </div>
-    </section>
+    </UiCard>
 
-    <section class="about-card">
+    <UiCard class="about-card" padding="lg">
       <div class="link-block">
         <h3>项目地址</h3>
         <a class="repo-link" href="https://github.com/LiangLiang723/flymail" target="_blank" rel="noreferrer">
@@ -57,7 +57,7 @@
           。
         </p>
       </div>
-    </section>
+    </UiCard>
 
     <div class="footer">
       <span>© 2026 luisa · GNU GPLv3</span>
@@ -70,6 +70,7 @@
 import { ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiCard from '../components/ui/UiCard.vue';
 import { useUIStore } from '../stores/ui';
 
 const version = import.meta.env.VITE_APP_VERSION || '0.0.0';

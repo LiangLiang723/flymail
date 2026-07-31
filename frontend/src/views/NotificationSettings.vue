@@ -1,11 +1,9 @@
 <template>
-  <PageFrame template="document" class="notify-page ui-page">
+  <PageFrame template="document" width="form" class="notify-page ui-page">
     <template #header>
       <PageHeader title="第三方通知" description="将新邮件通知发送到 Bark、Telegram 或兼容 Webhook。">
         <template #actions>
-          <button class="btn btn-primary" type="button" :disabled="saving" @click="save">
-            {{ saving ? '保存中…' : '保存设置' }}
-          </button>
+          <UiButton variant="primary" :loading="saving" @click="save">保存设置</UiButton>
         </template>
       </PageHeader>
     </template>
@@ -13,17 +11,23 @@
     <div class="document-column notify-document">
     <UiLoadingState v-if="loading" panel label="正在加载通知设置…" />
     <template v-else>
-      <div class="card overview-card">
-        <label class="toggle-row">
+      <UiCard class="overview-card" padding="lg">
+        <label class="toggle-row ui-checkbox">
           <span><strong>启用第三方通知</strong><small>应用内通知不受此开关影响。</small></span>
           <input v-model="form.enabled" type="checkbox" />
         </label>
         <div class="grid three">
-          <label class="field"><span>通知模式</span><select v-model="form.mode"><option value="text">文本</option><option value="image">图片卡片</option></select></label>
-          <label class="field"><span>免打扰开始</span><input v-model="form.dnd_start" type="time" /></label>
-          <label class="field"><span>免打扰结束</span><input v-model="form.dnd_end" type="time" /></label>
+          <UiField label="通知模式" for-id="notify-mode">
+            <select id="notify-mode" v-model="form.mode" class="ui-select"><option value="text">文本</option><option value="image">图片卡片</option></select>
+          </UiField>
+          <UiField label="免打扰开始" for-id="notify-dnd-start">
+            <input id="notify-dnd-start" v-model="form.dnd_start" class="ui-input" type="time" />
+          </UiField>
+          <UiField label="免打扰结束" for-id="notify-dnd-end">
+            <input id="notify-dnd-end" v-model="form.dnd_end" class="ui-input" type="time" />
+          </UiField>
         </div>
-      </div>
+      </UiCard>
 
       <div class="card">
         <div class="card-title"><div><strong>Bark</strong><small>适用于 iPhone / iPad 的 Bark 推送。</small></div><input v-model="form.bark.enabled" type="checkbox" /></div>
@@ -75,6 +79,9 @@
 import { onMounted, reactive, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiButton from '../components/ui/UiButton.vue';
+import UiCard from '../components/ui/UiCard.vue';
+import UiField from '../components/ui/UiField.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
