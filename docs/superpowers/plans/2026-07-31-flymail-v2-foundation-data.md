@@ -497,7 +497,7 @@ git commit -m "🗃️ 建立 V2 空库迁移与核心表结构"
 - Produces: `sign_session_cookie(session_id: str, secret: bytes) -> str`
 - Produces: `verify_session_cookie(cookie: str, secret: bytes) -> str`.
 
-- [ ] **Step 1: Write security tests**
+- [x] **Step 1: Write security tests**
 
 Tests cover:
 
@@ -510,11 +510,11 @@ Tests cover:
 - session raw token never equals stored token hash;
 - log-safe representations never include plaintext.
 
-- [ ] **Step 2: Run tests and verify missing modules**
+- [x] **Step 2: Run tests and verify missing modules**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement password hashing**
+- [x] **Step 3: Implement password hashing**
 
 Use `cryptography.hazmat.primitives.kdf.scrypt.Scrypt` with per-password random salt. Store an encoded format:
 
@@ -524,7 +524,7 @@ scrypt$v=1$n=32768$r=8$p=1$<salt-base64>$<digest-base64>
 
 Use constant-time comparison. Reject passwords shorter than 10 characters at application validation; the hashing function itself accepts any non-empty string so imported administrative workflows remain explicit.
 
-- [ ] **Step 4: Implement credential encryption**
+- [x] **Step 4: Implement credential encryption**
 
 Use HKDF-SHA256 to derive a 32-byte credential key from `FLYMAIL_SESSION_SECRET` with info `b"flymail-v2/credentials/v1"`, then AES-256-GCM with random 12-byte nonce.
 
@@ -541,15 +541,15 @@ class EncryptedValue:
 
 AAD is `f"flymail:{account_id}:provider-credential:v1".encode()`.
 
-- [ ] **Step 5: Implement session token primitives**
+- [x] **Step 5: Implement session token primitives**
 
 Generate 32 random bytes. Store SHA-256 hash only. Cookie signing and verification use a separately HKDF-derived HMAC key with info `b"flymail-v2/session-signing/v1"`.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run `tests.v2.test_security`; expected PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/flymail/infrastructure/security backend/tests/v2/test_security.py
