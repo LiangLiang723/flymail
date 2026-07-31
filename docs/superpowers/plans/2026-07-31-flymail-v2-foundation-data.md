@@ -852,7 +852,7 @@ git commit -m "⚙️ 建立 V2 Outbox 与可恢复任务租约"
 - Produces: Gate 1 evidence consumed by protocol plan.
 - Produces: stable schema version and public Python interfaces.
 
-- [ ] **Step 1: Add foundation integration test**
+- [x] **Step 1: Add foundation integration test**
 
 The test must start from an empty temporary database and temporary object directory, then:
 
@@ -867,7 +867,7 @@ The test must start from an empty temporary database and temporary object direct
 9. restart pools and verify all persistent state remains;
 10. detach the last object reference and verify physical cleanup.
 
-- [ ] **Step 2: Add V2 development health details**
+- [x] **Step 2: Add V2 development health details**
 
 `/api/v2/health` may report only:
 
@@ -883,7 +883,7 @@ The test must start from an empty temporary database and temporary object direct
 
 It must not expose database URL, filesystem host path, secrets or account information. The value `5` is the Gate 1 expectation; later migration plans must return the dynamically read current schema version rather than hard-code it.
 
-- [ ] **Step 3: Run full foundation verification**
+- [x] **Step 3: Run full foundation verification**
 
 Run:
 
@@ -899,7 +899,7 @@ git diff
 
 Expected: all V2 foundation tests PASS and legacy source behavior remains unchanged.
 
-- [ ] **Step 4: Run legacy backend regression**
+- [x] **Step 4: Run legacy backend regression**
 
 Run:
 
@@ -910,7 +910,7 @@ python -m unittest discover -s tests -v
 
 Expected: existing backend suite PASS. If host dependencies are unavailable, run the suite in the current FlyMail image with the workspace mounted read-only, as established by the project workflow.
 
-- [ ] **Step 5: Update README development note**
+- [x] **Step 5: Update README development note**
 
 Document:
 
@@ -919,7 +919,7 @@ Document:
 - current deployment remains on legacy entry until final cutover;
 - no instruction may point tests at `/Docker/flymail/data`.
 
-- [ ] **Step 6: Inspect interfaces for downstream consistency**
+- [x] **Step 6: Inspect interfaces for downstream consistency**
 
 Use `rg` to confirm names in this plan exactly match code:
 
@@ -927,7 +927,7 @@ Use `rg` to confirm names in this plan exactly match code:
 rg -n 'FlyMailSettings|SqlUnitOfWork|CredentialCipher|ObjectStore|JobRepository|OutboxRepository' backend/flymail backend/tests/v2
 ```
 
-- [ ] **Step 7: Commit and push Gate 1**
+- [x] **Step 7: Commit and push Gate 1**
 
 ```bash
 git add backend/v2_dev.py backend/tests/v2/test_foundation_integration.py README.md
@@ -937,16 +937,16 @@ git push origin main
 
 ## Gate 1 Completion Checklist
 
-- [ ] Empty MySQL database migrates to schema version 5.
-- [ ] Re-running migrations is idempotent.
-- [ ] API and Worker pools are distinct and bounded.
-- [ ] UoW rollback and commit behavior is proven.
-- [ ] Credential encryption uses independent derived key and authenticated account binding.
-- [ ] Object store is atomic, deduplicated and reference-safe.
-- [ ] Body quota and search-index removal contract is tested.
-- [ ] Tenant Repository isolation tests pass.
-- [ ] Outbox and business state are atomic.
-- [ ] Concurrent task claiming has zero duplicate claims.
-- [ ] Worker heartbeat and lease recovery survive restart.
-- [ ] Legacy backend tests remain green.
-- [ ] Current production container and data path were not modified.
+- [x] Empty MySQL database migrates to schema version 5.
+- [x] Re-running migrations is idempotent.
+- [x] API and Worker pools are distinct and bounded.
+- [x] UoW rollback and commit behavior is proven.
+- [x] Credential encryption uses independent derived key and authenticated account binding.
+- [x] Object store is atomic, deduplicated and reference-safe.
+- [x] Body quota and search-index removal contract is tested.
+- [x] Tenant Repository isolation tests pass.
+- [x] Outbox and business state are atomic.
+- [x] Concurrent task claiming has zero duplicate claims.
+- [x] Worker heartbeat and lease recovery survive restart.
+- [x] Legacy backend tests remain green.
+- [x] Current production container and data path were not modified.

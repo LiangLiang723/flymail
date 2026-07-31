@@ -2,7 +2,7 @@ import inspect
 import os
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 
@@ -25,7 +25,6 @@ from flymail.domain.errors import (
 from flymail.domain.ids import new_id
 from v2_dev import create_app
 from v2_worker import run_worker
-from version import VERSION
 
 
 class FlyMailSettingsTests(unittest.TestCase):
@@ -143,13 +142,42 @@ class DevelopmentEntrypointTests(unittest.IsolatedAsyncioTestCase):
     async def test_v2_health_returns_api_role_and_repository_version(self):
         with patch.dict(os.environ, FlyMailSettingsTests().valid_env(), clear=True):
             settings = FlyMailSettings.from_env("api")
-        transport = httpx.ASGITransport(app=create_app(settings))
-
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            response = await client.get("/api/v2/health")
+        expected = {
+            "status": "ok",
+            "role": "api",
+            "schema_version": 5,
+            "database": "ok",
+            "object_store": "ok",
+        }
+        with patch("v2_dev.inspect_foundation_health", new=AsyncMock(return_value=expected)):
+            transport = httpx.ASGITransport(app=create_app(settings))
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                response = await client.get("/api/v2/health")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok", "app": "flymail-v2", "role": "api", "version": VERSION})
+        self.assertEqual(response.json(), expected)
+
+    async def test_v2_health_failure_is_safe_and_returns_service_unavailable(self):
+        with patch.dict(os.environ, FlyMailSettingsTests().valid_env(), clear=True):
+            settings = FlyMailSettings.from_env("api")
+        expected = {
+            "status": "error",
+            "role": "api",
+            "schema_version": 0,
+            "database": "error",
+            "object_store": "error",
+        }
+        with patch("v2_dev.inspect_foundation_health", new=AsyncMock(return_value=expected)):
+            transport = httpx.ASGITransport(app=create_app(settings))
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                response = await client.get("/api/v2/health")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), expected)
+        rendered = response.text
+        self.assertNotIn(settings.database_url, rendered)
+        self.assertNotIn(str(settings.data_dir), rendered)
+        self.assertNotIn(settings.session_secret, rendered)
 
     async def test_worker_entrypoint_is_async_stoppable_and_has_no_placeholder_failure(self):
         self.assertTrue(inspect.iscoroutinefunction(run_worker))

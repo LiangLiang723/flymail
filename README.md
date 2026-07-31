@@ -304,6 +304,14 @@ npm install
 npm run dev
 ```
 
+### V2 基础层开发隔离
+
+FlyMail V2 正在独立开发中，`backend/v2_dev.py` 和 `backend/v2_worker.py` 目前只用于基础设施与协议层开发验证，不是当前生产容器的启动入口。正式部署仍由现有 `backend/main.py` 提供服务，直到 V2 全部功能和切换验收完成。
+
+V2 测试必须使用可删除的临时 MySQL 数据库和临时对象目录。`FLYMAIL_TEST_DATABASE_URL`、`FLYMAIL_DATA_DIR` 和对象存储目录不得指向当前生产数据库、生产容器挂载目录或宿主机 `/Docker/flymail/data`。测试结束后应删除临时容器和临时数据，不得通过清空生产目录来重置测试环境。
+
+基础层集成测试会从空数据库开始，验证 schema 迁移、API/Worker 独立连接池、事务回滚、凭证加密、内容寻址对象、Outbox 和任务租约。当前 Gate 1 schema 版本为 `5`。
+
 ## 文档
 
 - [API 接口文档](doc/API接口文档.md)
