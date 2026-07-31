@@ -24,7 +24,7 @@ ACCOUNT_ICON_PRESET_IDS = frozenset({
     "team",
     "star",
 })
-_SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
+_SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 _ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 
@@ -36,8 +36,8 @@ class StagedAccountIcon:
 
 
 def _safe_id(value: str, label: str) -> str:
-    normalized = (value or "").strip()
-    if not normalized or not _SAFE_ID.fullmatch(normalized):
+    normalized = str(value or "").strip()
+    if not normalized or not normalized.strip(".") or not _SAFE_ID.fullmatch(normalized):
         raise ValueError(f"{label}无效")
     return normalized
 

@@ -49,10 +49,17 @@ class AccountIconStorageTest(unittest.TestCase):
     def test_resolution_rejects_identifiers_outside_safe_path(self):
         from services import account_icons
 
-        with self.assertRaises(ValueError):
-            account_icons.save_account_icon("../user", "account-1", self._image_bytes())
-        with self.assertRaises(ValueError):
-            account_icons.save_account_icon("user-1", "../account", self._image_bytes())
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            account_icons, "ACCOUNT_ICONS_DIR", Path(temp_dir)
+        ):
+            for user_uid, account_id in (
+                ("../user", "account-1"),
+                ("..", "account-1"),
+                ("user-1", "../account"),
+            ):
+                with self.assertRaises(ValueError):
+                    account_icons.save_account_icon(user_uid, account_id, self._image_bytes())
+            self.assertIsNone(account_icons.resolve_account_icon("..", "account-1"))
 
 
 class AccountIconCleanupContractTest(unittest.TestCase):
