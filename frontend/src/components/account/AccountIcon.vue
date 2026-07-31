@@ -1,7 +1,12 @@
 <template>
   <span
     class="account-icon-shell"
-    :class="`account-icon-shell--${size}`"
+    :class="{
+      'account-icon-shell--upload': iconKind === 'upload',
+      'account-icon-shell--preset': iconKind === 'preset',
+      'account-icon-shell--provider': iconKind === 'provider',
+    }"
+    :style="shellStyle"
     :role="decorative ? undefined : 'img'"
     :aria-label="decorative ? undefined : label"
     :aria-hidden="decorative ? 'true' : undefined"
@@ -32,21 +37,29 @@ const props = withDefaults(defineProps<{
     icon_value?: string;
     icon_url?: string;
   };
-  size?: 'sm' | 'md' | 'lg';
+  size?: 16 | 18 | 24 | 30 | 36 | 48;
   decorative?: boolean;
 }>(), {
-  size: 'md',
+  size: 30,
   decorative: false,
 });
 
 const uploadFailed = ref(false);
 const label = computed(() => `${props.account.remark || props.account.email} 的邮箱图标`);
 const showUpload = computed(() => props.account.icon_type === 'upload' && Boolean(props.account.icon_url) && !uploadFailed.value);
+const hasPreset = computed(() => props.account.icon_type === 'preset' && isAccountIconPreset(props.account.icon_value || ''));
+const iconKind = computed<'upload' | 'preset' | 'provider'>(() => {
+  if (showUpload.value) return 'upload';
+  if (hasPreset.value) return 'preset';
+  return 'provider';
+});
+const shellStyle = computed(() => ({
+  '--account-icon-size': `${props.size}px`,
+  '--account-icon-radius': `${Math.max(4, Math.round(props.size * 0.28))}px`,
+}) as Record<string, string>);
 const resolvedSvg = computed(() => {
   const presetId = props.account.icon_value || '';
-  if (props.account.icon_type === 'preset' && isAccountIconPreset(presetId)) {
-    return accountIconPresetSvg(presetId);
-  }
+  if (hasPreset.value) return accountIconPresetSvg(presetId);
   return providerIcon(props.account.provider);
 });
 
@@ -58,26 +71,30 @@ watch(
 
 <style scoped>
 .account-icon-shell {
+  width: var(--account-icon-size);
+  height: var(--account-icon-size);
   display: inline-grid;
   flex: none;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--ui-border);
-  border-radius: 9px;
-  background: var(--ui-surface-2);
-  box-shadow: var(--ui-shadow-xs);
+  border-radius: var(--account-icon-radius);
+  background: transparent;
+  line-height: 0;
 }
 
-.account-icon-shell--sm { width: 20px; height: 20px; border-radius: 6px; }
-.account-icon-shell--md { width: 32px; height: 32px; }
-.account-icon-shell--lg { width: 48px; height: 48px; border-radius: 13px; }
-
 .account-icon-image,
-.account-icon-svg,
-.account-icon-svg :deep(svg) {
+.account-icon-shell--preset .account-icon-svg,
+.account-icon-shell--preset .account-icon-svg :deep(svg) {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.account-icon-shell--provider .account-icon-svg,
+.account-icon-shell--provider .account-icon-svg :deep(svg) {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .account-icon-image { object-fit: cover; }

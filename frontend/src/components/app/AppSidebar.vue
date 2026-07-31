@@ -81,7 +81,7 @@
             :class="{ active: mailStore.currentAccountId === account.id }"
             @click="selectMailNavigation({ type: 'account', id: account.id })"
           >
-            <AccountIcon :account="account" size="md" decorative />
+            <AccountIcon :account="account" :size="30" decorative />
             <span class="mobile-account-copy">
               <strong>{{ accountDisplayName(account) }}</strong>
               <small>{{ account.email }}</small>

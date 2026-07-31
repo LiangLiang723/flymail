@@ -20,7 +20,7 @@
             :class="{ active: mailStore.currentAccountId === acc.id }"
             @click="switchAccount(acc.id)"
           >
-            <AccountIcon :account="acc" size="md" decorative />
+            <AccountIcon :account="acc" :size="18" decorative />
             <span class="account-switcher-copy">
               <strong>{{ accountDisplayName(acc) }}</strong>
               <small>{{ acc.email }}</small>

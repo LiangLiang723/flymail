@@ -70,7 +70,7 @@
         <!-- 账号卡片 -->
         <div class="account-list account-card-grid">
           <div v-for="account in section.accounts" :key="account.id" class="account-card" @click="openEditDialog(account)">
-            <AccountIcon :account="account" size="lg" decorative />
+            <AccountIcon :account="account" :size="36" decorative />
             <!-- 账号信息 -->
             <div class="account-info">
               <div class="info-main">
@@ -303,7 +303,7 @@
           <div v-if="editingAccount" class="form-field account-icon-editor">
             <label class="field-label">邮箱图标</label>
             <div class="account-icon-editor__current">
-              <AccountIcon :account="editingAccount" size="lg" />
+              <AccountIcon :account="editingAccount" :size="48" />
               <div class="account-icon-editor__actions">
                 <UiButton variant="secondary" size="sm" :disabled="iconSaving" @click="showIconPresets = !showIconPresets">
                   选择内置图标

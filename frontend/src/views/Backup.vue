@@ -13,7 +13,7 @@
   :class="{ active: selectedAccount === acc.account_id }"
   @click="switchAccount(acc.account_id)"
   >
-  <AccountIcon :account="acc" size="sm" decorative />
+  <AccountIcon :account="acc" :size="16" decorative />
   <span class="account-email">{{ acc.email }}</span>
   <span class="account-count">{{ acc.count }}</span>
   </button>

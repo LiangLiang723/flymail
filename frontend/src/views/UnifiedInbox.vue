@@ -31,10 +31,12 @@
             <div v-if="availableAccounts.length" class="account-options">
               <label v-for="account in availableAccounts" :key="account.id" class="account-option ui-checkbox">
                 <input v-model="selectedAccountIds" type="checkbox" :value="account.id" />
-                <AccountIcon :account="account" size="md" decorative />
-                <span class="account-option__copy">
-                  <strong>{{ account.email }}</strong>
-                  <small>收件箱将参与跨账号聚合</small>
+                <span class="account-option__identity">
+                  <AccountIcon :account="account" :size="30" decorative />
+                  <span class="account-option__copy">
+                    <strong>{{ account.email }}</strong>
+                    <small>收件箱将参与跨账号聚合</small>
+                  </span>
                 </span>
                 <UiBadge>{{ providerName(account.provider) }}</UiBadge>
               </label>
@@ -111,11 +113,13 @@
             @click="openMessage(message)"
           >
             <span class="read-dot" aria-hidden="true"></span>
-            <AccountIcon v-if="accountForMessage(message)" :account="accountForMessage(message)!" size="sm" decorative />
             <span class="sender" :title="message.from_addr">{{ displayAddress(message.from_addr) }}</span>
             <span class="message-main">
               <strong>{{ message.subject || '（无主题）' }}</strong>
-              <small>{{ accountLabel(message) }}</small>
+              <small class="message-account">
+                <AccountIcon v-if="accountForMessage(message)" :account="accountForMessage(message)!" :size="16" decorative />
+                <span>{{ accountLabel(message) }}</span>
+              </small>
             </span>
             <UiBadge v-if="message.has_attachments" class="attachment" title="包含附件">附件</UiBadge>
             <time>{{ formatDate(message.date) }}</time>
@@ -359,11 +363,20 @@ onMounted(async () => {
 .account-option {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--ui-space-3);
   padding: var(--ui-space-3);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-2);
+}
+
+.account-option__identity {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-space-3);
 }
 
 .account-option:has(input:checked) {
@@ -496,6 +509,20 @@ onMounted(async () => {
 
 .message-main small {
   color: var(--ui-text-3);
+}
+
+.message-account {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+
+.message-account > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 time {
