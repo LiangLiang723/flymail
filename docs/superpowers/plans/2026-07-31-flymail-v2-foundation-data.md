@@ -91,7 +91,7 @@
 - Produces enums: `JobStatus`, `OperationStatus`, `BodyCacheState`, `ObjectKind`, `AccountRuntimeStatus`.
 - Produces errors: `ConfigurationError`, `NotFoundError`, `ConflictError`, `AuthorizationError`, `RetryableError`, `PermanentError`.
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 Create `backend/tests/v2/test_config.py`:
 
@@ -135,7 +135,7 @@ class FlyMailSettingsTests(unittest.TestCase):
         self.assertNotEqual(first, second)
 ```
 
-- [ ] **Step 2: Run the test and verify imports fail**
+- [x] **Step 2: Run the test and verify imports fail**
 
 Run:
 
@@ -146,7 +146,7 @@ python -m unittest tests.v2.test_config -v
 
 Expected: FAIL because `flymail.config` and `flymail.domain.ids` do not exist.
 
-- [ ] **Step 3: Implement explicit settings**
+- [x] **Step 3: Implement explicit settings**
 
 Implement immutable `FlyMailSettings` with these required fields:
 
@@ -176,7 +176,7 @@ Defaults:
 - reject missing database URL, missing data directory, and session secret shorter than 16 characters.
 - never include the raw database URL or session secret in `repr`.
 
-- [ ] **Step 4: Add ID and enum contracts**
+- [x] **Step 4: Add ID and enum contracts**
 
 Use URL-safe random UUID-derived IDs:
 
@@ -198,13 +198,13 @@ ObjectKind: body_html, body_text, inline_image, attachment, raw_eml, draft_attac
 AccountRuntimeStatus: active, normal, quiet, degraded, auth_required, disabled
 ```
 
-- [ ] **Step 5: Add development entrypoints**
+- [x] **Step 5: Add development entrypoints**
 
 `backend/v2_dev.py` must create a minimal FastAPI app with `/api/v2/health` returning role and version. It must not import legacy routes.
 
 `backend/v2_worker.py` must load settings and exit with a clear configuration error until the database heartbeat service exists. It must not silently start an empty infinite loop.
 
-- [ ] **Step 6: Run narrow tests**
+- [x] **Step 6: Run narrow tests**
 
 Run:
 
@@ -215,7 +215,7 @@ python -m unittest tests.v2.test_config -v
 
 Expected: all tests PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/flymail backend/v2_dev.py backend/v2_worker.py backend/tests/v2/test_config.py
