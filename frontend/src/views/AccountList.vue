@@ -389,6 +389,7 @@
       @close="closeCropDialog"
       @reselect="reselectIconFile"
       @confirm="uploadCroppedIcon"
+      @error="ui.error($event)"
     />
     </div>
   </PageFrame>
@@ -994,6 +995,11 @@ async function selectIconFile(event: Event) {
   image.src = objectUrl;
   try {
     await image.decode();
+    if (image.naturalWidth * image.naturalHeight > 40_000_000) {
+      URL.revokeObjectURL(objectUrl);
+      ui.error('图片尺寸过大，请更换图片');
+      return;
+    }
     cropNaturalWidth.value = image.naturalWidth;
     cropNaturalHeight.value = image.naturalHeight;
     cropSource.value = objectUrl;

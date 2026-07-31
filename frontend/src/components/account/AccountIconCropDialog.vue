@@ -66,9 +66,9 @@
       </div>
 
       <footer class="dialog-actions">
-        <UiButton variant="secondary" :disabled="busy" @click="$emit('reselect')">重新选择</UiButton>
-        <UiButton variant="secondary" :disabled="busy" @click="requestClose">取消</UiButton>
-        <UiButton variant="primary" :loading="busy" @click="confirmCrop">使用此图标</UiButton>
+        <UiButton variant="secondary" :disabled="working" @click="$emit('reselect')">重新选择</UiButton>
+        <UiButton variant="secondary" :disabled="working" @click="requestClose">取消</UiButton>
+        <UiButton variant="primary" :loading="working" @click="confirmCrop">使用此图标</UiButton>
       </footer>
     </section>
   </div>
@@ -98,12 +98,15 @@ const emit = defineEmits<{
   close: [];
   reselect: [];
   confirm: [blob: Blob];
+  error: [message: string];
 }>();
 
 const dialogRef = ref<HTMLElement | null>(null);
 const viewportRef = ref<HTMLElement | null>(null);
 const imageRef = ref<HTMLImageElement | null>(null);
 const viewportSize = ref(320);
+const rendering = ref(false);
+const working = computed(() => props.busy || rendering.value);
 const minimumScale = computed(() => coverScale(props.naturalWidth, props.naturalHeight, viewportSize.value));
 const maximumScale = computed(() => minimumScale.value * 5);
 const state = reactive<CropState>({ scale: minimumScale.value, offsetX: 0, offsetY: 0 });
@@ -196,13 +199,20 @@ function handleWheel(event: WheelEvent) {
 }
 
 function requestClose() {
-  if (!props.busy) emit('close');
+  if (!working.value) emit('close');
 }
 
 async function confirmCrop() {
-  if (!imageRef.value || props.busy) return;
-  const blob = await renderAccountIconBlob(imageRef.value, state, viewportSize.value);
-  emit('confirm', blob);
+  if (!imageRef.value || working.value) return;
+  rendering.value = true;
+  try {
+    const blob = await renderAccountIconBlob(imageRef.value, state, viewportSize.value);
+    emit('confirm', blob);
+  } catch (error: any) {
+    emit('error', error?.message || '无法生成裁剪图片');
+  } finally {
+    rendering.value = false;
+  }
 }
 
 function handleDialogKeydown(event: KeyboardEvent) {
@@ -228,11 +238,18 @@ function handleDialogKeydown(event: KeyboardEvent) {
 }
 
 let resizeObserver: ResizeObserver | null = null;
+let viewportMeasured = false;
 
 function measureViewport() {
   const measured = viewportRef.value?.clientWidth || 320;
-  if (measured === viewportSize.value) return;
+  if (measured === viewportSize.value && viewportMeasured) return;
   viewportSize.value = measured;
+  if (!viewportMeasured) {
+    state.scale = minimumScale.value;
+    state.offsetX = 0;
+    state.offsetY = 0;
+    viewportMeasured = true;
+  }
   normalizeState();
 }
 

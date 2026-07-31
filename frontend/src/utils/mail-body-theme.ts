@@ -32,9 +32,13 @@ function browserColorResolver(value: string): string {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   if (!context) return '';
-  context.fillStyle = '#000000';
+  context.fillStyle = '#010203';
   context.fillStyle = value;
-  return String(context.fillStyle || '');
+  const first = String(context.fillStyle || '');
+  context.fillStyle = '#040506';
+  context.fillStyle = value;
+  const second = String(context.fillStyle || '');
+  return first === second ? first : '';
 }
 
 function explicitForeground(element: HTMLElement): string {
@@ -113,7 +117,16 @@ export function adaptMailBodyColors(sanitizedHtml: string, options: MailThemeOpt
       }
 
       const rawForeground = explicitForeground(element);
-      if (!rawForeground) return;
+      if (!rawForeground) {
+        if (resolvedBackground) {
+          const adjustedLight = ensureContrast(lightText, effectiveBackground.light, 4.5, lightText);
+          const adjustedDark = ensureContrast(darkText, effectiveBackground.dark, 4.5, darkText);
+          element.classList.add('flymail-mail-color');
+          element.style.setProperty('--flymail-mail-color-light', toHex(adjustedLight));
+          element.style.setProperty('--flymail-mail-color-dark', toHex(adjustedDark));
+        }
+        return;
+      }
       removeForeground(element);
 
       if (index >= maximumNodes) {
