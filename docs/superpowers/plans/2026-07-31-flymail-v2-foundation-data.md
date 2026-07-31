@@ -666,7 +666,7 @@ git commit -m "📦 建立 V2 内容寻址对象存储与配额回收"
 - Produces: `UserRepository`, `AccountRepository`, `IdentityRepository`, `CredentialRepository`, `SettingsRepository`.
 - Every tenant method receives `TenantContext`; only explicitly named admin methods receive `AdminContext`.
 
-- [ ] **Step 1: Write cross-user isolation tests**
+- [x] **Step 1: Write cross-user isolation tests**
 
 Create two users and accounts. Assert user A cannot:
 
@@ -678,11 +678,11 @@ Create two users and accounts. Assert user A cannot:
 
 Also test disabled accounts are excluded from active Worker queries but remain visible in account management.
 
-- [ ] **Step 2: Run tests and confirm missing repositories**
+- [x] **Step 2: Run tests and confirm missing repositories**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement typed row mapping**
+- [x] **Step 3: Implement typed row mapping**
 
 Repository methods return dataclasses, not raw tuple positions. SQL must name columns explicitly and must not use `SELECT *`.
 
@@ -702,15 +702,15 @@ async def get_account(self, tenant: TenantContext, account_id: str) -> MailAccou
     return map_account(row) if row else None
 ```
 
-- [ ] **Step 4: Implement account and identity uniqueness**
+- [x] **Step 4: Implement account and identity uniqueness**
 
 Normalize email addresses with trimmed Unicode casefold for lookup while preserving display form. Reject duplicate account email per user and duplicate From identity per account.
 
-- [ ] **Step 5: Implement encrypted credential Repository**
+- [x] **Step 5: Implement encrypted credential Repository**
 
 Repository stores `EncryptedValue` fields. Decryption occurs in a dedicated application/security service, not in list queries. No method returns decrypted credentials to API query services.
 
-- [ ] **Step 6: Implement settings defaults**
+- [x] **Step 6: Implement settings defaults**
 
 New users get:
 
@@ -719,11 +719,11 @@ New users get:
 - theme `system`;
 - density `comfortable`.
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run `tests.v2.test_repositories`; expected PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/flymail/repositories backend/tests/v2/test_repositories.py
