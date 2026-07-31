@@ -4,39 +4,43 @@
       <PageHeader title="账号管理" description="添加、分组和维护用于收发邮件的邮箱账号。" />
     </template>
     <template #toolbar>
-    <!-- 操作栏 -->
-    <div class="toolbar">
-      <div class="sort-toggle">
-        <button class="toggle-btn" :class="{ active: sortBy === 'group' }" @click="sortBy = 'group'">按分组</button>
-        <button class="toggle-btn" :class="{ active: sortBy === 'platform' }" @click="sortBy = 'platform'">按平台</button>
-      </div>
-      <button class="btn btn-primary" @click="showAddDialog = true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        添加账号
-      </button>
-    </div>
+      <PageToolbar>
+        <template #start>
+          <div class="sort-toggle">
+            <button class="toggle-btn" :class="{ active: sortBy === 'group' }" @click="sortBy = 'group'">按分组</button>
+            <button class="toggle-btn" :class="{ active: sortBy === 'platform' }" @click="sortBy = 'platform'">按平台</button>
+          </div>
+        </template>
+        <template #end>
+          <button class="btn btn-primary" type="button" @click="showAddDialog = true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            添加账号
+          </button>
+        </template>
+      </PageToolbar>
     </template>
 
     <div class="management-stack account-stack">
     <!-- 加载状态 -->
-    <div v-if="loading" class="loading-state">
-      <div class="loading-dot"></div>
-      <span>加载中...</span>
-    </div>
+    <UiLoadingState v-if="loading" panel label="正在加载邮箱账号…" />
 
     <!-- 空状态 -->
-    <div v-else-if="mailStore.accounts.length === 0 && deleteJobs.length === 0" class="empty-state">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+    <UiEmptyState
+      v-else-if="mailStore.accounts.length === 0 && deleteJobs.length === 0"
+      panel
+      title="还没有添加邮箱账号"
+      description="点击上方「添加账号」按钮，添加你的邮箱即可开始使用"
+    >
+      <template #icon>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
           <rect x="2" y="4" width="20" height="16" rx="2"/>
           <path d="M22 4L12 13L2 4"/>
         </svg>
-      </div>
-      <p class="empty-title">还没有添加邮箱账号</p>
-      <p class="empty-desc">点击上方「添加账号」按钮，添加你的邮箱即可开始使用</p>
-    </div>
+      </template>
+      <button class="btn btn-primary" type="button" @click="showAddDialog = true">添加账号</button>
+    </UiEmptyState>
 
     <!-- 账号列表 -->
     <div v-else class="account-sections">
@@ -337,6 +341,9 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import PageToolbar from '../components/layout/PageToolbar.vue';
+import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 import { useMailStore } from '../stores/mail';
@@ -977,14 +984,6 @@ async function reconnectAccount(account: any) {
   background: var(--bg-secondary);
 }
 
-/* ==================== 工具栏 ==================== */
-.toolbar {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .sort-toggle {
   display: flex;
   background: var(--bg-tertiary);
@@ -1011,64 +1010,6 @@ async function reconnectAccount(account: any) {
   background: var(--bg-primary);
   color: var(--text-primary);
   box-shadow: var(--ui-shadow-xs);
-}
-
-/* ==================== 加载状态 ==================== */
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-12);
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
-}
-
-.loading-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* ==================== 空状态 ==================== */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-12) var(--space-6);
-  text-align: center;
-}
-
-.empty-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-4);
-}
-
-.empty-title {
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--space-1);
-}
-
-.empty-desc {
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
 }
 
 /* ==================== 分组区域 ==================== */
@@ -1459,8 +1400,7 @@ async function reconnectAccount(account: any) {
 
 /* ==================== 移动端适配 ==================== */
 @media (max-width: 768px) {
-  .toolbar { flex-direction: column; gap: var(--space-3); align-items: stretch; }
-  .sort-toggle { justify-content: center; }
+  .sort-toggle { width: 100%; justify-content: center; }
   .toggle-btn { flex: 1; text-align: center; padding: 8px 16px; }
   .provider-grid { grid-template-columns: 1fr; }
   .custom-form { grid-template-columns: 1fr; }

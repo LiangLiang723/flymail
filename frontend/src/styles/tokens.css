@@ -64,6 +64,8 @@
   --page-padding: 20px;
   --page-padding-compact: 16px;
   --page-gap: 12px;
+  --page-content-max: 1280px;
+  --page-document-max: 960px;
   --panel-padding: 16px;
   --control-height-sm: 32px;
   --control-height-md: 36px;

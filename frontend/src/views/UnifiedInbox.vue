@@ -56,16 +56,27 @@
       <span class="summary">共 {{ total }} 封，未读 {{ unreadTotal }} 封</span>
     </div>
 
-    <div v-if="loading" class="state-card">正在加载邮件…</div>
-    <div v-else-if="loadError" class="state-card error-state">
-      <span>{{ loadError }}</span>
+    <UiLoadingState v-if="loading" panel label="正在加载聚合邮件…" />
+    <UiEmptyState
+      v-else-if="loadError"
+      panel
+      title="聚合收件箱加载失败"
+      :description="loadError"
+    >
       <button class="btn btn-secondary" type="button" @click="loadMessages">重试</button>
-    </div>
-    <div v-else-if="noAccounts" class="state-card">
-      <strong>尚未选择聚合邮箱</strong>
-      <span>点击“选择邮箱”勾选需要聚合的账号。</span>
-    </div>
-    <div v-else-if="!messages.length" class="state-card">当前筛选条件下没有邮件。</div>
+    </UiEmptyState>
+    <UiEmptyState
+      v-else-if="noAccounts"
+      panel
+      title="尚未选择聚合邮箱"
+      description="点击“选择邮箱”勾选需要聚合的账号。"
+    />
+    <UiEmptyState
+      v-else-if="!messages.length"
+      panel
+      title="没有匹配的邮件"
+      description="调整邮箱或阅读状态筛选后再试。"
+    />
 
     <div v-else class="message-list">
       <button
@@ -100,6 +111,8 @@
 import { computed, onMounted, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import type { Message } from '../types/mail';
@@ -281,7 +294,7 @@ onMounted(async () => {
 .unified-header h2 { margin: 0 0 6px; font-size: 24px; }
 .unified-header p { margin: 0; color: var(--ui-text-3); }
 .header-actions, .settings-actions, .pagination { display: flex; align-items: center; gap: 10px; }
-.settings-card, .filter-bar, .message-list, .state-card { background: var(--ui-surface-1); border: 1px solid var(--ui-border); border-radius: 12px; }
+.settings-card, .filter-bar, .message-list { background: var(--ui-surface-1); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); }
 .settings-card { padding: 18px; margin-bottom: 16px; }
 .settings-title { font-weight: 700; margin-bottom: 10px; }
 .account-option { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; }
@@ -293,8 +306,6 @@ onMounted(async () => {
 .filter-chip { border: 1px solid var(--ui-border-strong); border-radius: 999px; padding: 7px 12px; background: transparent; color: var(--ui-text-2); cursor: pointer; }
 .filter-chip.active { border-color: var(--ui-accent); background: var(--ui-fill-selected); color: var(--ui-accent); }
 .summary { margin-left: auto; color: var(--ui-text-3); font-size: 13px; }
-.state-card { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--ui-text-3); }
-.error-state { color: var(--ui-danger); }
 .message-list { overflow: hidden; }
 .message-row { width: 100%; display: grid; grid-template-columns: 12px minmax(130px, 220px) minmax(0, 1fr) 24px 72px; align-items: center; gap: 12px; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--ui-border); background: var(--ui-surface-1); color: var(--ui-text-1); text-align: left; cursor: pointer; }
 .message-row:last-child { border-bottom: 0; }

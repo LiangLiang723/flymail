@@ -91,21 +91,31 @@
   </transition>
 
   <!-- 未选择任何备份邮箱 -->
-  <div v-if="accounts.length === 0" class="empty-state">
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <UiEmptyState
+  v-if="accounts.length === 0"
+  compact
+  title="暂无备份邮箱"
+  description="请在设置中开启备份并选择需要备份的邮箱"
+  >
+  <template #icon>
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
   </svg>
-  <p>暂无备份邮箱</p>
-  <p class="empty-hint">请在设置中开启备份并选择需要备份的邮箱</p>
-  </div>
-  <div v-else-if="loading" class="loading-state">加载中...</div>
-  <div v-else-if="messages.length === 0" class="empty-state">
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  </template>
+  </UiEmptyState>
+  <UiLoadingState v-else-if="loading" compact label="正在加载备份邮件…" />
+  <UiEmptyState
+  v-else-if="messages.length === 0"
+  compact
+  title="暂无备份邮件"
+  description="点击右上角“立即备份”，将当前邮箱邮件归档到本地"
+  >
+  <template #icon>
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
   </svg>
-  <p>暂无备份邮件</p>
-  <p class="empty-hint">点击右上角"立即备份"，将当前邮箱邮件归档到本地</p>
-  </div>
+  </template>
+  </UiEmptyState>
 
   <!-- 列表项：单行水平布局，与 MailList 视觉一致 -->
   <button
@@ -268,6 +278,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
+import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import api from '../utils/api';
 import { renderMailBody, handleMailLinkClick } from '../utils/sanitize';
 import { providerIcon } from '../utils/provider';
@@ -710,19 +722,6 @@ function downloadAttachment(att: BackupAttachment) {
   padding: 0;
 }
 
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--ui-text-2);
-  gap: 8px;
-}
-
-.empty-state p { margin: 0; font-size: 14px; }
-.empty-hint { font-size: 12px !important; opacity: 0.7; }
 
 /* ==================== 邮件列表项（与 MailList 视觉一致） ==================== */
 .mail-item {

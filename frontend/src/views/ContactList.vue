@@ -20,22 +20,23 @@
   </div>
 
   <!-- 加载状态 -->
-  <div v-if="loading" class="state-box">
-  <div class="spinner"></div>
-  <span>加载中...</span>
-  </div>
+  <UiLoadingState v-if="loading" compact label="正在加载联系人…" />
 
   <!-- 空状态 -->
-  <div v-else-if="filteredContacts.length === 0" class="state-box empty">
-  <div class="empty-icon">
-  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+  <UiEmptyState
+  v-else-if="filteredContacts.length === 0"
+  compact
+  :title="searchKeyword ? '未找到匹配的联系人' : '还没有联系人'"
+  :description="searchKeyword ? '试试其他关键词' : '点击「新增」按钮添加联系人'"
+  >
+  <template #icon>
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
   <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
   </svg>
-  </div>
-  <p class="state-title">{{ searchKeyword ? '未找到匹配的联系人' : '还没有联系人' }}</p>
-  <p class="state-desc">{{ searchKeyword ? '试试其他关键词' : '点击「新增」按钮添加联系人' }}</p>
-  </div>
+  </template>
+  <button v-if="!searchKeyword" class="btn btn-primary" type="button" @click="openAddDialog()">新增联系人</button>
+  </UiEmptyState>
 
   <!-- 联系人列表 -->
   <div v-else class="contact-list">
@@ -276,6 +277,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import { useContacts, type ContactItem, type ContactStats } from '../composables/useContacts';
 import { useUIStore } from '../stores/ui';
 import { getAvatarColor } from '../utils/mail-helpers';
@@ -614,49 +616,7 @@ onUnmounted(() => {
   transform: scale(0.97);
 }
 
-/* ============ 加载/空状态 ============ */
-.state-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 60px 20px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.state-box.empty {
-  text-align: center;
-}
-
-.empty-icon {
-  margin-bottom: 12px;
-  opacity: 0.4;
-  color: var(--text-tertiary);
-}
-
-.state-title {
-  font-size: 14px;
-  margin: 0 0 4px;
-  color: var(--text-primary);
-}
-
-.state-desc {
-  font-size: 12px;
-  margin: 0;
-  color: var(--text-tertiary);
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
+/* ============ 加载状态 ============ */
 .spinner-sm {
   width: 14px;
   height: 14px;

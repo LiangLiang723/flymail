@@ -11,7 +11,7 @@
     </template>
 
     <div class="document-column notify-document">
-    <div v-if="loading" class="state-card">正在加载通知设置…</div>
+    <UiLoadingState v-if="loading" panel label="正在加载通知设置…" />
     <template v-else>
       <div class="card overview-card">
         <label class="toggle-row">
@@ -75,6 +75,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 
@@ -177,7 +178,7 @@ onMounted(load);
 <style scoped>
 .notify-page { background: var(--ui-canvas); }
 .notify-document { align-content: start; }
-.card, .state-card { width: 100%; max-width: none; margin: 0; padding: 18px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface-1); }
-.overview-card { margin-top: 0; }.card-title, .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.card-title div, .toggle-row span { display: flex; flex-direction: column; gap: 4px; }.card small, .toggle-row small { color: var(--ui-text-3); font-weight: 400; }.grid { display: grid; gap: 14px; margin-bottom: 14px; }.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.field { display: flex; flex-direction: column; gap: 6px; }.field span { font-size: 13px; font-weight: 600; }.field input, .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--ui-border-strong); border-radius: 8px; background: var(--ui-surface-1); color: var(--ui-text-1); box-sizing: border-box; }.check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-2); }.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }.deploy-link { color: var(--ui-accent); text-decoration: none; }.state-card { display: flex; justify-content: center; min-height: 140px; align-items: center; color: var(--ui-text-3); }
+.card { width: 100%; max-width: none; margin: 0; padding: 18px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); background: var(--ui-surface-1); }
+.overview-card { margin-top: 0; }.card-title, .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.card-title div, .toggle-row span { display: flex; flex-direction: column; gap: 4px; }.card small, .toggle-row small { color: var(--ui-text-3); font-weight: 400; }.grid { display: grid; gap: 14px; margin-bottom: 14px; }.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.field { display: flex; flex-direction: column; gap: 6px; }.field span { font-size: 13px; font-weight: 600; }.field input, .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--ui-border-strong); border-radius: var(--ui-radius-sm); background: var(--ui-surface-1); color: var(--ui-text-1); box-sizing: border-box; }.check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-2); }.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }.deploy-link { color: var(--ui-accent); text-decoration: none; }
 @media (max-width: 760px) { .grid.two, .grid.three { grid-template-columns: 1fr; } }
 </style>

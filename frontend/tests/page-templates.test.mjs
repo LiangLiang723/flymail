@@ -105,6 +105,66 @@ test('desktop page templates share one outer content gutter', async () => {
   assert.match(layout, /\.page-frame__header\s*\{[^}]*padding:\s*var\(--page-padding\) var\(--page-padding\) var\(--page-gap\)/s);
 });
 
+test('management pages share a bounded content column and inset toolbar panel', async () => {
+  const tokens = await read('src/styles/tokens.css');
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(tokens, /--page-content-max:\s*1280px/);
+  assert.match(tokens, /--page-document-max:\s*960px/);
+  assert.match(layout, /\.page-frame--management \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-content-max\)\);[^}]*margin-inline:\s*auto/s);
+  assert.match(layout, /\.page-frame--document \.page-frame__header\s*\{[^}]*width:\s*min\(100%,\s*var\(--page-document-max\)\);[^}]*margin-inline:\s*auto/s);
+  assert.match(layout, /\.management-stack\s*\{[^}]*max-width:\s*var\(--page-content-max\);[^}]*margin-inline:\s*auto/s);
+  assert.match(layout, /\.page-frame--management \.page-frame__toolbar\s*\{[^}]*width:\s*min\([^;]*var\(--page-content-max\)[^;]*\);[^}]*margin:\s*0 auto var\(--page-gap\);[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-md\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
+});
+
+test('split pages use a rounded desktop surface and edge-to-edge mobile layout', async () => {
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(layout, /\.page-frame--split > \.page-frame__body\s*\{[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-lg\);[^}]*background:\s*var\(--ui-surface-1\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
+  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--split > \.page-frame__body\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*box-shadow:\s*none/s);
+});
+
+test('shared empty state supports compact panel variants', async () => {
+  const component = await read('src/components/ui/UiEmptyState.vue');
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(component, /compact\?:\s*boolean/);
+  assert.match(component, /panel\?:\s*boolean/);
+  assert.match(component, /ui-empty-state--compact/);
+  assert.match(component, /ui-empty-state--panel/);
+  assert.match(layout, /\.ui-empty-state--compact\s*\{/);
+  assert.match(layout, /\.ui-empty-state--panel\s*\{[^}]*border:\s*1px solid var\(--ui-border\)/s);
+});
+
+test('top-level data pages reuse the shared empty-state component', async () => {
+  for (const file of ['AccountList.vue', 'ContactList.vue', 'HistorySync.vue', 'UnifiedInbox.vue', 'Backup.vue']) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /import UiEmptyState from/);
+    assert.match(source, /<UiEmptyState/);
+  }
+});
+
+test('management toolbar pages use the shared PageToolbar structure', async () => {
+  for (const file of ['AccountList.vue', 'UserManagement.vue']) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /import PageToolbar from/);
+    assert.match(source, /<PageToolbar/);
+  }
+});
+
+test('top-level asynchronous pages reuse the shared loading-state component', async () => {
+  const component = await read('src/components/ui/UiLoadingState.vue');
+  assert.match(component, /ui-loading-state__spinner/);
+  assert.match(component, /compact\?:\s*boolean/);
+  assert.match(component, /panel\?:\s*boolean/);
+
+  for (const file of ['AccountList.vue', 'ContactList.vue', 'HistorySync.vue', 'UnifiedInbox.vue', 'Backup.vue', 'NotificationSettings.vue']) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, /import UiLoadingState from/);
+    assert.match(source, /<UiLoadingState/);
+  }
+});
+
 test('page roots never override template-owned outer spacing', async () => {
   const files = [
     'MailList.vue',

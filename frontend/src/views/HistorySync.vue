@@ -12,12 +12,24 @@
 
     <div class="management-stack history-sync-stack">
 
-    <div v-if="initialLoading && jobs.length === 0" class="loading-state">
-      <div class="loading-dot"></div>
-      <span>加载中...</span>
-    </div>
+    <UiLoadingState
+      v-if="initialLoading && jobs.length === 0"
+      panel
+      label="正在加载同步任务…"
+    />
 
-    <div v-else-if="jobs.length === 0" class="empty-state">暂无邮箱账号</div>
+    <UiEmptyState
+      v-else-if="jobs.length === 0"
+      panel
+      title="暂无邮箱账号"
+      description="添加邮箱账号后，可在这里查看历史邮件同步进度。"
+    >
+      <template #icon>
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>
+        </svg>
+      </template>
+    </UiEmptyState>
 
     <div v-else class="job-list">
       <section v-for="item in jobs" :key="item.account_id" class="job-card">
@@ -82,6 +94,8 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import { useWebSocket } from '../composables/useWebSocket';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
@@ -403,26 +417,6 @@ onBeforeUnmount(() => {
   font-size: 15px;
 }
 
-.loading-state,
-.empty-state {
-  min-height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  font-size: 18px;
-}
-
-.loading-state { gap: var(--space-3); }
-
-.loading-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  animation: pulse 1.2s infinite ease-in-out;
-}
-
 .job-list {
   display: flex;
   flex-direction: column;
@@ -580,11 +574,6 @@ onBeforeUnmount(() => {
 .status-failed {
   background: var(--ui-danger-soft);
   color: var(--ui-danger);
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.85); }
-  50% { opacity: 1; transform: scale(1); }
 }
 
 @media (max-width: 1080px) {

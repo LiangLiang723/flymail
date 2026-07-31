@@ -10,19 +10,21 @@
     </template>
 
     <template #toolbar>
-    <div class="filters">
-      <input v-model="filters.keyword" placeholder="筛选用户名" />
-      <select v-model="filters.role">
-        <option value="">全部角色</option>
-        <option value="admin">管理员</option>
-        <option value="user">普通用户</option>
-      </select>
-      <select v-model="filters.status">
-        <option value="">全部状态</option>
-        <option value="active">启用</option>
-        <option value="disabled">禁用</option>
-      </select>
-    </div>
+      <PageToolbar>
+        <div class="filters">
+          <input v-model="filters.keyword" placeholder="筛选用户名" />
+          <select v-model="filters.role">
+            <option value="">全部角色</option>
+            <option value="admin">管理员</option>
+            <option value="user">普通用户</option>
+          </select>
+          <select v-model="filters.status">
+            <option value="">全部状态</option>
+            <option value="active">启用</option>
+            <option value="disabled">禁用</option>
+          </select>
+        </div>
+      </PageToolbar>
     </template>
 
     <div class="management-stack user-stack">
@@ -156,6 +158,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import PageToolbar from '../components/layout/PageToolbar.vue';
 import api from '../utils/api';
 
 const users = ref<any[]>([]);
@@ -364,9 +367,10 @@ onMounted(loadUsers);
 }
 
 .filters {
+  width: 100%;
   display: grid;
   gap: 12px;
-  margin-bottom: 20px;
+  margin: 0;
 }
 
 .header-actions {
