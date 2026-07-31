@@ -120,7 +120,7 @@ Basic response:
 {
   "status": "ok",
   "app": "flymail",
-  "version": "<VERSION>",
+  "version": "0.0.25",
   "api": "ok",
   "database": "ok",
   "worker": "ok",
@@ -128,7 +128,7 @@ Basic response:
 }
 ```
 
-Admin diagnostics additionally returns safe pool counts, queue counts, stale heartbeat count, free disk bytes and last maintenance result.
+Admin diagnostics additionally returns safe pool counts, queue counts, stale heartbeat count, free disk bytes and last maintenance result. The displayed `0.0.25` is the planning-time example; implementation must read the active value from `VERSION` and the release task later confirms the final value.
 
 - [ ] **Step 6: Run tests and commit**
 

@@ -232,10 +232,12 @@ Expected: current container remains healthy, MySQL data directory is `/data/mysq
 Every integration or container command must define:
 
 ```text
-container name: flymail-v2-test-<unique-id>
-host data dir: /tmp/flymail-v2-test-<unique-id>
-image tag: benxianyu/flymail:v2-test-<git-sha>
-MySQL database: flymail_v2_test_<unique-id>
+RUN_ID=$(date +%s)-$$
+GIT_SHA=$(git rev-parse --short HEAD)
+container name: flymail-v2-test-${RUN_ID}
+host data dir: /tmp/flymail-v2-test-${RUN_ID}
+image tag: benxianyu/flymail:v2-test-${GIT_SHA}
+MySQL database: flymail_v2_test_${RUN_ID//-/_}
 ```
 
 - [ ] **Step 3: Verify no production path appears in test scripts**
