@@ -28,6 +28,18 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
 
+test('compose and backup use shared fluid workspace surfaces', async () => {
+  const compose = await read('src/views/ComposeEmail.vue');
+  const backup = await read('src/views/Backup.vue');
+
+  assert.match(compose, /<PageFrame[^>]*width="fluid"/);
+  assert.match(compose, /<UiField/);
+  assert.match(compose, /<UiButton/);
+  assert.match(backup, /<PageFrame[^>]*width="fluid"/);
+  assert.match(backup, /<UiEmptyState/);
+  assert.match(backup, /<UiLoadingState/);
+});
+
 test('mail management uses the fluid workspace and shared toolbar primitives', async () => {
   const source = await read('src/views/MailList.vue');
 

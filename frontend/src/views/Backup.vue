@@ -1,5 +1,5 @@
 <template>
-  <PageFrame template="workspace" class="backup-page ui-page">
+  <PageFrame template="workspace" width="fluid" class="backup-page ui-page">
   <!-- 主体：账号tabs + 列表 + 详情（文件夹由侧边栏 backupStore 管理） -->
   <div class="backup-content">
   <!-- 顶部：账号切换 tabs -->

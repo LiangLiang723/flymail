@@ -1,5 +1,5 @@
 <template>
-  <PageFrame template="workspace" class="compose-page ui-page" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+  <PageFrame template="workspace" width="fluid" class="compose-page ui-page" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
     <!-- 拖拽上传遮罩 -->
     <div v-if="isDragging" class="drop-overlay">
       <div class="drop-hint">
@@ -10,18 +10,24 @@
 
     <!-- 顶部工具栏 -->
     <div class="compose-toolbar">
-      <button class="toolbar-btn primary" type="button" title="发送邮件" aria-label="发送邮件" @click="sendMail" :disabled="sending || attachmentOverLimit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        <span>{{ sending ? '发送中...' : '发送' }}</span>
-      </button>
-      <button class="toolbar-btn" @click="showScheduleModal = true; initScheduleTime()" title="定时发送">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span>定时</span>
-      </button>
-      <button class="toolbar-btn" type="button" title="保存草稿" aria-label="保存草稿" @click="saveDraft" :disabled="savingDraft">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        <span>{{ savingDraft ? '保存中...' : '草稿' }}</span>
-      </button>
+      <UiButton variant="primary" :loading="sending" :disabled="attachmentOverLimit" @click="sendMail">
+        <template #leading>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </template>
+        发送
+      </UiButton>
+      <UiButton variant="secondary" @click="showScheduleModal = true; initScheduleTime()">
+        <template #leading>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </template>
+        定时
+      </UiButton>
+      <UiButton variant="secondary" :loading="savingDraft" @click="saveDraft">
+        <template #leading>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </template>
+        草稿
+      </UiButton>
 
       <!-- 签名模板选择器 -->
       <div class="toolbar-dropdown sig-dropdown">
@@ -142,16 +148,15 @@
     <!-- 邮件表单 -->
     <div class="compose-form">
       <!-- 发件人 -->
-      <div class="form-row">
-        <label>发件人</label>
-        <select v-model="fromAccountId" class="form-select">
+      <UiField class="form-row" label="发件人" for-id="compose-from">
+        <select id="compose-from" v-model="fromAccountId" class="ui-select form-select">
           <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.email }}</option>
         </select>
         <span class="cc-links">
           <button v-if="!showCc" class="text-btn" @click="showCc = true">抄送</button>
           <button v-if="!showBcc" class="text-btn" @click="showBcc = true">密送</button>
         </span>
-      </div>
+      </UiField>
 
       <!-- 收件人 -->
       <div class="form-row">
@@ -205,10 +210,9 @@
       </div>
 
       <!-- 主题 -->
-      <div class="form-row">
-        <label>主题</label>
-        <input v-model="subject" placeholder="邮件主题" class="form-input" />
-      </div>
+      <UiField class="form-row" label="主题" for-id="compose-subject">
+        <input id="compose-subject" v-model="subject" placeholder="邮件主题" class="ui-input form-input" />
+      </UiField>
 
       <!-- 富文本编辑器 -->
       <div class="editor-row">
@@ -350,6 +354,8 @@ import api from '../utils/api';
 import { useMailStore } from '../stores/mail';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
+import UiButton from '../components/ui/UiButton.vue';
+import UiField from '../components/ui/UiField.vue';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { useContactAutocomplete } from '../composables/useContactAutocomplete';
 import type { ContactSuggestion } from '../composables/useContacts';
