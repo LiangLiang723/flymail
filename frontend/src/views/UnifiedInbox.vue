@@ -31,6 +31,7 @@
             <div v-if="availableAccounts.length" class="account-options">
               <label v-for="account in availableAccounts" :key="account.id" class="account-option ui-checkbox">
                 <input v-model="selectedAccountIds" type="checkbox" :value="account.id" />
+                <AccountIcon :account="account" size="md" decorative />
                 <span class="account-option__copy">
                   <strong>{{ account.email }}</strong>
                   <small>收件箱将参与跨账号聚合</small>
@@ -110,6 +111,7 @@
             @click="openMessage(message)"
           >
             <span class="read-dot" aria-hidden="true"></span>
+            <AccountIcon v-if="accountForMessage(message)" :account="accountForMessage(message)!" size="sm" decorative />
             <span class="sender" :title="message.from_addr">{{ displayAddress(message.from_addr) }}</span>
             <span class="message-main">
               <strong>{{ message.subject || '（无主题）' }}</strong>
@@ -132,6 +134,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import AccountIcon from '../components/account/AccountIcon.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
 import UiBadge from '../components/ui/UiBadge.vue';
@@ -151,6 +154,9 @@ interface UnifiedAccount {
   email: string;
   provider: string;
   selected?: boolean;
+  icon_type?: 'default' | 'preset' | 'upload';
+  icon_value?: string;
+  icon_url?: string;
 }
 
 interface UnifiedMessage extends Message {
@@ -299,6 +305,10 @@ function displayAddress(value: string) {
   const text = value || '未知发件人';
   const match = text.match(/^\s*"?([^"<]+)"?\s*</);
   return match?.[1]?.trim() || text;
+}
+
+function accountForMessage(message: UnifiedMessage) {
+  return mailStore.accounts.find((account) => account.id === message.account_id) || null;
 }
 
 function accountLabel(message: UnifiedMessage) {

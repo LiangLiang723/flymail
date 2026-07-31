@@ -81,7 +81,7 @@
             :class="{ active: mailStore.currentAccountId === account.id }"
             @click="selectMailNavigation({ type: 'account', id: account.id })"
           >
-            <span class="mobile-account-avatar">{{ accountInitial(account) }}</span>
+            <AccountIcon :account="account" size="md" decorative />
             <span class="mobile-account-copy">
               <strong>{{ accountDisplayName(account) }}</strong>
               <small>{{ account.email }}</small>
@@ -142,6 +142,7 @@
 </template>
 
 <script setup lang="ts">
+import AccountIcon from '../account/AccountIcon.vue';
 import AppIcon from '../AppIcon.vue';
 import UserMenu from './UserMenu.vue';
 import { useMailStore } from '../../stores/mail';
@@ -186,10 +187,6 @@ const mailStore = useMailStore();
 
 function accountDisplayName(account: any) {
   return String(account?.remark || '').trim() || account?.email || '邮箱账号';
-}
-
-function accountInitial(account: any) {
-  return accountDisplayName(account).trim().charAt(0).toUpperCase() || 'M';
 }
 
 function folderIconName(name: string) {

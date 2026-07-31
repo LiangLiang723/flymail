@@ -22,6 +22,7 @@ from db import (
     set_user_settings,
     update_account_credentials,
 )
+from services.account_presenter import account_icon_fields
 from services.attachment_cache import (
     DEFAULT_ATTACHMENT_CACHE_LIMIT_MB,
     enforce_user_attachment_cache_limit,
@@ -437,7 +438,13 @@ async def get_unified_settings(request: Request):
     return {
         "account_ids": selected,
         "accounts": [
-            {"id": account.id, "email": account.email, "provider": account.provider, "selected": account.id in selected}
+            {
+                "id": account.id,
+                "email": account.email,
+                "provider": account.provider,
+                "selected": account.id in selected,
+                **account_icon_fields(account),
+            }
             for account in accounts
         ],
     }

@@ -16,6 +16,7 @@ from db import (
     get_accounts,
 )
 from deps import get_uid
+from services.account_presenter import account_icon_fields
 from services.backup import (
     DEFAULT_BACKUP_ROOT,
     get_backup_root_async,
@@ -63,6 +64,7 @@ async def get_backup_settings(request: Request):
                 "email": a.email,
                 "provider": a.provider,
                 "selected": a.id in account_ids,
+                **account_icon_fields(a),
             }
             for a in accounts
         ],
@@ -222,6 +224,7 @@ async def get_backup_status(request: Request):
                     "count": s.get("count", 0),
                     "deleted_count": s.get("deleted_count", 0),
                     "last_archived": s.get("last_archived", 0),
+                    **account_icon_fields(acc),
                 })
         stats["accounts"] = accounts
 

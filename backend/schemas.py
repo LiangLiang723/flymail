@@ -414,6 +414,9 @@ class UnifiedSettingsAccount(BaseModel):
     email: str
     provider: str
     selected: bool
+    icon_type: str = "default"
+    icon_value: str = ""
+    icon_url: str = ""
 
 
 class UnifiedSettingsResponse(BaseModel):

@@ -20,7 +20,7 @@
             :class="{ active: mailStore.currentAccountId === acc.id }"
             @click="switchAccount(acc.id)"
           >
-            <span class="account-icon" :class="acc.provider" v-html="providerIcon(acc.provider)"></span>
+            <AccountIcon :account="acc" size="md" decorative />
             <span class="account-switcher-copy">
               <strong>{{ accountDisplayName(acc) }}</strong>
               <small>{{ acc.email }}</small>
@@ -374,7 +374,7 @@ import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } f
 import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
-import { providerIcon } from '../utils/provider';
+import AccountIcon from '../components/account/AccountIcon.vue';
 import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
 import { renderThemedMailBody } from '../utils/sanitize';
 import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
@@ -1693,22 +1693,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: var(--ui-warning-soft);
   color: var(--ui-warning);
 }
-
-.account-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.account-icon.qq,
-.account-icon.gmail,
-.account-icon.netease,
-.account-icon.icloud { background: var(--ui-text-inverse); }
 
 .account-email {
   overflow: hidden;

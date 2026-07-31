@@ -38,6 +38,9 @@ export interface BackupAccount {
   email: string
   provider: string
   selected: boolean
+  icon_type?: 'default' | 'preset' | 'upload'
+  icon_value?: string
+  icon_url?: string
 }
 
 export interface BackupDir {
@@ -63,6 +66,9 @@ export interface BackupAccountStatus {
   last_archived: number
   email: string
   provider: string
+  icon_type?: 'default' | 'preset' | 'upload'
+  icon_value?: string
+  icon_url?: string
 }
 
 export interface BackupFolder {

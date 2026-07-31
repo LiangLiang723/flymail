@@ -13,7 +13,7 @@
   :class="{ active: selectedAccount === acc.account_id }"
   @click="switchAccount(acc.account_id)"
   >
-  <span class="account-icon" v-html="providerIcon(acc.provider)"></span>
+  <AccountIcon :account="acc" size="sm" decorative />
   <span class="account-email">{{ acc.email }}</span>
   <span class="account-count">{{ acc.count }}</span>
   </button>
@@ -282,7 +282,7 @@ import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import api from '../utils/api';
 import { renderThemedMailBody, handleMailLinkClick } from '../utils/sanitize';
-import { providerIcon } from '../utils/provider';
+import AccountIcon from '../components/account/AccountIcon.vue';
 import { useBackupStore } from '../stores/backup';
 import { useUIStore } from '../stores/ui';
 import { exportMailToPDF } from '../utils/export-pdf';
@@ -595,9 +595,6 @@ function downloadAttachment(att: BackupAttachment) {
   color: var(--ui-accent);
   font-weight: 500;
 }
-
-.account-icon { display: flex; align-items: center; }
-.account-icon svg { width: 16px; height: 16px; }
 
 .account-email {
   max-width: 150px;
