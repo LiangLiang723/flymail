@@ -24,6 +24,37 @@ function createSessionStorage() {
   };
 }
 
+test('patches account icon fields in memory and session storage', async () => {
+  globalThis.sessionStorage = createSessionStorage();
+  sessionStorage.setItem('flymail_accounts', JSON.stringify([
+    { id: 'account-1', provider: 'custom', email: 'user@example.com', icon_type: 'default', icon_value: '', icon_url: '' },
+  ]));
+  const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const server = await createServer({
+    root: frontendRoot,
+    appType: 'custom',
+    server: { middlewareMode: true },
+    logLevel: 'silent',
+  });
+
+  try {
+    setActivePinia(createPinia());
+    const { useMailStore } = await server.ssrLoadModule('/src/stores/mail.ts');
+    const store = useMailStore();
+    store.patchAccount('account-1', {
+      icon_type: 'preset',
+      icon_value: 'work',
+      icon_url: '',
+    });
+
+    assert.equal(store.accounts[0].icon_type, 'preset');
+    assert.equal(store.accounts[0].icon_value, 'work');
+    assert.equal(JSON.parse(sessionStorage.getItem('flymail_accounts'))[0].icon_value, 'work');
+  } finally {
+    await server.close();
+  }
+});
+
 test('loading accounts also discovers custom folders for the initial account', async () => {
   globalThis.sessionStorage = createSessionStorage();
   const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

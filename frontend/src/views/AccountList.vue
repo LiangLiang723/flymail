@@ -70,8 +70,7 @@
         <!-- 账号卡片 -->
         <div class="account-list account-card-grid">
           <div v-for="account in section.accounts" :key="account.id" class="account-card" @click="openEditDialog(account)">
-            <!-- 平台图标头像 -->
-            <div class="account-avatar" :class="account.provider" v-html="providerIcon(account.provider)"></div>
+            <AccountIcon :account="account" size="lg" decorative />
             <!-- 账号信息 -->
             <div class="account-info">
               <div class="info-main">
@@ -296,11 +295,56 @@
     </div>
 
     <!-- 编辑账号对话框 -->
-    <div v-if="showEditDialog" class="dialog-overlay" @click.self="showEditDialog = false">
+    <div v-if="showEditDialog" class="dialog-overlay" @click.self="closeEditDialog">
       <div class="dialog">
         <h3 class="dialog-title">编辑账号</h3>
         <p class="dialog-desc">{{ editingAccount?.email }}</p>
         <div class="edit-form">
+          <div v-if="editingAccount" class="form-field account-icon-editor">
+            <label class="field-label">邮箱图标</label>
+            <div class="account-icon-editor__current">
+              <AccountIcon :account="editingAccount" size="lg" />
+              <div class="account-icon-editor__actions">
+                <UiButton variant="secondary" size="sm" :disabled="iconSaving" @click="showIconPresets = !showIconPresets">
+                  选择内置图标
+                </UiButton>
+                <UiButton variant="secondary" size="sm" :disabled="iconSaving" @click="iconFileInput?.click()">
+                  上传图片
+                </UiButton>
+                <UiButton
+                  v-if="editingAccount.icon_type !== 'default'"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="iconSaving"
+                  @click="resetAccountIcon"
+                >
+                  恢复默认图标
+                </UiButton>
+              </div>
+              <input
+                ref="iconFileInput"
+                class="account-icon-file-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                @change="selectIconFile"
+              />
+            </div>
+            <div v-if="showIconPresets" class="account-icon-preset-grid" aria-label="选择内置邮箱图标">
+              <button
+                v-for="preset in ACCOUNT_ICON_PRESETS"
+                :key="preset.id"
+                class="account-icon-preset"
+                :class="{ active: editingAccount.icon_type === 'preset' && editingAccount.icon_value === preset.id }"
+                type="button"
+                :disabled="iconSaving"
+                @click="selectAccountIconPreset(preset.id)"
+              >
+                <span v-html="preset.svg"></span>
+                <small>{{ preset.label }}</small>
+              </button>
+            </div>
+            <span class="field-hint">支持 JPG、PNG、WebP，裁剪后统一保存为 256×256 图标。</span>
+          </div>
           <div class="form-field">
             <label class="field-label">备注名</label>
             <input v-model="editForm.remark" class="input" type="text" placeholder="如：工作邮箱" />
@@ -325,7 +369,7 @@
           </div>
         </div>
         <div class="dialog-actions">
-          <button class="btn btn-secondary" @click="showEditDialog = false">取消</button>
+          <button class="btn btn-secondary" @click="closeEditDialog">取消</button>
           <button v-if="editingAccount?.status === 'offline' || mailStore.reauthAccountIds.has(editingAccount?.id)" class="btn btn-secondary" @click="reconnectAccount(editingAccount!)">
             {{ editingAccount?.status === 'offline' ? '重新连接' : '重新授权' }}
           </button>
@@ -335,12 +379,25 @@
         </div>
       </div>
     </div>
+
+    <AccountIconCropDialog
+      v-if="cropSource"
+      :src="cropSource"
+      :natural-width="cropNaturalWidth"
+      :natural-height="cropNaturalHeight"
+      :busy="iconSaving"
+      @close="closeCropDialog"
+      @reselect="reselectIconFile"
+      @confirm="uploadCroppedIcon"
+    />
     </div>
   </PageFrame>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import AccountIcon from '../components/account/AccountIcon.vue';
+import AccountIconCropDialog from '../components/account/AccountIconCropDialog.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
 import PageToolbar from '../components/layout/PageToolbar.vue';
@@ -352,6 +409,7 @@ import UiSegmentedControl from '../components/ui/UiSegmentedControl.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 import { useMailStore } from '../stores/mail';
+import { ACCOUNT_ICON_PRESETS, type AccountIconPresetId } from '../utils/account-icon-presets';
 import { providerIcon, providerName } from '../utils/provider';
 import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
 import { useWebSocket } from '../composables/useWebSocket';
@@ -424,6 +482,12 @@ const customForm = ref({
 const MICROSOFT_ICON_SVG = '<svg width="24" height="24" viewBox="0 0 1024 1024"><path d="M0.10238 51.189762h460.503099v460.503099H0.10238V51.189762z" fill="#F45325"/><path d="M512.204759 51.189762H972.707858v460.503099h-460.503099V51.189762z" fill="#81BD06"/><path d="M0.10238 563.292142h460.503099v460.656668H0.10238v-460.656668z" fill="#04A6EF"/><path d="M512.204759 563.292142H972.707858v460.656668h-460.503099v-460.656668z" fill="#FFBA07"/></svg>';
 const editingAccount = ref<any>(null);
 const editForm = ref({ remark: '', group_name: '', hide_email: false, poll_interval_seconds: 10 });
+const iconFileInput = ref<HTMLInputElement | null>(null);
+const showIconPresets = ref(false);
+const iconSaving = ref(false);
+const cropSource = ref('');
+const cropNaturalWidth = ref(0);
+const cropNaturalHeight = ref(0);
 const deleteJobs = ref<any[]>([]);
 let deleteJobTimer: number | null = null;
 
@@ -553,6 +617,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('message', handleOAuthMessage);
   if (deleteJobTimer) window.clearInterval(deleteJobTimer);
+  clearCropSource();
 });
 
 async function checkAllAccountsStatus() {
@@ -841,7 +906,121 @@ function openEditDialog(account: any) {
     hide_email: account.hide_email,
     poll_interval_seconds: account.poll_interval_seconds || 10,
   };
+  showIconPresets.value = false;
   showEditDialog.value = true;
+}
+
+function clearCropSource() {
+  if (cropSource.value) URL.revokeObjectURL(cropSource.value);
+  cropSource.value = '';
+  cropNaturalWidth.value = 0;
+  cropNaturalHeight.value = 0;
+}
+
+function closeCropDialog() {
+  if (!iconSaving.value) clearCropSource();
+}
+
+function closeEditDialog() {
+  if (iconSaving.value) return;
+  clearCropSource();
+  showIconPresets.value = false;
+  showEditDialog.value = false;
+}
+
+function reselectIconFile() {
+  closeCropDialog();
+  iconFileInput.value?.click();
+}
+
+function applyIconResponse(accountId: string, data: any) {
+  mailStore.patchAccount(accountId, {
+    icon_type: data.icon_type || 'default',
+    icon_value: data.icon_value || '',
+    icon_url: data.icon_url || '',
+  });
+  editingAccount.value = mailStore.accounts.find((account) => account.id === accountId) || editingAccount.value;
+}
+
+async function selectAccountIconPreset(presetId: AccountIconPresetId) {
+  if (!editingAccount.value || iconSaving.value) return;
+  iconSaving.value = true;
+  try {
+    const accountId = editingAccount.value.id;
+    const data = await api.put(`/accounts/${accountId}/icon/preset`, { preset_id: presetId }) as any;
+    applyIconResponse(accountId, data);
+    showIconPresets.value = false;
+    ui.success('邮箱图标已更新');
+  } catch (error: any) {
+    ui.error(error?.error || error?.message || '更新邮箱图标失败');
+  } finally {
+    iconSaving.value = false;
+  }
+}
+
+async function resetAccountIcon() {
+  if (!editingAccount.value || iconSaving.value) return;
+  iconSaving.value = true;
+  try {
+    const accountId = editingAccount.value.id;
+    const data = await api.delete(`/accounts/${accountId}/icon`) as any;
+    applyIconResponse(accountId, data);
+    showIconPresets.value = false;
+    ui.success('已恢复服务商默认图标');
+  } catch (error: any) {
+    ui.error(error?.error || error?.message || '恢复默认图标失败');
+  } finally {
+    iconSaving.value = false;
+  }
+}
+
+async function selectIconFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    ui.error('仅支持 JPG、PNG 或 WebP 图片');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    ui.error('图片不能超过 10 MB');
+    return;
+  }
+
+  clearCropSource();
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.src = objectUrl;
+  try {
+    await image.decode();
+    cropNaturalWidth.value = image.naturalWidth;
+    cropNaturalHeight.value = image.naturalHeight;
+    cropSource.value = objectUrl;
+  } catch {
+    URL.revokeObjectURL(objectUrl);
+    ui.error('无法读取该图片，请更换文件');
+  }
+}
+
+async function uploadCroppedIcon(blob: Blob) {
+  if (!editingAccount.value || iconSaving.value) return;
+  iconSaving.value = true;
+  try {
+    const accountId = editingAccount.value.id;
+    const body = new FormData();
+    body.append('icon', blob, 'account-icon.webp');
+    const data = await api.post(`/accounts/${accountId}/icon/upload`, body, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }) as any;
+    applyIconResponse(accountId, data);
+    clearCropSource();
+    ui.success('邮箱图标已更新');
+  } catch (error: any) {
+    ui.error(error?.error || error?.message || '上传邮箱图标失败');
+  } finally {
+    iconSaving.value = false;
+  }
 }
 
 async function saveEdit() {
@@ -849,10 +1028,13 @@ async function saveEdit() {
   try {
     editForm.value.poll_interval_seconds = Math.min(3600, Math.max(5, Number(editForm.value.poll_interval_seconds) || 10));
     await api.put(`/accounts/${editingAccount.value.id}`, editForm.value);
-    editingAccount.value.remark = editForm.value.remark;
-    editingAccount.value.group_name = editForm.value.group_name;
-    editingAccount.value.hide_email = editForm.value.hide_email;
-    editingAccount.value.poll_interval_seconds = editForm.value.poll_interval_seconds;
+    mailStore.patchAccount(editingAccount.value.id, {
+      remark: editForm.value.remark,
+      group_name: editForm.value.group_name,
+      hide_email: editForm.value.hide_email,
+      poll_interval_seconds: editForm.value.poll_interval_seconds,
+    });
+    editingAccount.value = mailStore.accounts.find((account) => account.id === editingAccount.value.id) || editingAccount.value;
     showEditDialog.value = false;
     ui.success('保存成功');
   } catch {
@@ -1137,22 +1319,6 @@ async function reconnectAccount(account: any) {
   background: var(--bg-hover);
 }
 
-/* 平台图标头像 */
-.account-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 0;
-}
-
-.account-avatar.qq { background: var(--ui-accent-soft); }
-.account-avatar.gmail { background: var(--ui-danger-soft); }
-.account-avatar.netease { background: var(--ui-warning-soft); }
-
 /* 账号信息 */
 .account-info {
   flex: 1;
@@ -1364,6 +1530,73 @@ async function reconnectAccount(account: any) {
 .group-tag:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .group-tag.active { border-color: var(--color-accent); background: var(--color-accent-lighter); color: var(--color-accent); }
 
+.account-icon-editor {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-2);
+}
+
+.account-icon-editor__current {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+
+.account-icon-editor__actions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.account-icon-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.account-icon-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-2);
+}
+
+.account-icon-preset {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-1);
+  color: var(--ui-text-2);
+  cursor: pointer;
+}
+
+.account-icon-preset:hover,
+.account-icon-preset.active {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  color: var(--ui-text-1);
+}
+
+.account-icon-preset:focus-visible {
+  outline: 3px solid var(--ui-focus-ring);
+  outline-offset: 1px;
+}
+
+.account-icon-preset:disabled { opacity: 0.55; cursor: not-allowed; }
+.account-icon-preset > span,
+.account-icon-preset > span :deep(svg) { width: 32px; height: 32px; display: block; }
+.account-icon-preset small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
 /* 隐藏邮箱 toggle */
 .toggle-field {
   display: flex !important;
@@ -1431,5 +1664,7 @@ async function reconnectAccount(account: any) {
   .custom-span-2 { grid-column: auto; }
   .server-row { grid-template-columns: 1fr 1fr; }
   .edit-btn { opacity: 1; }
+  .account-icon-editor__current { align-items: flex-start; }
+  .account-icon-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

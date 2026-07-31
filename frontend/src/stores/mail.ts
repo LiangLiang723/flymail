@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import api from '../utils/api';
+import type { AccountIconFields, MailAccount } from '../types/account';
 import { useUIStore } from './ui';
 
 const CORE_FOLDERS = [
@@ -44,7 +45,25 @@ export const useMailStore = defineStore('mail', () => {
   const loading = ref(false);
   const currentFolder = ref(sessionStorage.getItem('flymail_folder') || 'INBOX');
   const currentAccountId = ref('');
-  const accounts = ref<any[]>(JSON.parse(sessionStorage.getItem('flymail_accounts') || '[]'));
+  const normalizeAccount = (account: Partial<MailAccount> & Pick<MailAccount, 'id' | 'email' | 'provider'>): MailAccount => ({
+    id: account.id,
+    email: account.email,
+    provider: account.provider,
+    status: account.status || 'disconnected',
+    remark: account.remark || '',
+    group_name: account.group_name || '',
+    hide_email: Boolean(account.hide_email),
+    sort_order: Number(account.sort_order || 0),
+    poll_interval_seconds: Number(account.poll_interval_seconds || 10),
+    created_at: Number(account.created_at || 0),
+    reauth_needed: Boolean(account.reauth_needed),
+    icon_type: account.icon_type === 'preset' || account.icon_type === 'upload' ? account.icon_type : 'default',
+    icon_value: account.icon_value || '',
+    icon_url: account.icon_url || '',
+  });
+  const accounts = ref<MailAccount[]>(
+    (JSON.parse(sessionStorage.getItem('flymail_accounts') || '[]') as MailAccount[]).map(normalizeAccount),
+  );
   const reauthAccountIds = ref<Set<string>>(new Set());
   const folderCountsByAccount = ref<Record<string, AccountFolderCounts>>(
     JSON.parse(sessionStorage.getItem('flymail_folder_counts_by_account') || '{}'),
@@ -167,7 +186,7 @@ export const useMailStore = defineStore('mail', () => {
   async function loadAccounts() {
     try {
       const data = await api.get('/accounts') as any;
-      accounts.value = data.accounts || [];
+      accounts.value = (data.accounts || []).map(normalizeAccount);
       const nextReauthIds = new Set<string>();
       for (const account of accounts.value) {
         if (account.reauth_needed) nextReauthIds.add(account.id);
@@ -195,6 +214,13 @@ export const useMailStore = defineStore('mail', () => {
       console.error('加载账号失败:', e);
       uiStore.error('加载账号失败');
     }
+  }
+
+  function patchAccount(accountId: string, patch: Partial<MailAccount> | AccountIconFields) {
+    const index = accounts.value.findIndex((account) => account.id === accountId);
+    if (index < 0) return;
+    accounts.value[index] = normalizeAccount({ ...accounts.value[index], ...patch });
+    sessionStorage.setItem('flymail_accounts', JSON.stringify(accounts.value));
   }
 
   async function loadFolders() {
@@ -422,6 +448,7 @@ export const useMailStore = defineStore('mail', () => {
     folders,
     currentFolderName,
     loadAccounts,
+    patchAccount,
     loadFolders,
     loadFolderCounts,
     setFolder,
