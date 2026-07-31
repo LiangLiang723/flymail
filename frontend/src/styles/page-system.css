@@ -283,6 +283,30 @@
   color: var(--ui-text-1) !important;
 }
 
+.detail-content .flymail-mail-color {
+  color: var(--flymail-mail-color-light) !important;
+}
+
+:root.dark .detail-content .flymail-mail-color {
+  color: var(--flymail-mail-color-dark) !important;
+}
+
+.detail-content .flymail-mail-color-fallback {
+  color: var(--ui-mail-body-text-light) !important;
+}
+
+:root.dark .detail-content .flymail-mail-color-fallback {
+  color: var(--ui-mail-body-text-dark) !important;
+}
+
+.detail-content .flymail-mail-background {
+  background-color: var(--flymail-mail-background-light) !important;
+}
+
+:root.dark .detail-content .flymail-mail-background {
+  background-color: var(--flymail-mail-background-dark) !important;
+}
+
 .mail-view .attachment-item,
 .backup-page .attachment-item,
 .compose-page .attachment-item {

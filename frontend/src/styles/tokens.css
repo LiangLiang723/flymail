@@ -28,6 +28,10 @@
   --ui-accent-secondary: #af52de;
   --ui-scrim: rgba(7, 8, 12, 0.48);
   --ui-media-viewer-bg: rgba(9, 12, 18, 0.94);
+  --ui-mail-body-bg-light: #ffffff;
+  --ui-mail-body-bg-dark: #17181d;
+  --ui-mail-body-text-light: #17181d;
+  --ui-mail-body-text-dark: #f5f5f7;
   --ui-glass-edge: rgba(255, 255, 255, 0.04);
   --ui-success: #248a3d;
   --ui-success-soft: rgba(36, 138, 61, 0.13);
@@ -154,6 +158,10 @@
   --ui-accent-secondary: #bf5af2;
   --ui-scrim: rgba(0, 0, 0, 0.62);
   --ui-media-viewer-bg: rgba(9, 12, 18, 0.96);
+  --ui-mail-body-bg-light: #ffffff;
+  --ui-mail-body-bg-dark: #17181d;
+  --ui-mail-body-text-light: #17181d;
+  --ui-mail-body-text-dark: #f5f5f7;
   --ui-glass-edge: rgba(255, 255, 255, 0.055);
   --ui-success: #4cd964;
   --ui-success-soft: rgba(76, 217, 100, 0.16);

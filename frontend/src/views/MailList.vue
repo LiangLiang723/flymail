@@ -376,7 +376,7 @@ import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
 import { providerIcon } from '../utils/provider';
 import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
-import { renderMailBody } from '../utils/sanitize';
+import { renderThemedMailBody } from '../utils/sanitize';
 import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
 import type { Attachment, Message } from '../types/mail';
 import { useWebSocket } from '../composables/useWebSocket';
@@ -467,7 +467,7 @@ function foldersMatchForRefresh(eventFolder: string, currentFolder: string): boo
 
 function renderMessageBody(message: Message | null) {
   if (!message) return '';
-  return renderMailBody(message.body_html, message.body_text);
+  return renderThemedMailBody(message.body_html, message.body_text);
 }
 
 const regularAttachments = computed(() =>

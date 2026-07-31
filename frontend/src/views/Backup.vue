@@ -244,7 +244,7 @@
   <div
   v-if="detailData.body_html || detailData.body_text"
   class="detail-content"
-  v-html="renderMailBody(detailData.body_html, detailData.body_text)"
+  v-html="renderThemedMailBody(detailData.body_html, detailData.body_text)"
   @click="handleMailLinkClick"
   ></div>
   <div v-else class="body-empty">（无正文内容）</div>
@@ -281,7 +281,7 @@ import PageFrame from '../components/layout/PageFrame.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import api from '../utils/api';
-import { renderMailBody, handleMailLinkClick } from '../utils/sanitize';
+import { renderThemedMailBody, handleMailLinkClick } from '../utils/sanitize';
 import { providerIcon } from '../utils/provider';
 import { useBackupStore } from '../stores/backup';
 import { useUIStore } from '../stores/ui';

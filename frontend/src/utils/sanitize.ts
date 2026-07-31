@@ -1,5 +1,6 @@
 /** HTML 净化配置，防止 XSS 攻击 */
 import DOMPurify from 'dompurify'
+import { adaptMailBodyColors } from './mail-body-theme'
 
 // 允许的标签白名单
 const ALLOWED_TAGS = [
@@ -57,6 +58,13 @@ export function renderMailBody(
   const cleaned = sanitizeHtml(bodyHtml)
   if (cleaned) return cleaned
   return plainTextToSafeHtml(bodyText)
+}
+
+export function renderThemedMailBody(
+  bodyHtml: string | undefined | null,
+  bodyText: string | undefined | null = '',
+): string {
+  return adaptMailBodyColors(renderMailBody(bodyHtml, bodyText))
 }
 
 export function handleMailLinkClick(e: MouseEvent) {
