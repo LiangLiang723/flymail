@@ -1,5 +1,5 @@
 <template>
-  <PageFrame template="workspace" class="compose-page ui-page ui-page--edge" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+  <PageFrame template="workspace" class="compose-page ui-page" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
     <!-- 拖拽上传遮罩 -->
     <div v-if="isDragging" class="drop-overlay">
       <div class="drop-hint">

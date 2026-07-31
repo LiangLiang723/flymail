@@ -4,45 +4,47 @@
       <PageHeader title="个人资料" description="管理登录用户名、显示昵称和头像。" />
     </template>
 
-    <section class="profile-card">
-      <div class="avatar-section">
-        <div class="profile-avatar" aria-hidden="true">
-          <img v-if="user?.avatar_url" :src="user.avatar_url" alt="" />
-          <span v-else>{{ avatarInitial }}</span>
-        </div>
-        <div class="avatar-copy">
-          <strong>{{ displayName }}</strong>
-          <span>支持 JPG、PNG、GIF 或 WebP，上传后会裁剪为 256 × 256。</span>
-          <div class="avatar-actions">
-            <label class="btn btn-secondary avatar-upload" :class="{ disabled: uploading }">
-              <input type="file" accept="image/*" :disabled="uploading" @change="uploadAvatar" />
-              {{ uploading ? '上传中…' : '更换头像' }}
-            </label>
-            <button v-if="user?.avatar_url" class="btn btn-danger" type="button" :disabled="uploading" @click="removeAvatar">
-              移除头像
-            </button>
+    <div class="document-column profile-document">
+      <section class="profile-card">
+        <div class="avatar-section">
+          <div class="profile-avatar" aria-hidden="true">
+            <img v-if="user?.avatar_url" :src="user.avatar_url" alt="" />
+            <span v-else>{{ avatarInitial }}</span>
+          </div>
+          <div class="avatar-copy">
+            <strong>{{ displayName }}</strong>
+            <span>支持 JPG、PNG、GIF 或 WebP，上传后会裁剪为 256 × 256。</span>
+            <div class="avatar-actions">
+              <label class="btn btn-secondary avatar-upload" :class="{ disabled: uploading }">
+                <input type="file" accept="image/*" :disabled="uploading" @change="uploadAvatar" />
+                {{ uploading ? '上传中…' : '更换头像' }}
+              </label>
+              <button v-if="user?.avatar_url" class="btn btn-danger" type="button" :disabled="uploading" @click="removeAvatar">
+                移除头像
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <form class="profile-form" @submit.prevent="saveProfile">
-        <label class="profile-field">
-          <span>用户名</span>
-          <input v-model.trim="form.username" autocomplete="username" maxlength="191" />
-          <small>用于登录，至少 3 个字符。</small>
-        </label>
-        <label class="profile-field">
-          <span>昵称</span>
-          <input v-model.trim="form.nickname" maxlength="191" placeholder="在界面中显示的名称" />
-          <small>昵称为空时显示用户名。</small>
-        </label>
-        <div class="profile-actions">
-          <button class="btn btn-primary" type="submit" :disabled="saving">
-            {{ saving ? '保存中…' : '保存资料' }}
-          </button>
-        </div>
-      </form>
-    </section>
+        <form class="profile-form" @submit.prevent="saveProfile">
+          <label class="profile-field">
+            <span>用户名</span>
+            <input v-model.trim="form.username" autocomplete="username" maxlength="191" />
+            <small>用于登录，至少 3 个字符。</small>
+          </label>
+          <label class="profile-field">
+            <span>昵称</span>
+            <input v-model.trim="form.nickname" maxlength="191" placeholder="在界面中显示的名称" />
+            <small>昵称为空时显示用户名。</small>
+          </label>
+          <div class="profile-actions">
+            <button class="btn btn-primary" type="submit" :disabled="saving">
+              {{ saving ? '保存中…' : '保存资料' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   </PageFrame>
 </template>
 

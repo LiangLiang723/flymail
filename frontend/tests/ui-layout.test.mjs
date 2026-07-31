@@ -97,6 +97,21 @@ test('responsive shell keeps a stable 72px icon rail and uses a mobile drawer', 
   assert.match(shellCss, /prefers-reduced-transparency/);
 });
 
+test('collapsed sidebar keeps every control centered and separates brand from collapse action', async () => {
+  const shellCss = await readSource('src/styles/app-shell.css');
+
+  assert.match(shellCss, /--sidebar-item-inset:\s*8px/);
+  assert.match(shellCss, /--sidebar-item-icon-column:\s*56px/);
+  assert.match(shellCss, /\.nav-item\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
+  assert.match(shellCss, /\.sidebar-bottom \.sidebar-row\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-profile-trigger\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) 0 0/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.brand-icon\s*\{[^}]*opacity:\s*0/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-header-action\s*\{[^}]*right:\s*17px/s);
+  assert.match(shellCss, /\.nav-item \.sidebar-label-pane,[\s\S]*\.sidebar-bottom \.sidebar-row \.sidebar-label-pane\s*\{[^}]*padding-left:\s*var\(--sidebar-item-inset\)/s);
+  assert.match(shellCss, /\.sidebar-profile-copy\s*\{[^}]*padding-left:\s*var\(--sidebar-item-inset\)/s);
+  assert.match(shellCss, /\.app-shell\.sidebar-collapsed \.sidebar-profile-copy\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/s);
+});
+
 test('mobile mail view delegates account and folder navigation without horizontal overflow', async () => {
   const source = await readSource('src/views/MailList.vue');
 

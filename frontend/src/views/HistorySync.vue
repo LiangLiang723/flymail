@@ -592,7 +592,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 720px) {
-  .history-sync-page { padding: var(--space-4); }
   .page-header,
   .job-header { flex-direction: column; }
   .job-actions { width: 100%; justify-content: flex-start; }

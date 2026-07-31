@@ -38,10 +38,11 @@
   scrollbar-gutter: stable;
 }
 
-.page-frame--workspace .page-frame__body,
-.page-frame--split .page-frame__body {
+.page-frame--workspace > .page-frame__body,
+.page-frame--split > .page-frame__body {
   min-width: 0;
   min-height: 0;
+  margin: var(--page-padding);
   overflow: hidden;
 }
 
@@ -59,7 +60,7 @@
 
 .page-frame__header {
   min-width: 0;
-  padding: var(--page-padding-compact) var(--page-padding) var(--page-gap);
+  padding: var(--page-padding) var(--page-padding) var(--page-gap);
   border-bottom: 1px solid transparent;
 }
 
@@ -250,6 +251,11 @@
 }
 
 @media (max-width: 960px) {
+  .page-frame--workspace > .page-frame__body,
+  .page-frame--split > .page-frame__body {
+    margin: 0;
+  }
+
   .page-frame__header,
   .page-frame__toolbar {
     padding-inline: var(--page-padding-compact);

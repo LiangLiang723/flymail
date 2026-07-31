@@ -89,11 +89,45 @@ test('contacts use a full-height split template with two scroll owners', async (
 });
 
 test('settings documents use the document template and shared header', async () => {
-  for (const file of ['Settings.vue', 'NotificationSettings.vue', 'About.vue']) {
+  for (const file of ['Settings.vue', 'NotificationSettings.vue', 'About.vue', 'Profile.vue']) {
     const source = await read(`src/views/${file}`);
     assert.match(source, /<PageFrame[^>]*template="document"/);
     assert.match(source, /<PageHeader/);
     assert.match(source, /class="document-column/);
+  }
+});
+
+test('desktop page templates share one outer content gutter', async () => {
+  const layout = await read('src/styles/layout-system.css');
+
+  assert.match(layout, /\.page-frame--workspace > \.page-frame__body,[\s\S]*\.page-frame--split > \.page-frame__body\s*\{[^}]*margin:\s*var\(--page-padding\)/s);
+  assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--workspace > \.page-frame__body,[\s\S]*\.page-frame--split > \.page-frame__body\s*\{[^}]*margin:\s*0/s);
+  assert.match(layout, /\.page-frame__header\s*\{[^}]*padding:\s*var\(--page-padding\) var\(--page-padding\) var\(--page-gap\)/s);
+});
+
+test('page roots never override template-owned outer spacing', async () => {
+  const files = [
+    'MailList.vue',
+    'ComposeEmail.vue',
+    'Backup.vue',
+    'UnifiedInbox.vue',
+    'HistorySync.vue',
+    'AccountList.vue',
+    'UserManagement.vue',
+    'ContactList.vue',
+    'Settings.vue',
+    'NotificationSettings.vue',
+    'About.vue',
+    'Profile.vue',
+  ];
+  const rootPattern = /\.(mail-view|compose-page|backup-page|unified-page|history-sync-page|account-page|user-page|contact-page|settings-page|notify-page|about-page|profile-page)\s*\{([^}]*)\}/g;
+
+  for (const file of files) {
+    const source = await read(`src/views/${file}`);
+    const styles = [...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1]).join('\n');
+    for (const match of styles.matchAll(rootPattern)) {
+      assert.doesNotMatch(match[2], /(?:^|[;\s])(padding|margin|overflow-y)\s*:/, `${file}: ${match[1]}`);
+    }
   }
 });
 

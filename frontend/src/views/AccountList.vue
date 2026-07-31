@@ -1459,7 +1459,6 @@ async function reconnectAccount(account: any) {
 
 /* ==================== 移动端适配 ==================== */
 @media (max-width: 768px) {
-  .account-page { padding: var(--space-4); }
   .toolbar { flex-direction: column; gap: var(--space-3); align-items: stretch; }
   .sort-toggle { justify-content: center; }
   .toggle-btn { flex: 1; text-align: center; padding: 8px 16px; }

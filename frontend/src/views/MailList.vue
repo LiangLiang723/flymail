@@ -1,5 +1,5 @@
 <template>
-  <PageFrame template="workspace" class="mail-view ui-page ui-page--edge">
+  <PageFrame template="workspace" class="mail-view ui-page">
     <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>

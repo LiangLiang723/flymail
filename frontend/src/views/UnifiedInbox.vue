@@ -311,7 +311,6 @@ onMounted(async () => {
 time { color: var(--ui-text-3); font-size: 12px; text-align: right; }
 .pagination { justify-content: center; margin-top: 16px; }
 @media (max-width: 760px) {
-  .unified-page { padding: 12px; }
   .unified-header { flex-direction: column; }
   .header-actions { width: 100%; flex-wrap: wrap; }
   .message-row { grid-template-columns: 8px minmax(0, 1fr) 58px; gap: 8px; padding: 12px; }

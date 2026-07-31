@@ -233,7 +233,14 @@
 
 /* Composer */
 .compose-page {
-  background: var(--ui-surface-1) !important;
+  background: var(--ui-canvas) !important;
+}
+
+.compose-page > .page-frame__body {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-1);
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .compose-page .compose-toolbar {
@@ -564,9 +571,11 @@
 
 @media (max-width: 768px) {
   .mail-view .mail-shell,
-  .backup-page .backup-content {
+  .backup-page .backup-content,
+  .compose-page > .page-frame__body {
     border: 0 !important;
     border-radius: 0 !important;
+    box-shadow: none !important;
   }
 }
 

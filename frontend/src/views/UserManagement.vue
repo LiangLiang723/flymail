@@ -566,10 +566,6 @@ onMounted(loadUsers);
 }
 
 @media (max-width: 960px) {
-  .user-page {
-    padding: 16px;
-  }
-
   .header {
     flex-direction: column;
     gap: 12px;

@@ -1706,9 +1706,6 @@ onMounted(() => {
   .appearance-options {
     grid-template-columns: 1fr;
   }
-  .settings-page {
-    padding: var(--space-4);
-  }
 
   .card-body {
     padding: var(--space-4);

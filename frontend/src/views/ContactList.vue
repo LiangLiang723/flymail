@@ -1,5 +1,5 @@
 <template>
-  <PageFrame template="split" class="contact-page ui-page ui-page--edge">
+  <PageFrame template="split" class="contact-page ui-page">
   <div class="contact-split">
   <!-- ============ 左侧：联系人列表 ============ -->
   <aside class="contact-sidebar contact-split__sidebar" :class="{ 'mobile-hidden': selectedId && isMobile }">

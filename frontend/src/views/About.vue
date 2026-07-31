@@ -279,10 +279,6 @@ const techs = ['Vue 3', 'TypeScript', 'FastAPI', 'MySQL', 'IMAP', 'WebSocket', '
 }
 
 @media (max-width: 768px) {
-  .about-page {
-    padding: 16px;
-  }
-
   .about-card {
     padding: 16px;
   }
