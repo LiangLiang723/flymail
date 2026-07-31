@@ -242,7 +242,7 @@ git commit -m "🏗️ 建立 V2 后端包与配置契约"
 - Produces: `SqlUnitOfWork(pool: DatabasePool)` with `__aenter__`, `commit`, `rollback`, `connection`.
 - Produces: `ApplicationUnitOfWork` protocol consumed by application services.
 
-- [ ] **Step 1: Write transaction rollback and pool isolation tests**
+- [x] **Step 1: Write transaction rollback and pool isolation tests**
 
 Create tests that use a temporary table in a dedicated MySQL database:
 
@@ -263,7 +263,7 @@ class SqlUnitOfWorkTests(MySqlIsolatedAsyncioTestCase):
         self.assertNotEqual(self.api_pool.name, self.worker_pool.name)
 ```
 
-- [ ] **Step 2: Run tests and confirm missing contracts**
+- [x] **Step 2: Run tests and confirm missing contracts**
 
 Run:
 
@@ -274,7 +274,7 @@ FLYMAIL_TEST_DATABASE_URL='mysql://...' python -m unittest tests.v2.test_uow -v
 
 Expected: FAIL because pool and UoW modules do not exist.
 
-- [ ] **Step 3: Implement URL parsing and safe logging**
+- [x] **Step 3: Implement URL parsing and safe logging**
 
 Parse the MySQL URL with `urllib.parse`. Store password separately and expose only:
 
@@ -285,7 +285,7 @@ def redacted_database_url(url: str) -> str:
 
 Do not log the original URL, query string credentials, or decoded password.
 
-- [ ] **Step 4: Implement connection pool**
+- [x] **Step 4: Implement connection pool**
 
 Use `aiomysql.create_pool` with:
 
@@ -297,7 +297,7 @@ Use `aiomysql.create_pool` with:
 
 Every acquired connection must be rolled back before returning to the pool if a transaction remains open.
 
-- [ ] **Step 5: Implement Unit of Work**
+- [x] **Step 5: Implement Unit of Work**
 
 Required behavior:
 
@@ -314,11 +314,11 @@ async with SqlUnitOfWork(pool) as uow:
 - `commit()` may be called once; subsequent calls raise `RuntimeError`.
 - network operations are forbidden inside UoW by code review and application service structure.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run the exact Task 2 test module and verify PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/flymail/infrastructure/db backend/flymail/application/uow.py backend/tests/v2/mysql_test_case.py backend/tests/v2/test_uow.py
