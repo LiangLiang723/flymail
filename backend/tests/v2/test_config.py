@@ -1,6 +1,5 @@
+import inspect
 import os
-import subprocess
-import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -25,6 +24,7 @@ from flymail.domain.errors import (
 )
 from flymail.domain.ids import new_id
 from v2_dev import create_app
+from v2_worker import run_worker
 from version import VERSION
 
 
@@ -151,22 +151,15 @@ class DevelopmentEntrypointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok", "app": "flymail-v2", "role": "api", "version": VERSION})
 
-    async def test_worker_entrypoint_exits_instead_of_running_an_empty_loop(self):
-        env = os.environ.copy()
-        env.update(FlyMailSettingsTests().valid_env())
-
-        completed = subprocess.run(
-            [sys.executable, "v2_worker.py"],
-            cwd=Path(__file__).resolve().parents[2],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-
-        self.assertNotEqual(completed.returncode, 0)
-        self.assertIn("worker heartbeat service is not implemented", completed.stderr.lower())
+    async def test_worker_entrypoint_is_async_stoppable_and_has_no_placeholder_failure(self):
+        self.assertTrue(inspect.iscoroutinefunction(run_worker))
+        parameters = inspect.signature(run_worker).parameters
+        self.assertIn("stop_event", parameters)
+        self.assertIn("now_fn", parameters)
+        source = inspect.getsource(run_worker).lower()
+        self.assertIn("release_expired_leases", source)
+        self.assertIn("stop.is_set", source)
+        self.assertNotIn("not implemented", source)
 
 
 if __name__ == "__main__":

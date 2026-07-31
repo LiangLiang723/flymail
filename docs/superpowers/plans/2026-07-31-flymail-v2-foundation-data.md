@@ -343,7 +343,7 @@ git commit -m "🗄️ 建立 V2 数据库连接池与事务边界"
 - Produces: `Migration(version: int, name: str, statements: tuple[str, ...])`
 - Produces: `run_migrations(pool: DatabasePool) -> list[int]`
 - Produces: `current_schema_version(connection) -> int`
-- Produces schema version `4` from an empty database.
+- Produces schema version `5` from an empty database.
 
 - [x] **Step 1: Write empty-database migration tests**
 
@@ -351,7 +351,7 @@ Tests must:
 
 1. drop and recreate an isolated test database;
 2. run all migrations;
-3. assert schema version is `4`;
+3. assert schema version is `5`;
 4. run migrations again and assert no changes;
 5. verify all required tables exist;
 6. create two concurrent migration runners and assert only one applies each version.
@@ -466,7 +466,7 @@ cd backend
 FLYMAIL_TEST_DATABASE_URL='mysql://...' python -m unittest tests.v2.test_migrations -v
 ```
 
-Expected: first run applies versions 1–4; second run applies none; all tests PASS.
+Expected: first run applies versions 1–5; second run applies none; all tests PASS.
 
 - [x] **Step 10: Commit**
 
@@ -751,7 +751,7 @@ git commit -m "🛡️ 建立 V2 租户隔离 Repository 契约"
 - Produces: `JobRepository.complete(...)`, `retry(...)`, `fail(...)`, `release_expired_leases(...)`.
 - Produces: `WorkerHeartbeatService.touch(worker_id: str, role: str) -> None`.
 
-- [ ] **Step 1: Write atomicity and concurrency tests**
+- [x] **Step 1: Write atomicity and concurrency tests**
 
 Tests must prove:
 
@@ -764,11 +764,11 @@ Tests must prove:
 - heartbeat updates only active jobs;
 - retry uses bounded exponential backoff and deterministic jitter input for testing.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement Outbox payload validation**
+- [x] **Step 3: Implement Outbox payload validation**
 
 Store JSON with a schema version and creation timestamp:
 
@@ -783,7 +783,7 @@ Store JSON with a schema version and creation timestamp:
 
 Reject payloads containing keys named `password`, `token`, `secret`, `authorization`, `body_html` or raw attachment bytes.
 
-- [ ] **Step 4: Implement job claiming SQL**
+- [x] **Step 4: Implement job claiming SQL**
 
 Within one transaction:
 
@@ -800,7 +800,7 @@ FOR UPDATE SKIP LOCKED
 
 Then update selected rows with `status='leased'`, worker ID, random lease token and lease expiry. Return only rows whose update succeeded.
 
-- [ ] **Step 5: Implement retry policy**
+- [x] **Step 5: Implement retry policy**
 
 Use:
 
@@ -811,7 +811,7 @@ delay += deterministic_jitter_seconds
 
 The error classifier decides retryable versus permanent; Job Repository only applies the requested outcome.
 
-- [ ] **Step 6: Implement V2 Worker heartbeat loop**
+- [x] **Step 6: Implement V2 Worker heartbeat loop**
 
 `backend/v2_worker.py` must:
 
@@ -825,11 +825,11 @@ The error classifier decides retryable versus permanent; Job Repository only app
 
 It must not process protocol jobs until the next plan registers handlers.
 
-- [ ] **Step 7: Run concurrency tests repeatedly**
+- [x] **Step 7: Run concurrency tests repeatedly**
 
 Run the job test module at least 10 times in a loop to expose duplicate-claim races. Expected: zero duplicate claims.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/flymail/repositories/jobs.py backend/flymail/repositories/outbox.py backend/flymail/workers/lease.py backend/v2_worker.py backend/tests/v2/test_jobs_outbox.py
@@ -875,13 +875,13 @@ The test must start from an empty temporary database and temporary object direct
 {
   "status": "ok",
   "role": "api",
-  "schema_version": 4,
+  "schema_version": 5,
   "database": "ok",
   "object_store": "ok"
 }
 ```
 
-It must not expose database URL, filesystem host path, secrets or account information. The value `4` is the Gate 1 expectation; later migration plans must return the dynamically read current schema version rather than hard-code it.
+It must not expose database URL, filesystem host path, secrets or account information. The value `5` is the Gate 1 expectation; later migration plans must return the dynamically read current schema version rather than hard-code it.
 
 - [ ] **Step 3: Run full foundation verification**
 
@@ -937,7 +937,7 @@ git push origin main
 
 ## Gate 1 Completion Checklist
 
-- [ ] Empty MySQL database migrates to schema version 4.
+- [ ] Empty MySQL database migrates to schema version 5.
 - [ ] Re-running migrations is idempotent.
 - [ ] API and Worker pools are distinct and bounded.
 - [ ] UoW rollback and commit behavior is proven.

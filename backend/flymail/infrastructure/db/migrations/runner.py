@@ -13,12 +13,17 @@ from flymail.infrastructure.db.migrations.v0001_identity import MIGRATION as IDE
 from flymail.infrastructure.db.migrations.v0002_mail import MIGRATION as MAIL_MIGRATION
 from flymail.infrastructure.db.migrations.v0003_jobs import MIGRATION as JOBS_MIGRATION
 from flymail.infrastructure.db.migrations.v0004_content_search import build_migration as build_content_migration
+from flymail.infrastructure.db.migrations.v0005_job_claim_order import MIGRATION as JOB_CLAIM_ORDER_MIGRATION
 from flymail.infrastructure.db.pool import DatabasePool
 
 
 _MIGRATION_LOCK_NAME = "flymail_v2_schema_migration"
 _CREATE_TABLE_PATTERN = re.compile(
     r"^\s*CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?",
+    re.IGNORECASE,
+)
+_ADD_INDEX_PATTERN = re.compile(
+    r"^\s*ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?\s+ADD\s+(?:UNIQUE\s+)?(?:KEY|INDEX)\s+`?([A-Za-z0-9_]+)`?",
     re.IGNORECASE,
 )
 _SCHEMA_MIGRATIONS_DDL = """
@@ -40,6 +45,26 @@ async def _table_exists(connection: aiomysql.Connection, table_name: str) -> boo
             WHERE table_schema = DATABASE() AND table_name = %s
             """,
             (table_name,),
+        )
+        row = await cursor.fetchone()
+        return bool(row and int(row[0] or 0) > 0)
+
+
+async def _index_exists(
+    connection: aiomysql.Connection,
+    table_name: str,
+    index_name: str,
+) -> bool:
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.statistics
+            WHERE table_schema = DATABASE()
+              AND table_name = %s
+              AND index_name = %s
+            """,
+            (table_name, index_name),
         )
         row = await cursor.fetchone()
         return bool(row and int(row[0] or 0) > 0)
@@ -69,12 +94,25 @@ async def _ngram_available(connection: aiomysql.Connection) -> bool:
 
 async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
     content_migration = build_content_migration(use_ngram=await _ngram_available(connection))
-    return IDENTITY_MIGRATION, MAIL_MIGRATION, JOBS_MIGRATION, content_migration
+    return (
+        IDENTITY_MIGRATION,
+        MAIL_MIGRATION,
+        JOBS_MIGRATION,
+        content_migration,
+        JOB_CLAIM_ORDER_MIGRATION,
+    )
 
 
 async def _execute_idempotent_ddl(connection: aiomysql.Connection, statement: str) -> None:
-    match = _CREATE_TABLE_PATTERN.match(statement)
-    if match and await _table_exists(connection, match.group(1)):
+    table_match = _CREATE_TABLE_PATTERN.match(statement)
+    if table_match and await _table_exists(connection, table_match.group(1)):
+        return
+    index_match = _ADD_INDEX_PATTERN.match(statement)
+    if index_match and await _index_exists(
+        connection,
+        index_match.group(1),
+        index_match.group(2),
+    ):
         return
     async with connection.cursor() as cursor:
         await cursor.execute(statement)
