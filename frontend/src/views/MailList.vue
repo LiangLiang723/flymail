@@ -1,12 +1,12 @@
 <template>
-  <PageFrame template="workspace" class="mail-view ui-page">
+  <PageFrame template="workspace" width="fluid" class="mail-view ui-page">
     <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>
       <button class="btn btn-primary btn-sm" @click="reauthorize(mailStore.currentAccountId)">重新授权</button>
     </div>
 
-    <div class="mail-shell" :class="{ detail: !!selectedMessage }">
+    <div class="mail-shell workspace-grid" :class="{ detail: !!selectedMessage }">
     <aside v-if="!isMobile" class="folder-sidebar">
       <header class="folder-sidebar-header">
         <span>文件夹</span>
@@ -100,19 +100,19 @@
           <button class="btn-icon mobile-filter-toggle" :class="{ active: hasActiveFilter }" type="button" title="筛选邮件" aria-label="筛选邮件" @click="showMobileFilters = !showMobileFilters">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           </button>
-          <button
-            class="btn-icon refresh-button"
+          <UiIconButton
+            class="refresh-button"
             :class="{ 'is-refreshing': refreshingLatest }"
+            :label="refreshingLatest ? '正在刷新当前文件夹最新邮件' : '刷新当前文件夹最新邮件'"
+            :loading="refreshingLatest"
+            :disabled="syncing || rebuilding || !mailStore.currentAccountId"
             @click="refreshLatestPage"
-            :title="refreshingLatest ? '正在刷新当前文件夹最新邮件' : '刷新当前文件夹最新邮件'"
-            :aria-busy="refreshingLatest"
-            :disabled="refreshingLatest || syncing || rebuilding || !mailStore.currentAccountId"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 6.36 18.36L1 14"/>
             </svg>
-          </button>
-          <span v-if="rebuilding" class="sync-badge">{{ syncProgress || '同步中' }}</span>
+          </UiIconButton>
+          <UiBadge v-if="rebuilding" tone="accent">{{ syncProgress || '同步中' }}</UiBadge>
           <span class="sync-status" :class="{ connected: wsConnected }" :title="wsConnected ? '实时同步已连接' : '实时同步未连接'">
             <span class="status-dot"></span>
           </span>
@@ -182,18 +182,17 @@
       </transition>
 
       <!-- 加载中（首次加载无缓存数据时显示） -->
-      <div v-if="loading && messages.length === 0" class="list-loading">
-        <div class="spinner"></div>
-        <span>加载中...</span>
-      </div>
+      <UiLoadingState
+        v-if="loading && messages.length === 0"
+        label="正在加载邮件…"
+      />
 
       <!-- 空状态 -->
-      <div v-else-if="!loading && messages.length === 0" class="list-empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
-          <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13L2 4"/>
-        </svg>
-        <span>{{ mailStore.currentAccountId ? '暂无邮件' : '暂无邮箱账号' }}</span>
-      </div>
+      <UiEmptyState
+        v-else-if="!loading && messages.length === 0"
+        :title="mailStore.currentAccountId ? '暂无邮件' : '暂无邮箱账号'"
+        :description="mailStore.currentAccountId ? '当前文件夹没有匹配邮件。' : '请先在账号管理中添加邮箱。'"
+      />
 
       <!-- 邮件列表 -->
       <div v-else class="list-items">
@@ -229,9 +228,9 @@
             </div>
           </div>
           <!-- 已读/未读标签 -->
-          <span v-if="!noReadStateFolder" class="mail-status-tag" :class="msg.is_read ? 'read' : 'unread'">
+          <UiBadge v-if="!noReadStateFolder" :tone="msg.is_read ? 'neutral' : 'accent'" class="mail-status-tag">
             {{ msg.is_read ? '已读' : '未读' }}
-          </span>
+          </UiBadge>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
         </button>
@@ -388,6 +387,10 @@ import { buildForwardDraft, buildReplyDraft } from '../composables/useReplyForwa
 import { exportMailToPDF } from '../utils/export-pdf';
 import AppIcon from '../components/AppIcon.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
+import UiBadge from '../components/ui/UiBadge.vue';
+import UiEmptyState from '../components/ui/UiEmptyState.vue';
+import UiIconButton from '../components/ui/UiIconButton.vue';
+import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import ImageViewer, { type ViewerImage } from '../components/mail/ImageViewer.vue';
 

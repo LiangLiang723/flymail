@@ -28,6 +28,17 @@ test('sidebar header renders mutually exclusive desktop controls', async () => {
   assert.doesNotMatch(source, /class="sidebar-header sidebar-row"/);
 });
 
+test('mail management uses the fluid workspace and shared toolbar primitives', async () => {
+  const source = await read('src/views/MailList.vue');
+
+  assert.match(source, /<PageFrame[^>]*template="workspace"[^>]*width="fluid"/);
+  assert.match(source, /class="mail-shell workspace-grid"/);
+  assert.match(source, /UiIconButton/);
+  assert.match(source, /UiBadge/);
+  assert.match(source, /UiEmptyState/);
+  assert.match(source, /UiLoadingState/);
+});
+
 test('contacts render one bounded split workspace with two scroll owners', async () => {
   const source = await read('src/views/ContactList.vue');
   const layout = await read('src/styles/layout-system.css');

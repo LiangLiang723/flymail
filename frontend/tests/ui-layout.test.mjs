@@ -184,12 +184,15 @@ test('data-dependent remove and preview controls keep explicit names and usable 
 
 test('manual refresh animates only while the latest page request is active', async () => {
   const source = await readSource('src/views/MailList.vue');
+  const spinner = await readSource('src/components/ui/UiSpinner.vue');
+  const styles = await readSource('src/styles/components.css');
 
-  assert.match(source, /class="btn-icon refresh-button"/);
-  assert.match(source, /:class="\{ 'is-refreshing': refreshingLatest \}"/);
+  assert.match(source, /<UiIconButton[\s\S]*class="refresh-button"/);
+  assert.match(source, /:loading="refreshingLatest"/);
   assert.match(source, /const refreshingLatest = ref\(false\)/);
   assert.match(source, /refreshingLatest\.value = true/);
   assert.match(source, /finally \{\s*refreshingLatest\.value = false;/s);
-  assert.match(source, /\.refresh-button\.is-refreshing svg\s*\{[^}]*animation: spin 0\.8s linear infinite;/s);
-  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.refresh-button\.is-refreshing svg\s*\{\s*animation: none;/);
+  assert.match(spinner, /ui-spinner/);
+  assert.match(styles, /\.ui-spinner,[\s\S]*\{[^}]*animation:\s*ui-spin 0\.72s linear infinite/s);
+  assert.match(styles, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*\.ui-spinner,[\s\S]*\{[^}]*animation:\s*none/s);
 });
