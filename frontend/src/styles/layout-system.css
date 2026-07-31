@@ -110,7 +110,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--page-gap);
+  gap: var(--page-section-gap);
 }
 
 .page-header-shell__copy {
@@ -219,8 +219,8 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: var(--page-gap);
-  padding: var(--page-padding);
+  gap: var(--page-section-gap);
+  padding: var(--page-gutter);
   color: var(--ui-text-2);
   text-align: center;
 }
@@ -287,7 +287,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--ui-space-2);
-  padding: var(--page-padding);
+  padding: var(--page-gutter);
   color: var(--ui-text-2);
   font-size: var(--ui-text-sm);
 }

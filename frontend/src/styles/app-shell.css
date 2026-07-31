@@ -533,10 +533,10 @@ button.sidebar-row:active,
 
 .toast-container {
   position: fixed;
-  top: var(--page-padding-compact);
-  right: var(--page-padding-compact);
+  top: var(--page-gutter-compact);
+  right: var(--page-gutter-compact);
   z-index: 9400;
-  width: min(360px, calc(100vw - (2 * var(--page-padding-compact))));
+  width: min(360px, calc(100vw - (2 * var(--page-gutter-compact))));
   display: grid;
   gap: var(--ui-space-2);
   pointer-events: none;
@@ -575,8 +575,8 @@ button.sidebar-row:active,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--page-gap);
-  padding: 12px var(--page-padding-compact);
+  gap: var(--page-section-gap);
+  padding: 12px var(--page-gutter-compact);
   border-bottom: 1px solid var(--ui-border);
 }
 
@@ -605,7 +605,7 @@ button.sidebar-row:active,
   align-items: center;
   justify-content: flex-end;
   gap: var(--ui-space-2);
-  padding: 6px var(--page-padding-compact);
+  padding: 6px var(--page-gutter-compact);
   border-bottom: 1px solid var(--ui-border);
 }
 
@@ -643,7 +643,7 @@ button.sidebar-row:active,
   min-height: 0;
   display: grid;
   place-items: center;
-  padding: var(--page-padding);
+  padding: var(--page-gutter);
 }
 
 .notification-item {
@@ -717,12 +717,12 @@ button.sidebar-row:active,
   z-index: 9250;
   display: grid;
   place-items: center;
-  padding: var(--page-padding);
+  padding: var(--page-gutter);
 }
 
 .confirm-dialog {
   width: min(420px, 100%);
-  padding: var(--page-padding);
+  padding: var(--page-gutter);
 }
 
 .confirm-title {

@@ -7,6 +7,42 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 
+test('every authenticated page declares an explicit width mode', async () => {
+  const contracts = {
+    'UnifiedInbox.vue': ['management', 'fluid'],
+    'AccountList.vue': ['management', 'fluid'],
+    'HistorySync.vue': ['management', 'fluid'],
+    'UserManagement.vue': ['management', 'fluid'],
+    'ContactList.vue': ['split', 'fluid'],
+    'MailList.vue': ['workspace', 'fluid'],
+    'ComposeEmail.vue': ['workspace', 'fluid'],
+    'Backup.vue': ['workspace', 'fluid'],
+    'Settings.vue': ['document', 'form'],
+    'Profile.vue': ['document', 'form'],
+    'NotificationSettings.vue': ['document', 'form'],
+    'About.vue': ['document', 'reading'],
+  };
+
+  for (const [file, [template, width]] of Object.entries(contracts)) {
+    const source = await read(`src/views/${file}`);
+    assert.match(source, new RegExp(`<PageFrame[^>]*template="${template}"[^>]*width="${width}"`), file);
+  }
+});
+
+test('migration-only page aliases have been removed', async () => {
+  const files = [
+    'src/styles/tokens.css',
+    'src/styles/app-shell.css',
+    'src/styles/layout-system.css',
+    'src/styles/page-system.css',
+  ];
+  const combined = (await Promise.all(files.map(read))).join('\n');
+
+  assert.doesNotMatch(combined, /--page-padding(?:-compact)?/);
+  assert.doesNotMatch(combined, /--page-document-max/);
+  assert.doesNotMatch(combined, /--page-content-max/);
+});
+
 test('shared page patterns own reusable controls and surfaces', async () => {
   const components = await read('src/styles/components.css');
   const pages = await read('src/styles/page-system.css');
