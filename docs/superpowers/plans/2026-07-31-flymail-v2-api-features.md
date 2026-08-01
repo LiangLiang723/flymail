@@ -318,6 +318,8 @@ git add README.md docs/superpowers/plans/2026-07-31-flymail-v2-api-features.md b
 git commit -m "📮 实现 V2 邮箱账号凭证与发件身份 API"
 ```
 
+**Measured verification:** schema `12`; Task 3 account API and Worker tests `17/17`; affected API/auth/repository/scheduler regression tests `80/80`; full backend tests `522/522` with no skips; frontend tests `93/93`; frontend production build passed. The final local image `benxianyu/flymail:0.0.25-v2-accounts-task3` (`sha256:516a44444184b334f39a8cf69ff81bc810c5c5606bda0df28823bcdb5ccb33e1`) passed all V2 tests `366/366`, container health, schema `12`, encrypted OAuth credential and user proxy persistence, secret-free Job/Outbox/audit payload checks, restart persistence, image/log secret scans and graceful MySQL shutdown using isolated `/tmp` data. Real HTTP `/api/v2/health` and `/api/v2/version` were exercised in the final container; credential-bearing route behavior was exercised through the final image's FastAPI integration tests because the remote execution safety layer rejected ad-hoc commands containing test login credentials. Real Gmail/Outlook authorization and IMAP/SMTP verification remain blocked on production OAuth/client and provider gateway wiring.
+
 ---
 
 ### Task 4: 实现 Bootstrap、导航和轻量通知摘要
