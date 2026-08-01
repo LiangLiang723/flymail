@@ -14,8 +14,11 @@ from flymail.infrastructure.db.migrations.v0002_mail import MIGRATION as MAIL_MI
 from flymail.infrastructure.db.migrations.v0003_jobs import MIGRATION as JOBS_MIGRATION
 from flymail.infrastructure.db.migrations.v0004_content_search import build_migration as build_content_migration
 from flymail.infrastructure.db.migrations.v0005_job_claim_order import MIGRATION as JOB_CLAIM_ORDER_MIGRATION
+from flymail.infrastructure.db.migrations.v0006_message_fallback_index import MIGRATION as MESSAGE_FALLBACK_INDEX_MIGRATION
 from flymail.infrastructure.db.pool import DatabasePool
 
+
+LATEST_SCHEMA_VERSION = MESSAGE_FALLBACK_INDEX_MIGRATION.version
 
 _MIGRATION_LOCK_NAME = "flymail_v2_schema_migration"
 _CREATE_TABLE_PATTERN = re.compile(
@@ -100,6 +103,7 @@ async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
         JOBS_MIGRATION,
         content_migration,
         JOB_CLAIM_ORDER_MIGRATION,
+        MESSAGE_FALLBACK_INDEX_MIGRATION,
     )
 
 

@@ -145,7 +145,7 @@ class DevelopmentEntrypointTests(unittest.IsolatedAsyncioTestCase):
         expected = {
             "status": "ok",
             "role": "api",
-            "schema_version": 5,
+            "schema_version": 6,
             "database": "ok",
             "object_store": "ok",
         }

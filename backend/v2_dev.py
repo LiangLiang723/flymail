@@ -14,13 +14,13 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from flymail.config import FlyMailSettings
-from flymail.infrastructure.db.migrations.runner import current_schema_version
+from flymail.infrastructure.db.migrations.runner import (
+    LATEST_SCHEMA_VERSION,
+    current_schema_version,
+)
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.infrastructure.object_store.store import ObjectStore
 from version import VERSION
-
-
-EXPECTED_SCHEMA_VERSION = 5
 
 
 def _probe_object_store(settings: FlyMailSettings) -> None:
@@ -63,7 +63,7 @@ async def inspect_foundation_health(settings: FlyMailSettings) -> dict[str, str 
         "ok"
         if database_status == "ok"
         and object_store_status == "ok"
-        and schema_version == EXPECTED_SCHEMA_VERSION
+        and schema_version == LATEST_SCHEMA_VERSION
         else "error"
     )
     return {

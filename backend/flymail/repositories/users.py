@@ -54,6 +54,19 @@ class UserRepository:
         )
         return _map_user(row) if row else None
 
+    async def lock_enabled_user_for_update(self, tenant: TenantContext) -> bool:
+        row = await fetch_one(
+            self.connection,
+            """
+            SELECT id
+            FROM users
+            WHERE id = %s AND enabled = 1
+            FOR UPDATE
+            """,
+            (tenant.user_uid,),
+        )
+        return row is not None
+
     async def get_user_for_admin(
         self,
         admin: AdminContext,

@@ -116,9 +116,9 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         return [(str(row[0]), row[1]) for row in rows]
 
     async def test_empty_database_applies_all_migrations_and_second_run_is_noop(self):
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5])
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6])
         async with self.pool.acquire() as connection:
-            self.assertEqual(await current_schema_version(connection), 5)
+            self.assertEqual(await current_schema_version(connection), 6)
         self.assertEqual(await run_migrations(self.pool), [])
 
         records = await self.fetchall(
@@ -130,6 +130,7 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (3, "jobs_realtime_and_drafts"),
             (4, "content_and_search"),
             (5, "job_claim_order"),
+            (6, "message_thread_fallback_index"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -150,10 +151,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_runners_apply_each_version_once(self):
         results = await asyncio.gather(run_migrations(self.pool), run_migrations(self.pool))
-        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5]])
+        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6]])
         self.assertEqual(
             await self.scalar("SELECT COUNT(*) FROM schema_migrations"),
-            5,
+            6,
         )
 
     async def test_partial_ddl_without_version_record_recovers_idempotently(self):
@@ -162,8 +163,8 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute(IDENTITY_MIGRATION.statements[0])
                 await connection.commit()
 
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5])
-        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 5)
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6])
+        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 6)
 
     async def test_job_claim_index_upgrade_and_crash_recovery_are_idempotent(self):
         await run_migrations(self.pool)
@@ -185,6 +186,26 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await connection.commit()
         self.assertEqual(await run_migrations(self.pool), [5])
 
+    async def test_message_fallback_index_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 6")
+                await cursor.execute("ALTER TABLE messages DROP INDEX idx_messages_subject_fallback")
+                await connection.commit()
+
+        self.assertEqual(await run_migrations(self.pool), [6])
+        self.assertEqual(
+            await self.index_columns("messages", "idx_messages_subject_fallback"),
+            [("user_uid", "A"), ("normalized_subject", "A"), ("received_at", "D"), ("id", "D")],
+        )
+
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 6")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [6])
+
     async def test_critical_index_column_order_and_direction(self):
         await run_migrations(self.pool)
 
@@ -199,6 +220,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             await self.index_columns("worker_jobs", "idx_worker_jobs_claim_order"),
             [("queue_name", "A"), ("priority", "A"), ("available_at", "A"), ("id", "A"), ("status", "A")],
+        )
+        self.assertEqual(
+            await self.index_columns("messages", "idx_messages_subject_fallback"),
+            [("user_uid", "A"), ("normalized_subject", "A"), ("received_at", "D"), ("id", "D")],
         )
         self.assertEqual(
             await self.index_columns("outbox_events", "idx_outbox_unpublished"),

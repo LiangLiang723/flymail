@@ -351,17 +351,25 @@ git commit -m "✉️ 实现 V2 MIME 结构与真实 Part 解析"
 - Create: `backend/flymail/repositories/mailboxes.py`
 - Create: `backend/flymail/repositories/messages.py`
 - Create: `backend/flymail/repositories/threads.py`
+- Modify: `backend/flymail/repositories/users.py`
 - Create: `backend/flymail/workers/ingestion.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0006_message_fallback_index.py`
+- Modify: `backend/flymail/infrastructure/db/migrations/runner.py`
 - Create: `backend/tests/v2/test_message_ingestion.py`
+- Modify: `backend/tests/v2/test_migrations.py`
+- Modify: `backend/tests/v2/test_config.py`
+- Modify: `backend/tests/v2/test_foundation_integration.py`
+- Modify: `backend/v2_dev.py`
+- Modify: `README.md`
 
 **Interfaces:**
 
 - Produces: `RemoteSummary`
 - Produces: `MessageIngestionService.ingest_batch(account, mailbox, summaries) -> IngestionResult`
-- Produces: `ThreadResolver.resolve(user_uid, headers) -> str`
+- Produces: `ThreadResolver.resolve(user_uid, headers) -> ThreadDecision | None`
 - Produces batch Repository methods for messages, remote instances, memberships and projections.
 
-- [ ] **Step 1: Write ingestion tests**
+- [x] **Step 1: Write ingestion tests**
 
 Tests prove:
 
@@ -374,11 +382,11 @@ Tests prove:
 - UIDVALIDITY change creates new remote identity and marks old instance for reconciliation;
 - projection counts and latest message are correct.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Define summary normalization**
+- [x] **Step 3: Define summary normalization**
 
 Normalize headers without discarding originals needed for diagnostics. Canonical message key order:
 
@@ -386,23 +394,23 @@ Normalize headers without discarding originals needed for diagnostics. Canonical
 2. normalized Message-ID scoped to user;
 3. fallback SHA-256 over account, mailbox, UIDVALIDITY, UID, date, size and normalized sender.
 
-- [ ] **Step 4: Implement thread resolver**
+- [x] **Step 4: Implement thread resolver**
 
 Use `References` from oldest to newest, then `In-Reply-To`, then own Message-ID. The fallback subject rule requires normalized subject, overlapping participants and bounded time window; log only the reason code, not full subject.
 
-- [ ] **Step 5: Implement batch Repository methods**
+- [x] **Step 5: Implement batch Repository methods**
 
 Required methods accept lists and use `executemany` or bounded multi-row SQL. No per-message commit. Return internal IDs using stable lookup keys after upsert.
 
-- [ ] **Step 6: Update thread projection in transaction**
+- [x] **Step 6: Update thread projection in transaction**
 
 Projection fields include latest time, latest subject, participant summary, message count, unread count, star state, attachment flag, account count, pending operation count and latest snippet.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_message_ingestion -v
-git add backend/flymail/domain/threading.py backend/flymail/repositories/mailboxes.py backend/flymail/repositories/messages.py backend/flymail/repositories/threads.py backend/flymail/workers/ingestion.py backend/tests/v2/test_message_ingestion.py
+git add backend/flymail/domain/threading.py backend/flymail/repositories/mailboxes.py backend/flymail/repositories/messages.py backend/flymail/repositories/threads.py backend/flymail/workers/ingestion.py backend/flymail/infrastructure/db/migrations/v0006_message_fallback_index.py backend/flymail/infrastructure/db/migrations/runner.py backend/tests/v2/test_message_ingestion.py backend/tests/v2/test_migrations.py
 git commit -m "🧵 实现 V2 邮件摄取标签关系与标准会话"
 ```
 
