@@ -13,6 +13,7 @@ from flymail.infrastructure.db.migrations.runner import run_migrations
 from flymail.repositories.base import TenantContext
 from flymail.repositories.jobs import JobRepository, JobSpec, retry_delay_seconds
 from flymail.repositories.outbox import OutboxRepository
+from flymail.workers.dispatcher import JobOutcome, WorkerDispatcher
 from flymail.workers.lease import WorkerHeartbeatService
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
 from v2_worker import run_worker
@@ -472,7 +473,11 @@ class JobsAndOutboxTests(MySqlIsolatedAsyncioTestCase):
         self.assertNotIn(self.database_url(), stderr.decode("utf-8", errors="replace"))
 
     async def test_worker_startup_runs_migrations_and_releases_expired_leases(self):
-        job_id = await self._enqueue(dedupe_key="startup-release", available_at=1)
+        job_id = await self._enqueue(
+            job_kind="sync.reconcile",
+            dedupe_key="startup-release",
+            available_at=1,
+        )
         async with self.worker_pool.acquire() as connection:
             jobs = JobRepository(connection)
             await connection.begin()
@@ -486,8 +491,18 @@ class JobsAndOutboxTests(MySqlIsolatedAsyncioTestCase):
             "FLYMAIL_SESSION_SECRET": "worker-startup-session-secret",
             "FLYMAIL_DATA_DIR": "/tmp/flymail-v2-worker-test",
         }
+        dispatcher = WorkerDispatcher()
+
+        async def reconcile_handler(_context, _payload):
+            return JobOutcome.success()
+
+        dispatcher.register("sync.reconcile", reconcile_handler)
         with patch.dict(os.environ, env, clear=True):
-            await run_worker(stop_event=stop_event, now_fn=lambda: 10)
+            await run_worker(
+                stop_event=stop_event,
+                now_fn=lambda: 10,
+                dispatcher=dispatcher,
+            )
 
         self.assertEqual(
             await self.scalar("SELECT status FROM worker_jobs WHERE id = %s", (job_id,)),

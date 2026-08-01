@@ -891,7 +891,7 @@ git commit -m "🔔 实现 V2 站内与第三方通知可靠分发"
 
 - Produces: Gate 2 evidence and stable job/provider contracts for API plan.
 
-- [ ] **Step 1: Add integrated fake-provider scenario**
+- [x] **Step 1: Add integrated fake-provider scenario**
 
 Using a deterministic fake IMAP/SMTP server, test:
 
@@ -909,11 +909,11 @@ Using a deterministic fake IMAP/SMTP server, test:
 12. account A slow/failing while account B completes;
 13. new-mail, send-result and backup-result notifications deliver independently across enabled channels.
 
-- [ ] **Step 2: Register all handlers in V2 Worker**
+- [x] **Step 2: Register all handlers in V2 Worker**
 
-Handler registry must contain explicit job kind mapping. Startup fails if a persisted runnable job kind has no registered handler in the current schema version.
+Handler registry contains an explicit 13-kind mapping for synchronization, content, operations, sending and notifications. The exact builder rejects missing or unexpected kinds, and startup fails before leasing if the database contains a runnable job kind absent from the supplied registry. Test-only dispatchers may still register isolated synthetic kinds for scheduler failure injection.
 
-- [ ] **Step 3: Run all V2 protocol tests**
+- [x] **Step 3: Run all V2 protocol tests**
 
 ```bash
 cd backend
@@ -933,11 +933,11 @@ FLYMAIL_TEST_DATABASE_URL='mysql://...' python -m unittest \
 
 Expected: all PASS.
 
-- [ ] **Step 4: Run foundation and legacy regressions**
+- [x] **Step 4: Run foundation and legacy regressions**
 
 Run all `tests/v2` and legacy `backend/tests`. Expected: PASS.
 
-- [ ] **Step 5: Search for forbidden full-message fetches**
+- [x] **Step 5: Search for forbidden full-message fetches**
 
 ```bash
 rg -n 'BODY\.PEEK\[\]|RFC822\b' backend/flymail
@@ -945,11 +945,11 @@ rg -n 'BODY\.PEEK\[\]|RFC822\b' backend/flymail
 
 Expected: matches only the explicit raw `.eml` handler or documented MIME fallback path. Body and attachment handlers must not match.
 
-- [ ] **Step 6: Update README development architecture**
+- [x] **Step 6: Update README development architecture**
 
 Document Provider plugin boundaries, IDLE plus reconciliation, exact part fetching, layered cache and Worker recovery. State clearly that V2 is not yet the active production entry.
 
-- [ ] **Step 7: Commit and push Gate 2**
+- [x] **Step 7: Commit and push Gate 2**
 
 ```bash
 git add backend/v2_worker.py backend/tests/v2/test_protocol_worker_integration.py README.md
@@ -959,18 +959,18 @@ git push origin main
 
 ## Gate 2 Completion Checklist
 
-- [ ] Seven provider plugins pass one contract suite.
-- [ ] IMAP commands are serialized per connection.
-- [ ] BODYSTRUCTURE yields real part specifiers.
-- [ ] Summary synchronization never downloads ordinary attachments.
-- [ ] Body and attachment fetches avoid full-message MIME.
-- [ ] Gmail labels use memberships without duplicate body storage.
-- [ ] IDLE only enqueues lightweight work.
-- [ ] Adaptive reconciliation follows 5/15/30-minute policy and backoff.
-- [ ] Fair scheduler prevents account starvation.
-- [ ] Local operations are atomic, recoverable and conflict-aware.
-- [ ] Two-stage deletion is enforced.
-- [ ] Reliable sender produces zero duplicate deliveries in tests.
-- [ ] In-app and external notification delivery is encrypted, idempotent and channel-isolated.
-- [ ] Worker restart restores leases, operations, notifications and send verification.
-- [ ] Production container and data remain untouched.
+- [x] Seven provider plugins pass one contract suite.
+- [x] IMAP commands are serialized per connection.
+- [x] BODYSTRUCTURE yields real part specifiers.
+- [x] Summary synchronization never downloads ordinary attachments.
+- [x] Body and attachment fetches avoid full-message MIME.
+- [x] Gmail labels use memberships without duplicate body storage.
+- [x] IDLE only enqueues lightweight work.
+- [x] Adaptive reconciliation follows 5/15/30-minute policy and backoff.
+- [x] Fair scheduler prevents account starvation.
+- [x] Local operations are atomic, recoverable and conflict-aware.
+- [x] Two-stage deletion is enforced.
+- [x] Reliable sender produces zero duplicate deliveries in tests.
+- [x] In-app and external notification delivery is encrypted, idempotent and channel-isolated.
+- [x] Worker restart restores leases, operations, notifications and send verification.
+- [x] Production container and data remain untouched.

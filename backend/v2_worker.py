@@ -6,7 +6,7 @@ import asyncio
 import signal
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import ConfigurationError
@@ -15,7 +15,7 @@ from flymail.infrastructure.db.migrations.runner import run_migrations
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.providers.registry import ProviderRegistry
 from flymail.repositories.jobs import JobCandidate, JobRepository, LeasedJob
-from flymail.workers.dispatcher import JobOutcome, WorkerDispatcher
+from flymail.workers.dispatcher import JobHandler, JobOutcome, WorkerDispatcher
 from flymail.workers.lease import WorkerHeartbeatService
 from flymail.workers.scheduler import (
     QUEUE_ORDER,
@@ -23,6 +23,71 @@ from flymail.workers.scheduler import (
     FairScheduler,
     ReadyJob,
 )
+
+
+WORKER_JOB_KINDS = (
+    "content.attachment",
+    "content.body",
+    "content.inline",
+    "content.raw_eml",
+    "mail.operation.apply",
+    "notification.deliver",
+    "send.append_sent_copy",
+    "send.deliver",
+    "send.verify",
+    "sync.incremental",
+    "sync.initial",
+    "sync.mailbox_refresh",
+    "sync.reconcile",
+)
+_RUNNABLE_JOB_STATUSES = ("pending", "retry_wait", "leased", "running")
+
+
+def build_worker_dispatcher(
+    handlers: Mapping[str, JobHandler],
+) -> WorkerDispatcher:
+    normalized = {str(kind or "").strip(): handler for kind, handler in handlers.items()}
+    expected = set(WORKER_JOB_KINDS)
+    actual = set(normalized)
+    missing = sorted(expected - actual)
+    unexpected = sorted(actual - expected)
+    if missing or unexpected:
+        details: list[str] = []
+        if missing:
+            details.append(f"missing={','.join(missing)}")
+        if unexpected:
+            details.append(f"unexpected={','.join(unexpected)}")
+        raise ConfigurationError(
+            "invalid Worker handler mapping: " + " ".join(details)
+        )
+    dispatcher = WorkerDispatcher()
+    for kind in WORKER_JOB_KINDS:
+        dispatcher.register(kind, normalized[kind])
+    return dispatcher
+
+
+async def validate_worker_job_registry(
+    pool: DatabasePool,
+    dispatcher: WorkerDispatcher,
+) -> None:
+    placeholders = ",".join("%s" for _ in _RUNNABLE_JOB_STATUSES)
+    async with pool.acquire() as connection:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                f"""
+                SELECT DISTINCT job_kind
+                FROM worker_jobs
+                WHERE status IN ({placeholders})
+                ORDER BY job_kind
+                """,
+                _RUNNABLE_JOB_STATUSES,
+            )
+            runnable_kinds = {str(row[0]) for row in await cursor.fetchall()}
+    missing = sorted(runnable_kinds - set(dispatcher.registered_kinds))
+    if missing:
+        raise ConfigurationError(
+            "unregistered runnable Worker job kinds: " + ", ".join(missing)
+        )
 
 
 async def _wait_for_stop(stop_event: asyncio.Event, timeout: float) -> None:
@@ -308,6 +373,7 @@ async def run_worker(
             except Exception:
                 await connection.rollback()
                 raise
+        await validate_worker_job_registry(pool, runtime_dispatcher)
 
         heartbeat = WorkerHeartbeatService(
             pool,
