@@ -781,6 +781,12 @@ git commit -m "📤 实现 V2 可靠发送与重复投递防护"
 - Create: `backend/flymail/notifications/channels.py`
 - Create: `backend/flymail/notifications/image_publishers.py`
 - Create: `backend/flymail/workers/notifications.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0010_notification_asset_reference.py`
+- Modify: `backend/flymail/infrastructure/db/migrations/runner.py`
+- Modify: `backend/tests/v2/test_migrations.py`
+- Modify: `backend/tests/v2/test_config.py`
+- Modify: `backend/tests/v2/test_foundation_integration.py`
+- Modify: `README.md`
 - Create: `backend/tests/v2/test_notification_dispatch.py`
 
 **Interfaces:**
@@ -791,7 +797,7 @@ git commit -m "📤 实现 V2 可靠发送与重复投递防护"
 - Produces: `NotificationImagePublisher.publish(asset: StoredObject, config: ImagePublisherConfig, proxy: ProxyConfig | None) -> PublishedImage`.
 - Produces event kinds for new mail, scheduled-send result, backup result, account authorization and system warning.
 
-- [ ] **Step 1: Write notification contract and delivery tests**
+- [x] **Step 1: Write notification contract and delivery tests**
 
 Tests prove:
 
@@ -808,7 +814,7 @@ Tests prove:
 - optional image publishing supports the maintained `flymail-imgbed` Cloudflare Worker contract and a generic reviewed HTTPS publisher, validates public endpoints, uses encrypted tokens, and deletes or lets expire the published image according to provider capability;
 - a publisher failure degrades to text notification when the channel supports text and does not block in-app delivery.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run:
 
@@ -819,7 +825,7 @@ python -m unittest tests.v2.test_notification_dispatch -v
 
 Expected: FAIL because notification channel and Worker contracts do not exist.
 
-- [ ] **Step 3: Define a channel-neutral message model**
+- [x] **Step 3: Define a channel-neutral message model**
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -835,19 +841,19 @@ class NotificationMessage:
 
 The model excludes raw HTML, attachment bytes, OAuth tokens and provider credentials. It may carry an internal `notification_asset_id` reference, never a public object hash or local filesystem path.
 
-- [ ] **Step 4: Implement channel adapters**
+- [x] **Step 4: Implement channel adapters**
 
 Use existing `httpx` dependency. Each adapter owns only payload formatting and HTTP result classification. It cannot query MySQL, decrypt secrets or choose user rules. Generic Webhook validates public HTTPS/HTTP destinations under the project's outbound-network safety policy and rejects loopback, private, link-local and metadata endpoints unless an explicitly authorized internal endpoint policy is later approved.
 
-- [ ] **Step 5: Implement optional image publisher adapters**
+- [x] **Step 5: Implement optional image publisher adapters**
 
 Define a narrow publisher contract. The `flymail-imgbed` adapter follows the repository template's authenticated upload/delete API; generic HTTPS publisher support is limited to an explicitly documented request/response contract. Both reuse outbound-network validation, keep token/password encrypted, return a bounded public URL, and never expose the local SHA-256 object path. Image publishing is optional per channel/rule, and text fallback is mandatory where supported.
 
-- [ ] **Step 6: Implement notification Worker handler**
+- [x] **Step 6: Implement notification Worker handler**
 
 The handler loads the user-scoped channel/rule and decrypts its secret, renders a bounded message, selects optional proxy, optionally publishes a generated image, calls one channel adapter, records `notification_deliveries`, emits realtime status, requests published-image cleanup when supported, and releases temporary notification assets after the final reference disappears. Idempotency key is `(notification_event_id, channel_id)`.
 
-- [ ] **Step 7: Register notification sources**
+- [x] **Step 7: Register notification sources**
 
 Outbox consumers create notification events for:
 
@@ -861,13 +867,13 @@ account.authorization_required
 system.storage_warning
 ```
 
-Rules decide channel delivery. In-app events remain available even when all external channels are disabled.
+Rules decide channel delivery. In-app events remain available even when all external channels are disabled. `EVENT_TYPES` and `NotificationService.publish` expose the exact source contract; Task 11 wires the Outbox loop and handler registry into the V2 Worker process.
 
-- [ ] **Step 8: Run tests and commit**
+- [x] **Step 8: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_notification_dispatch -v
-git add backend/flymail/notifications backend/flymail/workers/notifications.py backend/tests/v2/test_notification_dispatch.py
+git add backend/flymail/notifications backend/flymail/workers/notifications.py backend/flymail/infrastructure/db/migrations/v0010_notification_asset_reference.py backend/flymail/infrastructure/db/migrations/runner.py backend/tests/v2/test_notification_dispatch.py backend/tests/v2/test_migrations.py backend/tests/v2/test_config.py backend/tests/v2/test_foundation_integration.py README.md docs/superpowers/plans/2026-07-31-flymail-v2-protocol-sync.md
 git commit -m "🔔 实现 V2 站内与第三方通知可靠分发"
 ```
 
