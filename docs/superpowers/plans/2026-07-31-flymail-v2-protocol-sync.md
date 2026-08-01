@@ -208,7 +208,7 @@ git commit -m "🔌 建立 V2 邮箱服务商能力插件合同"
 - Produces: `ImapSession.idle(events: AsyncIterator[IdleEvent])`
 - Produces: `AccountConnectionLimiter`.
 
-- [ ] **Step 1: Write concurrency and shutdown tests**
+- [x] **Step 1: Write concurrency and shutdown tests**
 
 Use a fake transport that records command start/end. Prove:
 
@@ -220,11 +220,11 @@ Use a fake transport that records command start/end. Prove:
 - raw password or OAuth token never enters repr or logs;
 - per-account connection limit rejects a third normal connection while two are active.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement explicit session state machine**
+- [x] **Step 3: Implement explicit session state machine**
 
 States:
 
@@ -234,19 +234,19 @@ disconnected, connecting, authenticated, selected, idling, closing, failed
 
 Every command acquires one `asyncio.Lock`. IDLE temporarily owns the session and must exit before other commands run.
 
-- [ ] **Step 4: Implement capability discovery**
+- [x] **Step 4: Implement capability discovery**
 
 After authentication, parse standard capability tokens and return immutable set. Merge server capabilities with plugin policy; plugin may disable an unreliable advertised feature but cannot claim a server feature that is absent without a separate extension probe.
 
-- [ ] **Step 5: Implement timeout and cancellation boundaries**
+- [x] **Step 5: Implement timeout and cancellation boundaries**
 
 Use operation-specific timeouts. Timeout closes the session because IMAP command stream state may be ambiguous. Callers receive classified retryable error.
 
-- [ ] **Step 6: Implement rate-limit feedback**
+- [x] **Step 6: Implement rate-limit feedback**
 
 `AccountConnectionLimiter` tracks account and provider concurrency. On classified limit errors it reduces available permits and records cooldown; successful periods recover one permit at a time.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_imap_session -v
