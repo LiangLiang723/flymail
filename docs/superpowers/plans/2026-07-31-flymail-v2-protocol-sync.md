@@ -99,7 +99,7 @@
 - Produces: `ProviderErrorCode` and `ProviderError`
 - Produces plugin keys: `generic`, `gmail`, `outlook`, `qq`, `netease`, `icloud`, `sina`.
 
-- [ ] **Step 1: Write provider contract tests**
+- [x] **Step 1: Write provider contract tests**
 
 Each plugin must pass the same suite:
 
@@ -123,11 +123,11 @@ class ProviderContractMixin:
 
 Also assert plugins do not import `flymail.repositories`, `flymail.infrastructure.db`, FastAPI or object-store modules.
 
-- [ ] **Step 2: Run tests and verify missing contracts**
+- [x] **Step 2: Run tests and verify missing contracts**
 
 Run `tests.v2.test_provider_contracts`; expected FAIL.
 
-- [ ] **Step 3: Define exact capability model**
+- [x] **Step 3: Define exact capability model**
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -149,7 +149,7 @@ class ProviderCapabilities:
     max_attachment_bytes: int
 ```
 
-- [ ] **Step 4: Define ProviderPlugin protocol**
+- [x] **Step 4: Define ProviderPlugin protocol**
 
 Required methods:
 
@@ -164,11 +164,11 @@ class ProviderPlugin(Protocol):
     def normalize_labels(self, raw_labels: Sequence[str]) -> tuple[str, ...]: ...
 ```
 
-- [ ] **Step 5: Implement plugins as data plus narrow overrides**
+- [x] **Step 5: Implement plugins as data plus narrow overrides**
 
 Generic plugin uses user-supplied endpoints. Gmail plugin declares label support and auto-saved sent copies. Outlook, QQ, NetEase, iCloud and Sina declare verified default endpoints and conservative connection limits from existing project code; do not invent provider-specific behavior not present in current code or official protocol responses.
 
-- [ ] **Step 6: Implement stable error classification**
+- [x] **Step 6: Implement stable error classification**
 
 Exact user-facing categories:
 
@@ -180,7 +180,7 @@ unsupported_operation, server_rejected, temporary_server_error, protocol_error
 
 `ProviderError` carries retryability and safe detail; raw server response stays in debug context with credential redaction.
 
-- [ ] **Step 7: Run contract tests and commit**
+- [x] **Step 7: Run contract tests and commit**
 
 ```bash
 cd backend
