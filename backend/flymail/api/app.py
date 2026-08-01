@@ -15,17 +15,32 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from flymail.api.errors import (
+    authentication_error_handler,
     authorization_error_handler,
     conflict_error_handler,
+    csrf_error_handler,
     http_error_handler,
+    invalid_credentials_error_handler,
     not_found_error_handler,
+    rate_limit_error_handler,
     unexpected_error_handler,
     validation_error_handler,
 )
 from flymail.api.middleware import RequestContextMiddleware
+from flymail.api.routes.admin import router as admin_router
+from flymail.api.routes.auth import router as auth_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
+from flymail.application.auth import AuthService
 from flymail.config import FlyMailSettings
-from flymail.domain.errors import AuthorizationError, ConflictError, NotFoundError
+from flymail.domain.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    CsrfError,
+    InvalidCredentialsError,
+    NotFoundError,
+    RateLimitError,
+)
 from flymail.domain.ids import new_id
 from flymail.infrastructure.db.migrations.runner import (
     LATEST_SCHEMA_VERSION,
@@ -176,6 +191,11 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
             store = ObjectStore(settings.object_dir, settings.object_tmp_dir)
             await asyncio.to_thread(_probe_object_store, settings)
             app.state.object_store = store
+            app.state.auth_service = AuthService(
+                pool,
+                settings.session_secret,
+                now_fn=app.state.now_fn,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -212,15 +232,23 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.realtime_manager = None
     app.state.database_pool = None
     app.state.object_store = None
+    app.state.auth_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
+    app.add_exception_handler(InvalidCredentialsError, invalid_credentials_error_handler)
+    app.add_exception_handler(AuthenticationError, authentication_error_handler)
+    app.add_exception_handler(CsrfError, csrf_error_handler)
+    app.add_exception_handler(RateLimitError, rate_limit_error_handler)
     app.add_exception_handler(AuthorizationError, authorization_error_handler)
     app.add_exception_handler(ConflictError, conflict_error_handler)
     app.add_exception_handler(NotFoundError, not_found_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
     app.add_exception_handler(Exception, unexpected_error_handler)
+
+    app.include_router(auth_router)
+    app.include_router(admin_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

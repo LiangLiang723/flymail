@@ -13,7 +13,15 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from flymail.api.dependencies import RequestContext
 from flymail.api.middleware import safe_request_id
 from flymail.api.schemas.common import ErrorBody, ErrorEnvelope
-from flymail.domain.errors import AuthorizationError, ConflictError, NotFoundError
+from flymail.domain.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    CsrfError,
+    InvalidCredentialsError,
+    NotFoundError,
+    RateLimitError,
+)
 
 
 logger = logging.getLogger("flymail.v2.api")
@@ -51,6 +59,58 @@ def error_response(
             "Server-Timing": "total;dur=0.000, db;dur=0.000, serialize;dur=0.000",
         },
     )
+
+
+async def authentication_error_handler(
+    request: Request,
+    _exc: AuthenticationError,
+) -> JSONResponse:
+    response = error_response(
+        request,
+        status_code=401,
+        code="authentication_required",
+        message="请先登录",
+    )
+    response.headers["WWW-Authenticate"] = "Session"
+    return response
+
+
+async def invalid_credentials_error_handler(
+    request: Request,
+    _exc: InvalidCredentialsError,
+) -> JSONResponse:
+    return error_response(
+        request,
+        status_code=401,
+        code="invalid_credentials",
+        message="用户名或密码错误",
+    )
+
+
+async def csrf_error_handler(
+    request: Request,
+    _exc: CsrfError,
+) -> JSONResponse:
+    return error_response(
+        request,
+        status_code=403,
+        code="csrf_failed",
+        message="请求来源或安全令牌无效",
+    )
+
+
+async def rate_limit_error_handler(
+    request: Request,
+    _exc: RateLimitError,
+) -> JSONResponse:
+    response = error_response(
+        request,
+        status_code=429,
+        code="rate_limited",
+        message="登录尝试过多，请稍后再试",
+    )
+    response.headers["Retry-After"] = "300"
+    return response
 
 
 async def authorization_error_handler(

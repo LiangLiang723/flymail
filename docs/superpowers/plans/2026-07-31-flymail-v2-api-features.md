@@ -188,7 +188,10 @@ git commit -m "🌐 建立 V2 API 应用与统一错误边界"
 - Create: `backend/flymail/api/routes/admin.py`
 - Create: `backend/flymail/repositories/sessions.py`
 - Create: `backend/flymail/repositories/audit.py`
+- Create: `backend/flymail/repositories/rate_limits.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0012_authentication_sessions.py`
 - Create: `backend/tests/v2/test_api_auth_admin.py`
+- Modify: `backend/flymail/api/app.py`, dependencies, errors, users Repository, migration runner, foundation/schema tests and README.
 
 **Interfaces:**
 
@@ -196,7 +199,7 @@ git commit -m "🌐 建立 V2 API 应用与统一错误边界"
 - Produces admin routes: `/api/v2/admin/users`, `/users/{id}/reset-password`, `/enable`, `/disable`, `/sessions/revoke`.
 - Produces dependency: `require_user()` and `require_admin()`.
 
-- [ ] **Step 1: Write auth and admin tests**
+- [x] **Step 1: Write auth and admin tests**
 
 Tests cover:
 
@@ -209,33 +212,35 @@ Tests cover:
 - login failures are rate-limited by username/source without globally locking all users;
 - audit events contain action and actor but not passwords or raw session token.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement server-side sessions**
+- [x] **Step 3: Implement server-side sessions**
 
 Store session ID, token hash, user ID, password version, expiry, revoked timestamp and last seen. Cookie contains signed session ID and raw random token; database stores only token hash. Validate cookie signature, token hash, expiry, user enabled state and password version.
 
-- [ ] **Step 4: Implement CSRF protection**
+- [x] **Step 4: Implement CSRF protection**
 
 For cookie-authenticated unsafe methods require same-origin checks and a per-session CSRF token delivered through Bootstrap or a dedicated endpoint. Reject missing or mismatched token before application service execution.
 
-- [ ] **Step 5: Implement login rate limit**
+- [x] **Step 5: Implement login rate limit**
 
 Use process-local fast counters plus MySQL persisted failure windows. Store normalized username hash and masked source, not raw submitted password. Successful login clears only the relevant principal window.
 
-- [ ] **Step 6: Implement audit writes**
+- [x] **Step 6: Implement audit writes**
 
 Security actions write audit rows in the same transaction as the change when possible. Include request ID and safe result code.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_auth_admin -v
-git add backend/flymail/application/auth.py backend/flymail/api/schemas/auth.py backend/flymail/api/routes/auth.py backend/flymail/api/routes/admin.py backend/flymail/repositories/sessions.py backend/flymail/repositories/audit.py backend/tests/v2/test_api_auth_admin.py
+git add README.md backend/flymail/application/auth.py backend/flymail/api/app.py backend/flymail/api/dependencies.py backend/flymail/api/errors.py backend/flymail/api/routes backend/flymail/api/schemas/auth.py backend/flymail/domain/errors.py backend/flymail/infrastructure/db/migrations/runner.py backend/flymail/infrastructure/db/migrations/v0012_authentication_sessions.py backend/flymail/repositories/audit.py backend/flymail/repositories/rate_limits.py backend/flymail/repositories/sessions.py backend/flymail/repositories/users.py backend/tests/v2/test_api_auth_admin.py backend/tests/v2/test_foundation_integration.py backend/tests/v2/test_migrations.py docs/superpowers/plans/2026-07-31-flymail-v2-api-features.md
 git commit -m "🔐 实现 V2 本地认证会话与用户管理"
 ```
+
+**Measured verification:** schema `12`; authentication/admin tests `11/11`; full backend tests `505/505`; frontend tests `93/93`; frontend production build passed. The temporary image `benxianyu/flymail:0.0.25-v2-auth-task2` passed real login, Secure/HttpOnly cookie, CSRF, admin authorization, user disable/session invalidation, audit redaction, Worker health, special-character MySQL password, restart persistence and graceful shutdown checks using an isolated `/tmp` data directory.
 
 ---
 

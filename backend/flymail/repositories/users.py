@@ -25,6 +25,12 @@ class User:
     updated_at: float
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class AuthenticationUser:
+    user: User
+    password_hash: str
+
+
 def _map_user(row) -> User:
     return User(
         id=str(row["id"]),
@@ -37,9 +43,61 @@ def _map_user(row) -> User:
     )
 
 
+def _map_authentication_user(row) -> AuthenticationUser:
+    return AuthenticationUser(
+        user=_map_user(row),
+        password_hash=str(row["password_hash"]),
+    )
+
+
 class UserRepository:
     def __init__(self, connection: aiomysql.Connection) -> None:
         self.connection = connection
+
+    async def find_for_authentication(
+        self,
+        username: str,
+        *,
+        for_update: bool = False,
+    ) -> AuthenticationUser | None:
+        normalized_username = str(username or "").strip()
+        if not normalized_username:
+            return None
+        suffix = " FOR UPDATE" if for_update else ""
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                f"""
+                SELECT id, username, password_hash, role, enabled,
+                       password_version, created_at, updated_at
+                FROM users
+                WHERE username = %s
+                {suffix}
+                """,
+                (normalized_username,),
+            )
+            row = await cursor.fetchone()
+        return _map_authentication_user(row) if row else None
+
+    async def get_for_authentication(
+        self,
+        user_uid: str,
+        *,
+        for_update: bool = False,
+    ) -> AuthenticationUser | None:
+        suffix = " FOR UPDATE" if for_update else ""
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                f"""
+                SELECT id, username, password_hash, role, enabled,
+                       password_version, created_at, updated_at
+                FROM users
+                WHERE id = %s
+                {suffix}
+                """,
+                (str(user_uid or "").strip(),),
+            )
+            row = await cursor.fetchone()
+        return _map_authentication_user(row) if row else None
 
     async def get_user(self, tenant: TenantContext) -> User | None:
         row = await fetch_one(
@@ -149,6 +207,50 @@ class UserRepository:
             password_version=1,
             created_at=now,
             updated_at=now,
+        )
+
+    async def list_users_for_admin(self, admin: AdminContext) -> tuple[User, ...]:
+        del admin
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT id, username, role, enabled, password_version,
+                       created_at, updated_at
+                FROM users
+                ORDER BY username, id
+                """
+            )
+            rows = await cursor.fetchall()
+        return tuple(_map_user(row) for row in rows)
+
+    async def update_password(
+        self,
+        user_uid: str,
+        password_hash: str,
+        *,
+        now: float | None = None,
+    ) -> User | None:
+        normalized_user = str(user_uid or "").strip()
+        normalized_hash = str(password_hash or "")
+        if not normalized_user or not normalized_hash:
+            raise ValueError("user_uid and password_hash are required")
+        timestamp = float(time.time() if now is None else now)
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE users
+                SET password_hash = %s,
+                    password_version = password_version + 1,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                (normalized_hash, timestamp, normalized_user),
+            )
+            if cursor.rowcount != 1:
+                return None
+        return await self.get_user_for_admin(
+            AdminContext("usr_internal_auth"),
+            normalized_user,
         )
 
     async def set_enabled_for_admin(

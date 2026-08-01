@@ -21,6 +21,22 @@ class AuthorizationError(FlyMailError):
     """Raised when the current principal cannot perform an operation."""
 
 
+class AuthenticationError(FlyMailError):
+    """Raised when no valid local session is available."""
+
+
+class InvalidCredentialsError(AuthenticationError):
+    """Raised for indistinguishable local-login credential failures."""
+
+
+class CsrfError(AuthorizationError):
+    """Raised when an unsafe cookie-authenticated request fails CSRF checks."""
+
+
+class RateLimitError(FlyMailError):
+    """Raised when an authentication principal/source window is blocked."""
+
+
 class RetryableError(FlyMailError):
     """Raised for a failure that may succeed after retry or backoff."""
 
