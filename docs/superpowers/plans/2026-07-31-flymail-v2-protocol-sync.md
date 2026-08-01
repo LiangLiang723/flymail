@@ -503,9 +503,11 @@ git commit -m "⚖️ 实现 V2 Worker 公平调度与优雅停机"
 
 - Produces: `IdleSupervisor.run_account(account_id: str) -> None`
 - Produces: `ReconciliationPlanner.plan(account_state, now) -> ReconciliationPlan`
+- Produces: `ReconciliationRunner.run_mailbox(...)` with six fixed bounded phases.
+- Produces: transactional `SyncJobPublisher` with one Outbox event per durable job.
 - Produces job kinds: `sync.incremental`, `sync.reconcile`, `sync.initial`, `sync.mailbox_refresh`.
 
-- [ ] **Step 1: Write IDLE and cadence tests**
+- [x] **Step 1: Write IDLE and cadence tests**
 
 Tests cover:
 
@@ -518,15 +520,17 @@ Tests cover:
 - failures exponentially back off with jitter;
 - account A failure does not delay account B plan.
 
-- [ ] **Step 2: Verify failure**
+Additional tests prove concurrent event publication creates one Job and one Outbox, authorization failures do not reconnect as network failures, blocked IDLE exits after account state changes, and history continuation uses cursor-scoped generations.
+
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement IDLE supervisor**
+- [x] **Step 3: Implement IDLE supervisor**
 
-One supervisor per enabled account. It obtains one IDLE permit, listens, converts events to deduped Outbox/job entries, exits on shutdown, credential change or account disable.
+One supervisor per enabled account. It obtains one IDLE permit, listens, converts events to deduped Outbox/job entries, exits on shutdown, credential change or account disable. State checks retain one pending protocol read instead of cancelling `anext()` on every check, and empty streams wait before reconnecting.
 
-- [ ] **Step 4: Implement adaptive state transitions**
+- [x] **Step 4: Implement adaptive state transitions**
 
 State calculation inputs:
 
@@ -537,9 +541,9 @@ State calculation inputs:
 - provider minimum interval;
 - current cooldown.
 
-Output is one of active, normal, quiet, degraded or auth_required with exact next reconcile time.
+Output is one of active, normal, quiet, degraded or auth_required with exact next reconcile time. Network recovery is immediate only outside provider cooldown.
 
-- [ ] **Step 5: Implement reconciliation phases**
+- [x] **Step 5: Implement reconciliation phases**
 
 Each mailbox task performs bounded work:
 
@@ -550,13 +554,13 @@ Each mailbox task performs bounded work:
 5. cursor update;
 6. enqueue body work separately.
 
-A history task processes one bounded batch and re-enqueues itself with updated cursor.
+The Runner rejects Provider batches larger than its configured limit before any remote-state comparison or cursor write. A history task processes one bounded batch and re-enqueues itself with a cursor-derived dedupe generation.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_idle_reconciliation -v
-git add backend/flymail/workers/idle.py backend/flymail/workers/reconciliation.py backend/tests/v2/test_idle_reconciliation.py
+git add backend/flymail/workers/idle.py backend/flymail/workers/reconciliation.py backend/tests/v2/test_idle_reconciliation.py docs/superpowers/plans/2026-07-31-flymail-v2-protocol-sync.md
 git commit -m "🔄 实现 V2 IDLE 与自适应周期校正"
 ```
 
