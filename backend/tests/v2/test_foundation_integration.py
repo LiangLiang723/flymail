@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -24,6 +25,7 @@ from flymail.repositories.jobs import JobRepository, JobSpec
 from flymail.repositories.objects import ObjectRepository
 from flymail.repositories.outbox import OutboxRepository
 from flymail.repositories.users import UserRepository
+from flymail.workers.lease import WorkerHeartbeatService
 from v2_dev import create_app
 
 
@@ -137,7 +139,7 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
         assert self.api_pool is not None
         assert self.worker_pool is not None
 
-        self.assertEqual(await run_migrations(self.api_pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        self.assertEqual(await run_migrations(self.api_pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
         store = ObjectStore(
             self.settings("api").object_dir,
             self.settings("api").object_tmp_dir,
@@ -217,20 +219,27 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute("SELECT 1")
                 self.assertEqual((await cursor.fetchone())[0], 1)
 
-        transport = httpx.ASGITransport(app=create_app(self.settings("api")))
-        async with httpx.AsyncClient(transport=transport, base_url="http://foundation") as client:
-            response = await client.get("/api/v2/health")
+        await WorkerHeartbeatService(
+            self.worker_pool,
+            now_fn=time.time,
+            lease_seconds=60,
+        ).touch("worker-foundation", "worker")
+        app = create_app(self.settings("api"))
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://foundation",
+            ) as client:
+                response = await client.get("/api/v2/health")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {
-                "status": "ok",
-                "role": "api",
-                "schema_version": 10,
-                "database": "ok",
-                "object_store": "ok",
-            },
-        )
+        payload = response.json()
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["role"], "api")
+        self.assertEqual(payload["schema_version"], 11)
+        self.assertEqual(payload["database"], "ok")
+        self.assertEqual(payload["worker"], "ok")
+        self.assertEqual(payload["object_store"], "ok")
 
         user_uid = user.id
         account_id = account.id
@@ -270,7 +279,7 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     (event_id,),
                 )
                 self.assertEqual((await cursor.fetchone())[0], 1)
-                self.assertEqual(await current_schema_version(connection), 10)
+                self.assertEqual(await current_schema_version(connection), 11)
 
         async with self.api_pool.acquire() as connection:
             objects = ObjectRepository(connection)

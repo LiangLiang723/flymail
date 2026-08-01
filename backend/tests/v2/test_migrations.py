@@ -27,7 +27,7 @@ EXPECTED_TABLES = {
     "message_bodies", "message_body_parts", "message_attachments",
     "content_objects", "content_references", "body_search_documents",
     "mail_operations", "outbox_events", "worker_jobs", "job_attempts",
-    "sync_cursors", "account_runtime_state", "realtime_events",
+    "process_heartbeats", "sync_cursors", "account_runtime_state", "realtime_events",
     "notification_channels", "notification_rules", "notification_image_publishers",
     "notification_events", "notification_deliveries",
     "drafts", "draft_recipients", "draft_attachments", "send_attempts",
@@ -116,9 +116,9 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         return [(str(row[0]), row[1]) for row in rows]
 
     async def test_empty_database_applies_all_migrations_and_second_run_is_noop(self):
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
         async with self.pool.acquire() as connection:
-            self.assertEqual(await current_schema_version(connection), 10)
+            self.assertEqual(await current_schema_version(connection), 11)
         self.assertEqual(await run_migrations(self.pool), [])
 
         records = await self.fetchall(
@@ -135,6 +135,7 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (8, "message_body_parts"),
             (9, "reliable_sender_state"),
             (10, "notification_asset_reference"),
+            (11, "process_heartbeats"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -155,10 +156,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_runners_apply_each_version_once(self):
         results = await asyncio.gather(run_migrations(self.pool), run_migrations(self.pool))
-        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
+        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]])
         self.assertEqual(
             await self.scalar("SELECT COUNT(*) FROM schema_migrations"),
-            10,
+            11,
         )
 
     async def test_partial_ddl_without_version_record_recovers_idempotently(self):
@@ -167,8 +168,8 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute(IDENTITY_MIGRATION.statements[0])
                 await connection.commit()
 
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 10)
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 11)
 
     async def test_job_claim_index_upgrade_and_crash_recovery_are_idempotent(self):
         await run_migrations(self.pool)
@@ -342,6 +343,29 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute("DELETE FROM schema_migrations WHERE version = 10")
                 await connection.commit()
         self.assertEqual(await run_migrations(self.pool), [10])
+
+    async def test_process_heartbeat_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 11")
+                await cursor.execute("DROP TABLE process_heartbeats")
+                await connection.commit()
+
+        self.assertEqual(await run_migrations(self.pool), [11])
+        self.assertEqual(
+            await self.index_columns(
+                "process_heartbeats",
+                "idx_process_heartbeats_role_time",
+            ),
+            [("role", "A"), ("heartbeat_at", "D"), ("process_id", "A")],
+        )
+
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 11")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [11])
 
     async def test_critical_index_column_order_and_direction(self):
         await run_migrations(self.pool)

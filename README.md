@@ -310,13 +310,15 @@ FlyMail V2 正在独立开发中，`backend/v2_dev.py` 和 `backend/v2_worker.py
 
 V2 测试必须使用可删除的临时 MySQL 数据库和临时对象目录。`FLYMAIL_TEST_DATABASE_URL`、`FLYMAIL_DATA_DIR` 和对象存储目录不得指向当前生产数据库、生产容器挂载目录或宿主机 `/Docker/flymail/data`。测试结束后应删除临时容器和临时数据，不得通过清空生产目录来重置测试环境。
 
-基础层集成测试会从空数据库开始，验证 schema 迁移、API/Worker 独立连接池、事务回滚、凭证加密、内容寻址对象、Outbox 和任务租约。Gate 1 的 schema 基线为 `5`；邮件摘要摄取、公平调度、精确 MIME 正文 part 元数据、可靠发送状态和通知临时图片引用分别加入增量结构后，当前 V2 开发 schema 为 `10`，健康检查按最新迁移版本进行验证。
+基础层集成测试会从空数据库开始，验证 schema 迁移、API/Worker 独立连接池、事务回滚、凭证加密、内容寻址对象、Outbox 和任务租约。Gate 1 的 schema 基线为 `5`；邮件摘要摄取、公平调度、精确 MIME 正文 part 元数据、可靠发送状态、通知临时图片引用和独立进程心跳分别加入增量结构后，当前 V2 开发 schema 为 `11`，健康检查按最新迁移版本进行验证。
 
 V2 通知核心先在同一事务中保存站内事件，再按启用规则为 Bark、Telegram、企业微信、钉钉、飞书和通用 Webhook 创建相互隔离的 `notification.deliver` 任务。任务载荷只保存投递 ID；渠道、图床和代理秘密均从加密配置中按用户作用域加载。外部 HTTP 地址会拒绝回环、私网、链路本地和云元数据地址，Telegram 与通用 Webhook 只有在渠道和规则同时显式启用时才使用通知代理。临时通知图片通过内部内容引用管理，所有渠道进入终态后释放；发布失败时支持文字降级，Worker 重放不会重复发送已完成或结果不确定的请求。该实现仍属于 V2 开发入口，尚未替换当前生产通知流程。
 
 Gate 2 已固定 Provider 插件、协议核心和 Worker 的开发合同。通用 IMAP/SMTP 核心只依赖窄接口，Gmail 等差异由插件能力声明处理；IDLE 只发布轻量增量任务，5/15/30 分钟自适应校正负责补漏和历史延续。摘要同步不下载普通附件，BODYSTRUCTURE 保存真实 MIME part specifier，正文、CID 内嵌资源和普通附件分别按需精确抓取；只有用户明确请求 raw `.eml` 时才允许 `BODY.PEEK[]`。正文、附件、raw 邮件和通知图片使用内容寻址对象与分层缓存，数据库保存引用和状态。
 
 V2 Worker 的 Gate 2 注册表覆盖当前 13 类持久化任务：同步、正文/附件、离线操作、可靠发送和通知。完整运行时通过显式 Handler 映射装配；映射缺项或数据库中出现未注册的可运行任务时，Worker 会在领取任务前拒绝启动。租约、心跳和安全关闭支持进程重启后继续 pending/retry 任务，一个账号的慢任务或失败不会阻塞其他账号。确定性假 Provider 集成测试已经贯穿跨账号线程、Gmail 多标签、IDLE、精确 MIME、读/移动操作、SMTP 结果验证以及新邮件、发送和备份通知。`backend/v2_worker.py` 仍是开发验收入口，尚未连接真实生产邮箱凭证，也未替换当前生产 Worker。
+
+V2 API Task 1 已建立独立 FastAPI 应用工厂和统一请求边界。`/api/v2/health` 只检查 API、MySQL、当前 schema、独立 Worker 进程心跳和对象存储，不会连接第三方邮箱；Worker 在启动宽限期内缺失或过期时返回 `degraded`，宽限期后返回 HTTP `503`。`/api/v2/version` 返回仓库版本和 V2 schema 版本。所有响应携带安全的 `X-Request-ID` 与 `Server-Timing`，404、405、参数错误、权限错误、冲突、资源不存在和意外异常统一使用 `{"error":{"code","message","request_id","details"}}` 信封，日志不记录认证、写信、凭证或备份请求正文。`backend/v2_dev.py` 仍只是开发入口，不会启动同步 Worker、定时器或 IMAP/SMTP 会话，也尚未替换生产 API。
 
 ## 文档
 

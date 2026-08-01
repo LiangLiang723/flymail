@@ -19,10 +19,11 @@ from flymail.infrastructure.db.migrations.v0007_worker_scheduler_scope import MI
 from flymail.infrastructure.db.migrations.v0008_message_body_parts import MIGRATION as MESSAGE_BODY_PARTS_MIGRATION
 from flymail.infrastructure.db.migrations.v0009_reliable_sender import MIGRATION as RELIABLE_SENDER_MIGRATION
 from flymail.infrastructure.db.migrations.v0010_notification_asset_reference import MIGRATION as NOTIFICATION_ASSET_REFERENCE_MIGRATION
+from flymail.infrastructure.db.migrations.v0011_process_heartbeats import MIGRATION as PROCESS_HEARTBEATS_MIGRATION
 from flymail.infrastructure.db.pool import DatabasePool
 
 
-LATEST_SCHEMA_VERSION = NOTIFICATION_ASSET_REFERENCE_MIGRATION.version
+LATEST_SCHEMA_VERSION = PROCESS_HEARTBEATS_MIGRATION.version
 
 _MIGRATION_LOCK_NAME = "flymail_v2_schema_migration"
 _CREATE_TABLE_PATTERN = re.compile(
@@ -136,6 +137,7 @@ async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
         MESSAGE_BODY_PARTS_MIGRATION,
         RELIABLE_SENDER_MIGRATION,
         NOTIFICATION_ASSET_REFERENCE_MIGRATION,
+        PROCESS_HEARTBEATS_MIGRATION,
     )
 
 

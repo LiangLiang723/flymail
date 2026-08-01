@@ -113,8 +113,16 @@
 - Create: `backend/flymail/api/errors.py`
 - Create: `backend/flymail/api/middleware.py`
 - Create: `backend/flymail/api/schemas/common.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0011_process_heartbeats.py`
+- Create: `backend/flymail/repositories/runtime.py`
+- Modify: `backend/flymail/infrastructure/db/migrations/runner.py`
+- Modify: `backend/flymail/workers/lease.py`
 - Modify: `backend/v2_dev.py`
 - Create: `backend/tests/v2/test_api_app.py`
+- Modify: `backend/tests/v2/test_config.py`
+- Modify: `backend/tests/v2/test_foundation_integration.py`
+- Modify: `backend/tests/v2/test_migrations.py`
+- Modify: `README.md`
 
 **Interfaces:**
 
@@ -123,7 +131,7 @@
 - Produces error envelope: `{"error":{"code":str,"message":str,"request_id":str,"details":dict|None}}`
 - Produces `/api/v2/health` and `/api/v2/version`.
 
-- [ ] **Step 1: Write app and error tests**
+- [x] **Step 1: Write app and error tests**
 
 Tests assert:
 
@@ -134,11 +142,11 @@ Tests assert:
 - request-supplied safe request ID is accepted only if it matches allowed format;
 - database URL and session secret never appear in error JSON or captured logs.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run `tests.v2.test_api_app`; expected FAIL.
 
-- [ ] **Step 3: Implement lifespan**
+- [x] **Step 3: Implement lifespan**
 
 Lifespan sequence:
 
@@ -151,20 +159,20 @@ Lifespan sequence:
 
 API startup must not start Worker loops or schedulers.
 
-- [ ] **Step 4: Implement safe middleware**
+- [x] **Step 4: Implement safe middleware**
 
 Middleware records total, database and serialization timing through request state. It never logs request bodies for auth, compose, credentials or backup endpoints.
 
-- [ ] **Step 5: Implement health semantics**
+- [x] **Step 5: Implement health semantics**
 
 Basic health is `ok` only when API and MySQL work and Worker heartbeat is within configured threshold. Third-party mailbox failures do not make container health fail. If Worker is stale, return `degraded` with HTTP 200 during a bounded startup grace period and HTTP 503 afterward.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 cd backend
 python -m unittest tests.v2.test_api_app -v
-git add backend/flymail/api backend/v2_dev.py backend/tests/v2/test_api_app.py
+git add README.md backend/flymail/api backend/flymail/infrastructure/db/migrations/runner.py backend/flymail/infrastructure/db/migrations/v0011_process_heartbeats.py backend/flymail/repositories/runtime.py backend/flymail/workers/lease.py backend/v2_dev.py backend/tests/v2/test_api_app.py backend/tests/v2/test_config.py backend/tests/v2/test_foundation_integration.py backend/tests/v2/test_migrations.py docs/superpowers/plans/2026-07-31-flymail-v2-api-features.md
 git commit -m "🌐 建立 V2 API 应用与统一错误边界"
 ```
 

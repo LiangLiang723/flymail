@@ -1,0 +1,240 @@
+"""FlyMail V2 FastAPI application factory and health boundary."""
+
+from __future__ import annotations
+
+import asyncio
+import inspect
+import os
+import time
+import uuid
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from flymail.api.errors import (
+    authorization_error_handler,
+    conflict_error_handler,
+    http_error_handler,
+    not_found_error_handler,
+    unexpected_error_handler,
+    validation_error_handler,
+)
+from flymail.api.middleware import RequestContextMiddleware
+from flymail.api.schemas.common import HealthResponse, VersionResponse
+from flymail.config import FlyMailSettings
+from flymail.domain.errors import AuthorizationError, ConflictError, NotFoundError
+from flymail.domain.ids import new_id
+from flymail.infrastructure.db.migrations.runner import (
+    LATEST_SCHEMA_VERSION,
+    current_schema_version,
+    run_migrations,
+)
+from flymail.infrastructure.db.pool import DatabasePool
+from flymail.infrastructure.object_store.store import ObjectStore
+from flymail.repositories.runtime import RuntimeRepository
+from version import VERSION
+
+
+_WORKER_STALE_MULTIPLIER = 3
+_STARTUP_GRACE_MULTIPLIER = 6
+
+
+def _probe_object_store(settings: FlyMailSettings) -> None:
+    ObjectStore(settings.object_dir, settings.object_tmp_dir)
+    probe_path = settings.object_tmp_dir / f".health-{uuid.uuid4().hex}"
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(
+            probe_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        os.write(descriptor, b"ok")
+        os.fsync(descriptor)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        probe_path.unlink(missing_ok=True)
+
+
+async def _close_realtime_manager(app: FastAPI) -> None:
+    manager = getattr(app.state, "realtime_manager", None)
+    close = getattr(manager, "close", None)
+    if close is None:
+        return
+    result = close()
+    if inspect.isawaitable(result):
+        await result
+
+
+async def inspect_health(request: Request) -> tuple[HealthResponse, int]:
+    app = request.app
+    settings: FlyMailSettings = app.state.settings
+    now = float(app.state.now_fn())
+    schema_version = 0
+    database_status = "error"
+    schema_status = "error"
+    worker_status = "unknown"
+    worker_heartbeat_at: float | None = None
+
+    db_started = time.perf_counter()
+    pool: DatabasePool | None = getattr(app.state, "database_pool", None)
+    if pool is not None and not pool.closed:
+        try:
+            async with pool.acquire() as connection:
+                async with connection.cursor() as cursor:
+                    await cursor.execute("SELECT 1")
+                    await cursor.fetchone()
+                schema_version = await current_schema_version(connection)
+                worker_heartbeat_at = await RuntimeRepository(
+                    connection
+                ).latest_heartbeat("worker")
+            database_status = "ok"
+            schema_status = (
+                "ok"
+                if schema_version == LATEST_SCHEMA_VERSION
+                else "outdated"
+            )
+        except Exception:
+            database_status = "error"
+            schema_status = "error"
+    request.state.db_time_ms = float(
+        getattr(request.state, "db_time_ms", 0.0)
+    ) + max((time.perf_counter() - db_started) * 1000, 0.0)
+
+    object_store_status = "error"
+    try:
+        await asyncio.to_thread(_probe_object_store, settings)
+        object_store_status = "ok"
+    except Exception:
+        object_store_status = "error"
+
+    if database_status == "ok":
+        if worker_heartbeat_at is None:
+            worker_status = "missing"
+        else:
+            stale_after = max(
+                float(settings.worker_heartbeat_seconds)
+                * _WORKER_STALE_MULTIPLIER,
+                30.0,
+            )
+            age = max(now - worker_heartbeat_at, 0.0)
+            worker_status = "ok" if age <= stale_after else "stale"
+
+    infrastructure_ok = (
+        database_status == "ok"
+        and schema_status == "ok"
+        and object_store_status == "ok"
+    )
+    if not infrastructure_ok:
+        overall_status, status_code = "error", 503
+    elif worker_status == "ok":
+        overall_status, status_code = "ok", 200
+    else:
+        startup_grace = max(
+            float(settings.job_lease_seconds),
+            float(settings.worker_heartbeat_seconds)
+            * _STARTUP_GRACE_MULTIPLIER,
+        )
+        uptime = max(now - float(app.state.started_at), 0.0)
+        if uptime <= startup_grace:
+            overall_status, status_code = "degraded", 200
+        else:
+            overall_status, status_code = "error", 503
+
+    return (
+        HealthResponse(
+            status=overall_status,
+            version=VERSION,
+            database=database_status,
+            schema_status=schema_status,
+            schema_version=schema_version,
+            expected_schema_version=LATEST_SCHEMA_VERSION,
+            worker=worker_status,
+            worker_heartbeat_at=worker_heartbeat_at,
+            object_store=object_store_status,
+        ),
+        status_code,
+    )
+
+
+def create_app(settings: FlyMailSettings) -> FastAPI:
+    if settings.role != "api":
+        raise ValueError("V2 API requires api settings")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        pool: DatabasePool | None = None
+        app.state.accepting_requests = False
+        try:
+            pool = await DatabasePool.create(settings)
+            app.state.database_pool = pool
+            await run_migrations(pool)
+            store = ObjectStore(settings.object_dir, settings.object_tmp_dir)
+            await asyncio.to_thread(_probe_object_store, settings)
+            app.state.object_store = store
+            app.state.api_process_id = new_id("api")
+            async with pool.acquire() as connection:
+                await connection.begin()
+                try:
+                    await RuntimeRepository(connection).touch_process(
+                        app.state.api_process_id,
+                        "api",
+                        now=float(app.state.now_fn()),
+                    )
+                    await connection.commit()
+                except Exception:
+                    await connection.rollback()
+                    raise
+            app.state.started_at = float(app.state.now_fn())
+            app.state.accepting_requests = True
+            yield
+        finally:
+            app.state.accepting_requests = False
+            try:
+                await _close_realtime_manager(app)
+            finally:
+                if pool is not None:
+                    await pool.close()
+
+    app = FastAPI(
+        title="FlyMail V2",
+        description="FlyMail V2 isolated development API",
+        version=VERSION,
+        lifespan=lifespan,
+    )
+    app.state.settings = settings
+    app.state.now_fn = time.time
+    app.state.started_at = float(app.state.now_fn())
+    app.state.realtime_manager = None
+    app.state.database_pool = None
+    app.state.object_store = None
+    app.state.accepting_requests = False
+
+    app.add_middleware(RequestContextMiddleware)
+    app.add_exception_handler(AuthorizationError, authorization_error_handler)
+    app.add_exception_handler(ConflictError, conflict_error_handler)
+    app.add_exception_handler(NotFoundError, not_found_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(StarletteHTTPException, http_error_handler)
+    app.add_exception_handler(Exception, unexpected_error_handler)
+
+    @app.get("/api/v2/health", response_model=HealthResponse)
+    async def health(request: Request) -> JSONResponse:
+        payload, status_code = await inspect_health(request)
+        return JSONResponse(
+            status_code=status_code,
+            content=payload.model_dump(mode="json", by_alias=True),
+        )
+
+    @app.get("/api/v2/version", response_model=VersionResponse)
+    async def version() -> VersionResponse:
+        return VersionResponse(
+            version=VERSION,
+            schema_version=LATEST_SCHEMA_VERSION,
+        )
+
+    return app

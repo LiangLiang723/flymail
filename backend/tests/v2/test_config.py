@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
+from flymail.api.schemas.common import HealthResponse
 from flymail.config import FlyMailSettings
 from flymail.domain.enums import (
     AccountRuntimeStatus,
@@ -23,6 +24,7 @@ from flymail.domain.errors import (
     RetryableError,
 )
 from flymail.domain.ids import new_id
+from flymail.infrastructure.db.migrations.runner import LATEST_SCHEMA_VERSION
 from v2_dev import create_app
 from v2_worker import run_worker
 
@@ -142,38 +144,54 @@ class DevelopmentEntrypointTests(unittest.IsolatedAsyncioTestCase):
     async def test_v2_health_returns_api_role_and_repository_version(self):
         with patch.dict(os.environ, FlyMailSettingsTests().valid_env(), clear=True):
             settings = FlyMailSettings.from_env("api")
-        expected = {
-            "status": "ok",
-            "role": "api",
-            "schema_version": 10,
-            "database": "ok",
-            "object_store": "ok",
-        }
-        with patch("v2_dev.inspect_foundation_health", new=AsyncMock(return_value=expected)):
-            transport = httpx.ASGITransport(app=create_app(settings))
+        app = create_app(settings)
+        expected = HealthResponse(
+            status="ok",
+            version=app.version,
+            database="ok",
+            schema_status="ok",
+            schema_version=LATEST_SCHEMA_VERSION,
+            expected_schema_version=LATEST_SCHEMA_VERSION,
+            worker="ok",
+            worker_heartbeat_at=100,
+            object_store="ok",
+        )
+        with patch(
+            "flymail.api.app.inspect_health",
+            new=AsyncMock(return_value=(expected, 200)),
+        ):
+            transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
                 response = await client.get("/api/v2/health")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), expected)
+        self.assertEqual(response.json(), expected.model_dump(mode="json", by_alias=True))
+        self.assertTrue(response.headers["X-Request-ID"].startswith("req_"))
 
     async def test_v2_health_failure_is_safe_and_returns_service_unavailable(self):
         with patch.dict(os.environ, FlyMailSettingsTests().valid_env(), clear=True):
             settings = FlyMailSettings.from_env("api")
-        expected = {
-            "status": "error",
-            "role": "api",
-            "schema_version": 0,
-            "database": "error",
-            "object_store": "error",
-        }
-        with patch("v2_dev.inspect_foundation_health", new=AsyncMock(return_value=expected)):
-            transport = httpx.ASGITransport(app=create_app(settings))
+        app = create_app(settings)
+        expected = HealthResponse(
+            status="error",
+            version=app.version,
+            database="error",
+            schema_status="error",
+            schema_version=0,
+            expected_schema_version=LATEST_SCHEMA_VERSION,
+            worker="unknown",
+            object_store="error",
+        )
+        with patch(
+            "flymail.api.app.inspect_health",
+            new=AsyncMock(return_value=(expected, 503)),
+        ):
+            transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
                 response = await client.get("/api/v2/health")
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), expected)
+        self.assertEqual(response.json(), expected.model_dump(mode="json", by_alias=True))
         rendered = response.text
         self.assertNotIn(settings.database_url, rendered)
         self.assertNotIn(str(settings.data_dir), rendered)

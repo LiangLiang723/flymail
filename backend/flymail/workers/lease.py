@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.repositories.jobs import JobRepository
+from flymail.repositories.runtime import RuntimeRepository
 
 
 class WorkerHeartbeatService:
@@ -29,13 +30,19 @@ class WorkerHeartbeatService:
         normalized_role = str(role or "").strip()
         if normalized_role != "worker":
             raise ValueError("unsupported worker role")
+        timestamp = float(self.now_fn())
         async with self.pool.acquire() as connection:
             await connection.begin()
             try:
+                await RuntimeRepository(connection).touch_process(
+                    worker_id,
+                    normalized_role,
+                    now=timestamp,
+                )
                 await JobRepository(connection).touch_worker_jobs(
                     worker_id,
                     lease_seconds=self.lease_seconds,
-                    now=float(self.now_fn()),
+                    now=timestamp,
                 )
                 await connection.commit()
             except Exception:
