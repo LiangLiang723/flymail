@@ -711,7 +711,12 @@ git commit -m "📬 实现 V2 本地优先操作与冲突合并"
 
 - Create: `backend/flymail/providers/core/smtp_client.py`
 - Create: `backend/flymail/workers/sender.py`
-- Modify: `backend/flymail/repositories/messages.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0009_reliable_sender.py`
+- Modify: `backend/flymail/infrastructure/db/migrations/runner.py`
+- Modify: `backend/tests/v2/test_migrations.py`
+- Modify: `backend/tests/v2/test_config.py`
+- Modify: `backend/tests/v2/test_foundation_integration.py`
+- Modify: `README.md`
 - Create: `backend/tests/v2/test_reliable_sender.py`
 
 **Interfaces:**
@@ -721,7 +726,7 @@ git commit -m "📬 实现 V2 本地优先操作与冲突合并"
 - Produces send states: `queued`, `sending`, `sent`, `failed`, `verification_required`, `review_required`, `cancelled`.
 - Produces job kinds: `send.deliver`, `send.verify`, `send.append_sent_copy`.
 
-- [ ] **Step 1: Write reliable send tests**
+- [x] **Step 1: Write reliable send tests**
 
 Tests cover:
 
@@ -738,31 +743,31 @@ Tests cover:
 - scheduled send respects `available_at`;
 - queued message can be cancelled before delivery begins.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement MIME composition**
+- [x] **Step 3: Implement MIME composition**
 
-Build deterministic headers from persisted command. Attachments stream from object store. Generate one Message-ID when send command is created and persist it. SMTPUTF8 is used only when plugin and server support it.
+Build deterministic headers from persisted command. Bodies and attachments are resolved through user-scoped object references, bounded by persisted metadata, and composed into one exact RFC 822 source object that every retry reuses. Generate one Message-ID when the send command is created and persist it. Bcc remains envelope-only. SMTPUTF8 is used only when the plugin and server support the Unicode envelope.
 
-- [ ] **Step 4: Persist attempt before network call**
+- [x] **Step 4: Persist attempt before network call**
 
 Create `send_attempts` row with operation ID, Message-ID, attempt number and state before SMTP connection. Do not store body or credential in attempts.
 
-- [ ] **Step 5: Implement uncertain result policy**
+- [x] **Step 5: Implement uncertain result policy**
 
-When server acceptance cannot be determined, update state to `verification_required` and enqueue `send.verify`. The verification handler searches a bounded sent-mail window using Message-ID and provider stable identifiers.
+When server acceptance cannot be determined, update state to `verification_required` and enqueue `send.verify`. The verification handler searches a bounded sent-mail window using Message-ID and provider stable identifiers. A Worker restart that finds a persisted `sending` attempt follows the same verification path instead of resending blindly. A missing result permits one controlled retry with the identical composed source before manual review.
 
-- [ ] **Step 6: Implement sent-copy strategy**
+- [x] **Step 6: Implement sent-copy strategy**
 
-Use plugin declaration. `auto_saves_sent_copy=True` skips APPEND. Otherwise enqueue exact composed source object for APPEND; UIDPLUS result is recorded when available.
+Use plugin declaration. `auto_saves_sent_copy=True` skips APPEND. Otherwise enqueue the exact composed source object for APPEND. Persist an APPEND-start marker before the network call so a crash or database failure can never cause a blind duplicate APPEND; ambiguous results require review. UIDPLUS remote UID is recorded in the safe completion event when available.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_reliable_sender -v
-git add backend/flymail/providers/core/smtp_client.py backend/flymail/workers/sender.py backend/flymail/repositories/messages.py backend/tests/v2/test_reliable_sender.py
+git add backend/flymail/providers/core/smtp_client.py backend/flymail/workers/sender.py backend/flymail/infrastructure/db/migrations/v0009_reliable_sender.py backend/flymail/infrastructure/db/migrations/runner.py backend/tests/v2/test_reliable_sender.py backend/tests/v2/test_migrations.py backend/tests/v2/test_config.py backend/tests/v2/test_foundation_integration.py README.md
 git commit -m "📤 实现 V2 可靠发送与重复投递防护"
 ```
 

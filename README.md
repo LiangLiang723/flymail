@@ -310,7 +310,7 @@ FlyMail V2 正在独立开发中，`backend/v2_dev.py` 和 `backend/v2_worker.py
 
 V2 测试必须使用可删除的临时 MySQL 数据库和临时对象目录。`FLYMAIL_TEST_DATABASE_URL`、`FLYMAIL_DATA_DIR` 和对象存储目录不得指向当前生产数据库、生产容器挂载目录或宿主机 `/Docker/flymail/data`。测试结束后应删除临时容器和临时数据，不得通过清空生产目录来重置测试环境。
 
-基础层集成测试会从空数据库开始，验证 schema 迁移、API/Worker 独立连接池、事务回滚、凭证加密、内容寻址对象、Outbox 和任务租约。Gate 1 的 schema 基线为 `5`；邮件摘要摄取、公平调度和精确 MIME 正文 part 元数据分别加入增量结构后，当前 V2 开发 schema 为 `8`，健康检查按最新迁移版本进行验证。
+基础层集成测试会从空数据库开始，验证 schema 迁移、API/Worker 独立连接池、事务回滚、凭证加密、内容寻址对象、Outbox 和任务租约。Gate 1 的 schema 基线为 `5`；邮件摘要摄取、公平调度、精确 MIME 正文 part 元数据和可靠发送状态分别加入增量结构后，当前 V2 开发 schema 为 `9`，健康检查按最新迁移版本进行验证。
 
 ## 文档
 
