@@ -1,0 +1,25 @@
+[
+  [
+    "TEXT",
+    "HTML",
+    ["CHARSET", "UTF-8"],
+    null,
+    null,
+    "QUOTED-PRINTABLE",
+    200,
+    8
+  ],
+  [
+    "IMAGE",
+    "PNG",
+    ["NAME", "logo.png"],
+    "<logo-123>",
+    null,
+    "BASE64",
+    1200,
+    null,
+    ["INLINE", ["FILENAME", "logo.png"]]
+  ],
+  "RELATED",
+  ["BOUNDARY", "rel", "TYPE", "text/html"]
+]

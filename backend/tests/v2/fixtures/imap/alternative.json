@@ -1,0 +1,24 @@
+[
+  [
+    "TEXT",
+    "PLAIN",
+    ["CHARSET", "UTF-8"],
+    null,
+    null,
+    "QUOTED-PRINTABLE",
+    100,
+    5
+  ],
+  [
+    "TEXT",
+    "HTML",
+    ["CHARSET", "UTF-8"],
+    null,
+    null,
+    "QUOTED-PRINTABLE",
+    200,
+    8
+  ],
+  "ALTERNATIVE",
+  ["BOUNDARY", "alt"]
+]

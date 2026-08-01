@@ -273,7 +273,7 @@ git commit -m "📡 实现 V2 串行 IMAP 会话与连接限流"
 - Produces: `select_message_parts(tree: MimeTree, html_body: str | None = None) -> PartSelection`
 - Produces: `build_partial_fetch(imap_part: str, offset: int, count: int) -> str`
 
-- [ ] **Step 1: Add MIME fixture tests**
+- [x] **Step 1: Add MIME fixture tests**
 
 Fixtures must cover:
 
@@ -288,11 +288,11 @@ Fixtures must cover:
 
 Assertions include exact `imap_part` values such as `1`, `1.1`, `1.2`, `2.1`.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run `tests.v2.test_bodystructure`; expected FAIL.
 
-- [ ] **Step 3: Define immutable part model**
+- [x] **Step 3: Define immutable part model**
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -308,11 +308,11 @@ class MimePart:
     children: tuple["MimePart", ...] = ()
 ```
 
-- [ ] **Step 4: Implement recursive part numbering**
+- [x] **Step 4: Implement recursive part numbering**
 
 Part numbers come from BODYSTRUCTURE tree position, never from `email.walk()`. Validate against `^[1-9][0-9]*(\.[1-9][0-9]*)*$`.
 
-- [ ] **Step 5: Implement body selection**
+- [x] **Step 5: Implement body selection**
 
 Rules:
 
@@ -323,7 +323,7 @@ Rules:
 5. fetch inline images only when sanitized HTML actually references their CID;
 6. treat nested `message/rfc822` as attachment unless explicitly opened.
 
-- [ ] **Step 6: Implement safe partial fetch syntax**
+- [x] **Step 6: Implement safe partial fetch syntax**
 
 ```python
 def build_partial_fetch(imap_part: str, offset: int, count: int) -> str:
@@ -333,7 +333,7 @@ def build_partial_fetch(imap_part: str, offset: int, count: int) -> str:
     return f"BODY.PEEK[{imap_part}]<{offset}.{count}>"
 ```
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_bodystructure -v

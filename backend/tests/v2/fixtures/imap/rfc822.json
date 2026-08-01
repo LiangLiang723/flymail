@@ -1,0 +1,37 @@
+[
+  [
+    "TEXT",
+    "PLAIN",
+    ["CHARSET", "UTF-8"],
+    null,
+    null,
+    "7BIT",
+    80,
+    4
+  ],
+  [
+    "MESSAGE",
+    "RFC822",
+    ["NAME", "forwarded.eml"],
+    null,
+    null,
+    "7BIT",
+    500,
+    ["ENVELOPE"],
+    [
+      "TEXT",
+      "PLAIN",
+      ["CHARSET", "UTF-8"],
+      null,
+      null,
+      "7BIT",
+      120,
+      6
+    ],
+    10,
+    null,
+    ["ATTACHMENT", ["FILENAME", "forwarded.eml"]]
+  ],
+  "MIXED",
+  ["BOUNDARY", "mixed"]
+]

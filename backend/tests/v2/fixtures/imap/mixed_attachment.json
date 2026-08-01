@@ -1,0 +1,39 @@
+[
+  [
+    [
+      "TEXT",
+      "PLAIN",
+      ["CHARSET", "UTF-8"],
+      null,
+      null,
+      "7BIT",
+      100,
+      5
+    ],
+    [
+      "TEXT",
+      "HTML",
+      ["CHARSET", "UTF-8"],
+      null,
+      null,
+      "7BIT",
+      200,
+      8
+    ],
+    "ALTERNATIVE",
+    ["BOUNDARY", "alt"]
+  ],
+  [
+    "APPLICATION",
+    "PDF",
+    ["NAME", "report.pdf"],
+    null,
+    null,
+    "BASE64",
+    5000,
+    null,
+    ["ATTACHMENT", ["FILENAME", "report.pdf"]]
+  ],
+  "MIXED",
+  ["BOUNDARY", "mixed"]
+]
