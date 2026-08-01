@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 from fastapi import Depends, Request
 
+from flymail.application.accounts import AccountsService
 from flymail.application.auth import (
     SESSION_COOKIE_NAME,
     AuthService,
@@ -65,6 +66,13 @@ def get_auth_service(request: Request) -> AuthService:
     service = getattr(request.app.state, "auth_service", None)
     if not isinstance(service, AuthService):
         raise RuntimeError("authentication service is unavailable")
+    return service
+
+
+def get_accounts_service(request: Request) -> AccountsService:
+    service = getattr(request.app.state, "accounts_service", None)
+    if not isinstance(service, AccountsService):
+        raise RuntimeError("accounts service is unavailable")
     return service
 
 

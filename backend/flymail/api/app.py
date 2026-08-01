@@ -23,13 +23,17 @@ from flymail.api.errors import (
     invalid_credentials_error_handler,
     not_found_error_handler,
     rate_limit_error_handler,
+    unsafe_endpoint_error_handler,
     unexpected_error_handler,
+    unsupported_provider_error_handler,
     validation_error_handler,
 )
 from flymail.api.middleware import RequestContextMiddleware
+from flymail.api.routes.accounts import router as accounts_router
 from flymail.api.routes.admin import router as admin_router
 from flymail.api.routes.auth import router as auth_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
+from flymail.application.accounts import AccountsService
 from flymail.application.auth import AuthService
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import (
@@ -40,6 +44,8 @@ from flymail.domain.errors import (
     InvalidCredentialsError,
     NotFoundError,
     RateLimitError,
+    UnsafeEndpointError,
+    UnsupportedProviderError,
 )
 from flymail.domain.ids import new_id
 from flymail.infrastructure.db.migrations.runner import (
@@ -196,6 +202,10 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 settings.session_secret,
                 now_fn=app.state.now_fn,
             )
+            app.state.accounts_service = AccountsService(
+                pool,
+                settings.session_secret,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -233,6 +243,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.database_pool = None
     app.state.object_store = None
     app.state.auth_service = None
+    app.state.accounts_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
@@ -240,6 +251,11 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.add_exception_handler(AuthenticationError, authentication_error_handler)
     app.add_exception_handler(CsrfError, csrf_error_handler)
     app.add_exception_handler(RateLimitError, rate_limit_error_handler)
+    app.add_exception_handler(UnsafeEndpointError, unsafe_endpoint_error_handler)
+    app.add_exception_handler(
+        UnsupportedProviderError,
+        unsupported_provider_error_handler,
+    )
     app.add_exception_handler(AuthorizationError, authorization_error_handler)
     app.add_exception_handler(ConflictError, conflict_error_handler)
     app.add_exception_handler(NotFoundError, not_found_error_handler)
@@ -249,6 +265,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(admin_router)
+    app.include_router(accounts_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

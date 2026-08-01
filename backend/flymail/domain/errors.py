@@ -37,6 +37,14 @@ class RateLimitError(FlyMailError):
     """Raised when an authentication principal/source window is blocked."""
 
 
+class UnsafeEndpointError(FlyMailError):
+    """Raised when a user-supplied network endpoint is not publicly routable."""
+
+
+class UnsupportedProviderError(FlyMailError):
+    """Raised when an account references a provider plugin that is not registered."""
+
+
 class RetryableError(FlyMailError):
     """Raised for a failure that may succeed after retry or backoff."""
 

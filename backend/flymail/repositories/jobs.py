@@ -229,10 +229,18 @@ class JobRepository:
                         w.account_id IS NULL OR (
                           a.id IS NOT NULL
                           AND u.enabled = 1
-                          AND a.status = 'active'
                           AND a.provider_key = w.provider_key
-                          AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
-                          AND COALESCE(r.backoff_until, 0) <= %s
+                          AND (
+                            (
+                              w.job_kind = 'account.verify'
+                              AND a.status IN ('pending', 'auth_required', 'active')
+                            ) OR (
+                              w.job_kind <> 'account.verify'
+                              AND a.status = 'active'
+                              AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
+                              AND COALESCE(r.backoff_until, 0) <= %s
+                            )
+                          )
                         )
                       )
                 ), diversified AS (
@@ -311,10 +319,18 @@ class JobRepository:
                     w.account_id IS NULL OR (
                       a.id IS NOT NULL
                       AND u.enabled = 1
-                      AND a.status = 'active'
                       AND a.provider_key = w.provider_key
-                      AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
-                      AND COALESCE(r.backoff_until, 0) <= %s
+                      AND (
+                        (
+                          w.job_kind = 'account.verify'
+                          AND a.status IN ('pending', 'auth_required', 'active')
+                        ) OR (
+                          w.job_kind <> 'account.verify'
+                          AND a.status = 'active'
+                          AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
+                          AND COALESCE(r.backoff_until, 0) <= %s
+                        )
+                      )
                     )
                   )
                 ORDER BY w.priority ASC, w.available_at ASC, w.id ASC
@@ -358,10 +374,18 @@ class JobRepository:
                     w.account_id IS NULL OR (
                       a.id IS NOT NULL
                       AND u.enabled = 1
-                      AND a.status = 'active'
                       AND a.provider_key = w.provider_key
-                      AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
-                      AND COALESCE(r.backoff_until, 0) <= %s
+                      AND (
+                        (
+                          w.job_kind = 'account.verify'
+                          AND a.status IN ('pending', 'auth_required', 'active')
+                        ) OR (
+                          w.job_kind <> 'account.verify'
+                          AND a.status = 'active'
+                          AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
+                          AND COALESCE(r.backoff_until, 0) <= %s
+                        )
+                      )
                     )
                   )
                 ORDER BY FIELD(w.id, {placeholders})
@@ -756,6 +780,68 @@ class JobRepository:
                   AND status IN ('leased', 'running')
                 """,
                 (timestamp, timestamp + extension, timestamp, normalized_worker),
+            )
+            return int(cursor.rowcount or 0)
+
+    async def has_uncertain_send(
+        self,
+        user_uid: str,
+        account_id: str,
+    ) -> bool:
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT (
+                    EXISTS(
+                        SELECT 1
+                        FROM worker_jobs
+                        WHERE user_uid = %s AND account_id = %s
+                          AND job_kind = 'send.verify'
+                          AND status IN ('pending', 'retry_wait', 'leased', 'running')
+                    ) OR EXISTS(
+                        SELECT 1
+                        FROM drafts
+                        WHERE user_uid = %s AND account_id = %s
+                          AND send_state IN ('verification_required', 'review_required')
+                    )
+                )
+                """,
+                (
+                    _required_text(user_uid, "user_uid"),
+                    _required_text(account_id, "account_id"),
+                    _required_text(user_uid, "user_uid"),
+                    _required_text(account_id, "account_id"),
+                ),
+            )
+            row = await cursor.fetchone()
+        return bool(row and row[0])
+
+    async def cancel_pending_non_send_for_account(
+        self,
+        user_uid: str,
+        account_id: str,
+        *,
+        now: float | None = None,
+    ) -> int:
+        timestamp = float(time.time() if now is None else now)
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE worker_jobs
+                SET status = 'cancelled', finished_at = %s,
+                    updated_at = %s, lease_owner = '', lease_token = NULL,
+                    lease_expires_at = NULL, heartbeat_at = NULL,
+                    last_error_class = '', last_error_message = ''
+                WHERE user_uid = %s AND account_id = %s
+                  AND status IN ('pending', 'retry_wait')
+                  AND job_kind NOT LIKE 'send.%%'
+                """,
+                (
+                    timestamp,
+                    timestamp,
+                    _required_text(user_uid, "user_uid"),
+                    _required_text(account_id, "account_id"),
+                ),
             )
             return int(cursor.rowcount or 0)
 

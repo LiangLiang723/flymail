@@ -92,6 +92,41 @@ class EncryptedCredentialRecord:
     auth_tag_b64: str = field(default="", repr=False)
 
 
+@dataclass(frozen=True, slots=True)
+class OutboundProxy:
+    id: str
+    user_uid: str
+    scheme: str
+    host: str
+    port: int
+    enabled: bool
+    has_credentials: bool
+    created_at: float
+    updated_at: float
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class EncryptedProxyRecord:
+    proxy: OutboundProxy
+    value: EncryptedValue | None
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class OAuthStateRecord:
+    id: str
+    user_uid: str
+    session_id: str
+    provider_key: str
+    account_id: str
+    state_hash: str
+    pkce_algorithm: str
+    verifier: EncryptedValue
+    redirect_uri: str
+    expires_at: float
+    consumed_at: float | None
+    created_at: float
+
+
 def _map_account(row) -> MailAccount:
     return MailAccount(
         id=str(row["id"]),
@@ -172,6 +207,18 @@ _CREDENTIAL_COLUMNS = """
     id, user_uid, account_id, credential_type, algorithm, key_version,
     nonce, ciphertext, auth_tag, expires_at, credential_version,
     created_at, updated_at
+"""
+
+_PROXY_COLUMNS = """
+    id, user_uid, proxy_scheme, host, port, enabled,
+    password_algorithm, password_key_version, password_nonce,
+    password_ciphertext, created_at, updated_at
+"""
+
+_OAUTH_STATE_COLUMNS = """
+    id, user_uid, session_id, provider_key, account_draft_id,
+    state_hash, pkce_algorithm, pkce_key_version, pkce_nonce,
+    pkce_ciphertext, redirect_uri, expires_at, consumed_at, created_at
 """
 
 
@@ -257,13 +304,16 @@ class AccountRepository:
         self,
         tenant: TenantContext,
         account_id: str,
+        *,
+        for_update: bool = False,
     ) -> MailAccount | None:
+        suffix = " FOR UPDATE" if for_update else ""
         row = await fetch_one(
             self.connection,
             f"""
             SELECT {_ACCOUNT_COLUMNS}
             FROM mail_accounts
-            WHERE id = %s AND user_uid = %s
+            WHERE id = %s AND user_uid = %s{suffix}
             """,
             (str(account_id or "").strip(), tenant.user_uid),
         )
@@ -300,6 +350,40 @@ class AccountRepository:
         )
         return [_map_account(row) for row in rows]
 
+    async def update_account(
+        self,
+        tenant: TenantContext,
+        account_id: str,
+        *,
+        display_name: str,
+        remark: str,
+        group_name: str,
+        poll_interval_seconds: int,
+    ) -> MailAccount | None:
+        normalized_account_id = str(account_id or "").strip()
+        poll_interval = int(poll_interval_seconds)
+        if poll_interval < 5 or poll_interval > 3600:
+            raise ValueError("poll interval must be between 5 and 3600 seconds")
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE mail_accounts
+                SET display_name = %s, remark = %s, group_name = %s,
+                    poll_interval_seconds = %s, updated_at = %s
+                WHERE id = %s AND user_uid = %s
+                """,
+                (
+                    str(display_name or "").strip(),
+                    str(remark or "").strip(),
+                    str(group_name or "").strip(),
+                    poll_interval,
+                    time.time(),
+                    normalized_account_id,
+                    tenant.user_uid,
+                ),
+            )
+        return await self.get_account(tenant, normalized_account_id)
+
     async def update_status(
         self,
         tenant: TenantContext,
@@ -317,7 +401,54 @@ class AccountRepository:
                 """,
                 (status, time.time(), str(account_id or "").strip(), tenant.user_uid),
             )
-            return cursor.rowcount > 0
+            changed = cursor.rowcount > 0
+        if changed:
+            return True
+        return await self.get_account(
+            tenant,
+            str(account_id or "").strip(),
+        ) is not None
+
+    async def ensure_runtime_state(
+        self,
+        tenant: TenantContext,
+        account_id: str,
+        *,
+        status: str = "normal",
+    ) -> None:
+        normalized_account_id = str(account_id or "").strip()
+        if status not in {"active", "normal", "quiet", "degraded", "auth_required", "disabled"}:
+            raise ValueError("unsupported account runtime status")
+        owner = await self.get_account(tenant, normalized_account_id)
+        if owner is None:
+            raise NotFoundError("mail account not found")
+        now = time.time()
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                INSERT INTO account_runtime_state (
+                    account_id, user_uid, status, idle_status,
+                    last_activity_at, last_change_at, next_reconcile_at,
+                    failure_count, backoff_until, last_error_class,
+                    last_error_message, updated_at
+                ) VALUES (%s, %s, %s, 'disconnected', 0, %s, %s, 0, 0, '', '', %s)
+                AS incoming
+                ON DUPLICATE KEY UPDATE
+                    user_uid = incoming.user_uid,
+                    status = incoming.status,
+                    last_change_at = incoming.last_change_at,
+                    next_reconcile_at = incoming.next_reconcile_at,
+                    updated_at = incoming.updated_at
+                """,
+                (
+                    normalized_account_id,
+                    tenant.user_uid,
+                    status,
+                    now,
+                    now,
+                    now,
+                ),
+            )
 
 
 class IdentityRepository:
@@ -355,6 +486,16 @@ class IdentityRepository:
         identity_id = new_id("ident")
         now = time.time()
         try:
+            if is_default:
+                async with self.connection.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        UPDATE mail_identities
+                        SET is_default = 0, updated_at = %s
+                        WHERE account_id = %s AND user_uid = %s
+                        """,
+                        (now, normalized_account_id, tenant.user_uid),
+                    )
             async with self.connection.cursor() as cursor:
                 await cursor.execute(
                     """
@@ -419,6 +560,337 @@ class IdentityRepository:
             (tenant.user_uid, str(account_id or "").strip()),
         )
         return [_map_identity(row) for row in rows]
+
+    async def get_identity(
+        self,
+        tenant: TenantContext,
+        account_id: str,
+        identity_id: str,
+    ) -> MailIdentity | None:
+        row = await fetch_one(
+            self.connection,
+            f"""
+            SELECT {_IDENTITY_COLUMNS}
+            FROM mail_identities
+            WHERE id = %s AND account_id = %s AND user_uid = %s
+            """,
+            (
+                str(identity_id or "").strip(),
+                str(account_id or "").strip(),
+                tenant.user_uid,
+            ),
+        )
+        return _map_identity(row) if row else None
+
+    async def update_identity(
+        self,
+        tenant: TenantContext,
+        account_id: str,
+        identity_id: str,
+        *,
+        display_name: str,
+        reply_to: str,
+        signature_html: str,
+        signature_text: str,
+        is_default: bool,
+    ) -> MailIdentity | None:
+        normalized_account = str(account_id or "").strip()
+        normalized_identity = str(identity_id or "").strip()
+        if is_default:
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    UPDATE mail_identities
+                    SET is_default = 0, updated_at = %s
+                    WHERE account_id = %s AND user_uid = %s AND id <> %s
+                    """,
+                    (time.time(), normalized_account, tenant.user_uid, normalized_identity),
+                )
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE mail_identities
+                SET display_name = %s, reply_to = %s,
+                    signature_html = %s, signature_text = %s,
+                    is_default = %s, updated_at = %s
+                WHERE id = %s AND account_id = %s AND user_uid = %s
+                """,
+                (
+                    str(display_name or "").strip(),
+                    str(reply_to or "").strip(),
+                    signature_html or None,
+                    signature_text or None,
+                    1 if is_default else 0,
+                    time.time(),
+                    normalized_identity,
+                    normalized_account,
+                    tenant.user_uid,
+                ),
+            )
+        return await self.get_identity(tenant, normalized_account, normalized_identity)
+
+
+class ProxyRepository:
+    def __init__(self, connection: aiomysql.Connection) -> None:
+        self.connection = connection
+
+    @staticmethod
+    def _map(row) -> EncryptedProxyRecord:
+        has_credentials = bool(row["password_ciphertext"])
+        proxy = OutboundProxy(
+            id=str(row["id"]),
+            user_uid=str(row["user_uid"]),
+            scheme=str(row["proxy_scheme"]),
+            host=str(row["host"]),
+            port=int(row["port"]),
+            enabled=bool(row["enabled"]),
+            has_credentials=has_credentials,
+            created_at=float(row["created_at"] or 0),
+            updated_at=float(row["updated_at"] or 0),
+        )
+        value = None
+        if has_credentials:
+            value = EncryptedValue(
+                algorithm=str(row["password_algorithm"]),
+                key_version=int(row["password_key_version"] or 0),
+                nonce_b64=_encode_b64(bytes(row["password_nonce"])),
+                ciphertext_b64=_encode_b64(bytes(row["password_ciphertext"])),
+            )
+        return EncryptedProxyRecord(proxy=proxy, value=value)
+
+    async def get_user_proxy(
+        self,
+        tenant: TenantContext,
+        *,
+        for_update: bool = False,
+    ) -> EncryptedProxyRecord | None:
+        suffix = " FOR UPDATE" if for_update else ""
+        row = await fetch_one(
+            self.connection,
+            f"""
+            SELECT {_PROXY_COLUMNS}
+            FROM outbound_proxy_configs
+            WHERE user_uid = %s AND traffic_scope = 'account'
+              AND account_id IS NULL
+            ORDER BY created_at ASC, id ASC
+            LIMIT 1{suffix}
+            """,
+            (tenant.user_uid,),
+        )
+        return self._map(row) if row else None
+
+    async def store_user_proxy(
+        self,
+        tenant: TenantContext,
+        *,
+        proxy_id: str,
+        scheme: str,
+        host: str,
+        port: int,
+        value: EncryptedValue | None,
+        enabled: bool = True,
+    ) -> OutboundProxy:
+        normalized_id = str(proxy_id or "").strip()
+        nonce = _decode_b64(value.nonce_b64) if value is not None else None
+        ciphertext = _decode_b64(value.ciphertext_b64) if value is not None else None
+        algorithm = value.algorithm if value is not None else None
+        key_version = value.key_version if value is not None else None
+        now = time.time()
+        existing = await self.get_user_proxy(tenant, for_update=True)
+        if existing is None:
+            created_at = now
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    INSERT INTO outbound_proxy_configs (
+                        id, user_uid, account_id, traffic_scope,
+                        proxy_scheme, host, port, username,
+                        password_algorithm, password_key_version,
+                        password_nonce, password_ciphertext, password_auth_tag,
+                        enabled, created_at, updated_at
+                    ) VALUES (%s, %s, NULL, 'account', %s, %s, %s, '',
+                              %s, %s, %s, %s, NULL, %s, %s, %s)
+                    """,
+                    (
+                        normalized_id,
+                        tenant.user_uid,
+                        scheme,
+                        host,
+                        int(port),
+                        algorithm,
+                        key_version,
+                        nonce,
+                        ciphertext,
+                        1 if enabled else 0,
+                        now,
+                        now,
+                    ),
+                )
+        else:
+            normalized_id = existing.proxy.id
+            created_at = existing.proxy.created_at
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    UPDATE outbound_proxy_configs
+                    SET proxy_scheme = %s, host = %s, port = %s,
+                        username = '', password_algorithm = %s,
+                        password_key_version = %s, password_nonce = %s,
+                        password_ciphertext = %s, password_auth_tag = NULL,
+                        enabled = %s, updated_at = %s
+                    WHERE id = %s AND user_uid = %s
+                    """,
+                    (
+                        scheme,
+                        host,
+                        int(port),
+                        algorithm,
+                        key_version,
+                        nonce,
+                        ciphertext,
+                        1 if enabled else 0,
+                        now,
+                        normalized_id,
+                        tenant.user_uid,
+                    ),
+                )
+        return OutboundProxy(
+            id=normalized_id,
+            user_uid=tenant.user_uid,
+            scheme=scheme,
+            host=host,
+            port=int(port),
+            enabled=bool(enabled),
+            has_credentials=value is not None,
+            created_at=created_at,
+            updated_at=now,
+        )
+
+
+class OAuthStateRepository:
+    def __init__(self, connection: aiomysql.Connection) -> None:
+        self.connection = connection
+
+    @staticmethod
+    def _map(row) -> OAuthStateRecord:
+        return OAuthStateRecord(
+            id=str(row["id"]),
+            user_uid=str(row["user_uid"]),
+            session_id=str(row["session_id"]),
+            provider_key=str(row["provider_key"]),
+            account_id=str(row["account_draft_id"]),
+            state_hash=str(row["state_hash"]),
+            pkce_algorithm=str(row["pkce_algorithm"]),
+            verifier=EncryptedValue(
+                algorithm="AES-256-GCM",
+                key_version=int(row["pkce_key_version"] or 0),
+                nonce_b64=_encode_b64(bytes(row["pkce_nonce"])),
+                ciphertext_b64=_encode_b64(bytes(row["pkce_ciphertext"])),
+            ),
+            redirect_uri=str(row["redirect_uri"]),
+            expires_at=float(row["expires_at"] or 0),
+            consumed_at=(
+                float(row["consumed_at"])
+                if row["consumed_at"] is not None
+                else None
+            ),
+            created_at=float(row["created_at"] or 0),
+        )
+
+    async def create(
+        self,
+        tenant: TenantContext,
+        *,
+        state_id: str,
+        session_id: str,
+        provider_key: str,
+        account_id: str,
+        state_hash: str,
+        verifier: EncryptedValue,
+        redirect_uri: str,
+        expires_at: float,
+        now: float,
+    ) -> OAuthStateRecord:
+        normalized_state_id = str(state_id or "").strip()
+        if not normalized_state_id:
+            raise ValueError("state_id is required")
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                INSERT INTO oauth_authorization_states (
+                    id, user_uid, session_id, provider_key, account_draft_id,
+                    state_hash, pkce_algorithm, pkce_key_version, pkce_nonce,
+                    pkce_ciphertext, pkce_auth_tag, redirect_uri, expires_at,
+                    consumed_at, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, 'S256', %s, %s, %s,
+                          NULL, %s, %s, NULL, %s)
+                """,
+                (
+                    normalized_state_id,
+                    tenant.user_uid,
+                    str(session_id or "").strip(),
+                    str(provider_key or "").strip().casefold(),
+                    str(account_id or "").strip(),
+                    str(state_hash or "").strip(),
+                    verifier.key_version,
+                    _decode_b64(verifier.nonce_b64),
+                    _decode_b64(verifier.ciphertext_b64),
+                    str(redirect_uri or "").strip(),
+                    float(expires_at),
+                    float(now),
+                ),
+            )
+        return OAuthStateRecord(
+            id=normalized_state_id,
+            user_uid=tenant.user_uid,
+            session_id=str(session_id or "").strip(),
+            provider_key=str(provider_key or "").strip().casefold(),
+            account_id=str(account_id or "").strip(),
+            state_hash=str(state_hash or "").strip(),
+            pkce_algorithm="S256",
+            verifier=verifier,
+            redirect_uri=str(redirect_uri or "").strip(),
+            expires_at=float(expires_at),
+            consumed_at=None,
+            created_at=float(now),
+        )
+
+    async def get_by_hash(
+        self,
+        tenant: TenantContext,
+        session_id: str,
+        state_hash: str,
+        *,
+        for_update: bool = False,
+    ) -> OAuthStateRecord | None:
+        suffix = " FOR UPDATE" if for_update else ""
+        row = await fetch_one(
+            self.connection,
+            f"""
+            SELECT {_OAUTH_STATE_COLUMNS}
+            FROM oauth_authorization_states
+            WHERE user_uid = %s AND session_id = %s AND state_hash = %s
+            LIMIT 1{suffix}
+            """,
+            (
+                tenant.user_uid,
+                str(session_id or "").strip(),
+                str(state_hash or "").strip(),
+            ),
+        )
+        return self._map(row) if row else None
+
+    async def consume(self, state_id: str, *, now: float) -> bool:
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE oauth_authorization_states
+                SET consumed_at = %s
+                WHERE id = %s AND consumed_at IS NULL
+                """,
+                (float(now), str(state_id or "").strip()),
+            )
+            return cursor.rowcount == 1
 
 
 class CredentialRepository:

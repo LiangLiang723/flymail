@@ -21,6 +21,8 @@ from flymail.domain.errors import (
     InvalidCredentialsError,
     NotFoundError,
     RateLimitError,
+    UnsafeEndpointError,
+    UnsupportedProviderError,
 )
 
 
@@ -111,6 +113,30 @@ async def rate_limit_error_handler(
     )
     response.headers["Retry-After"] = "300"
     return response
+
+
+async def unsafe_endpoint_error_handler(
+    request: Request,
+    _exc: UnsafeEndpointError,
+) -> JSONResponse:
+    return error_response(
+        request,
+        status_code=422,
+        code="unsafe_endpoint",
+        message="邮箱服务器或代理地址不允许访问",
+    )
+
+
+async def unsupported_provider_error_handler(
+    request: Request,
+    _exc: UnsupportedProviderError,
+) -> JSONResponse:
+    return error_response(
+        request,
+        status_code=422,
+        code="unsupported_provider",
+        message="不支持该邮箱服务商",
+    )
 
 
 async def authorization_error_handler(

@@ -58,6 +58,8 @@ from v2_worker import (
 
 
 EXPECTED_JOB_KINDS = (
+    "account.cleanup",
+    "account.verify",
     "content.attachment",
     "content.body",
     "content.inline",

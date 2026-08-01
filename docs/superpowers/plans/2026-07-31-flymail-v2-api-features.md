@@ -251,15 +251,27 @@ git commit -m "🔐 实现 V2 本地认证会话与用户管理"
 - Create: `backend/flymail/application/accounts.py`
 - Create: `backend/flymail/api/schemas/accounts.py`
 - Create: `backend/flymail/api/routes/accounts.py`
+- Create: `backend/flymail/infrastructure/security/outbound.py`
+- Create: `backend/flymail/workers/accounts.py`
 - Create: `backend/tests/v2/test_api_accounts.py`
+- Create: `backend/tests/v2/test_account_workers.py`
+- Modify: `backend/flymail/repositories/accounts.py`
+- Modify: `backend/flymail/repositories/jobs.py`
+- Modify: `backend/flymail/api/app.py`
+- Modify: `backend/flymail/api/dependencies.py`
+- Modify: `backend/flymail/api/errors.py`
+- Modify: `backend/flymail/domain/errors.py`
+- Modify: `backend/tests/v2/test_protocol_worker_integration.py`
+- Modify: `backend/v2_worker.py`
+- Modify: `README.md`
 
 **Interfaces:**
 
 - Produces routes for list/create/update/delete account, password/authorization-code setup, OAuth start/callback/status, verify credentials, user-level proxy settings, list/create/update identities and reauthorize.
-- Produces commands: `CreateAccountCommand`, `UpdateAccountCommand`, `UpsertIdentityCommand`.
+- Produces commands: `CreateAccountCommand`, `UpdateAccountCommand`, `UpsertIdentityCommand`, `UpdateIdentityCommand`.
 - Account list responses never include encrypted credential fields.
 
-- [ ] **Step 1: Write account isolation and validation tests**
+- [x] **Step 1: Write account isolation and validation tests**
 
 Tests cover:
 
@@ -276,31 +288,33 @@ Tests cover:
 - proxy URL credentials are encrypted, excluded from responses/logs and validated without applying them to internal MySQL/API traffic;
 - custom IMAP/SMTP endpoints reject loopback, private, link-local, multicast and cloud-metadata destinations unless an explicit administrator outbound-network policy allows them.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement create/update commands**
+- [x] **Step 3: Implement create/update commands**
 
 Application transaction creates account, encrypted credential, default identity, runtime state and Outbox event. Store provider key, endpoint overrides and encrypted proxy reference separately; do not place credentials inside job payload. Validate custom endpoint DNS/IP results against the outbound-network safety policy before saving and again before connection.
 
-- [ ] **Step 4: Implement OAuth and reauthorization flow**
+- [x] **Step 4: Implement OAuth and reauthorization flow**
 
 Create short-lived signed OAuth state containing user, session, provider, account draft ID and PKCE verifier reference. Store verifier/token secrets encrypted server-side, never in browser storage. Callback validates state exactly once, exchanges the code through the selected proxy, encrypts tokens, records expiry and enqueues account verification. Refresh remains a Worker/provider responsibility.
 
-- [ ] **Step 5: Implement asynchronous verification**
+- [x] **Step 5: Implement asynchronous verification**
 
 `POST /accounts/{id}/verify` enqueues `account.verify` with account ID and credential version. Worker fetches/decrypts credential from Repository. API returns `202` and task status URL.
 
-- [ ] **Step 6: Implement safe account deletion intent**
+- [x] **Step 6: Implement safe account deletion intent**
 
 Require account email confirmation. Mark disabled, cancel pending non-send sync jobs, preserve sent audit, and enqueue account cleanup. Active SMTP result-uncertain jobs block deletion until resolved or explicitly cancelled through a separate audited flow.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
-python -m unittest tests.v2.test_api_accounts -v
-git add backend/flymail/application/accounts.py backend/flymail/api/schemas/accounts.py backend/flymail/api/routes/accounts.py backend/tests/v2/test_api_accounts.py
+cd backend/tests
+PYTHONPATH=.. python -m unittest v2.test_api_accounts v2.test_account_workers -v
+cd ../..
+git add README.md docs/superpowers/plans/2026-07-31-flymail-v2-api-features.md backend/flymail/application/accounts.py backend/flymail/api/schemas/accounts.py backend/flymail/api/routes/accounts.py backend/flymail/infrastructure/security/outbound.py backend/flymail/workers/accounts.py backend/flymail/repositories/accounts.py backend/flymail/repositories/jobs.py backend/tests/v2/test_api_accounts.py backend/tests/v2/test_account_workers.py backend/tests/v2/test_protocol_worker_integration.py backend/flymail/api/app.py backend/flymail/api/dependencies.py backend/flymail/api/errors.py backend/flymail/domain/errors.py backend/v2_worker.py
 git commit -m "📮 实现 V2 邮箱账号凭证与发件身份 API"
 ```
 
