@@ -571,9 +571,12 @@ git commit -m "🔄 实现 V2 IDLE 与自适应周期校正"
 **Files:**
 
 - Create: `backend/flymail/workers/content_fetch.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0008_message_body_parts.py`
+- Modify: `backend/flymail/infrastructure/db/migrations/runner.py`
 - Modify: `backend/flymail/repositories/messages.py`
 - Modify: `backend/flymail/repositories/objects.py`
 - Create: `backend/tests/v2/test_content_fetch.py`
+- Modify: `backend/tests/v2/test_migrations.py`
 
 **Interfaces:**
 
@@ -581,7 +584,7 @@ git commit -m "🔄 实现 V2 IDLE 与自适应周期校正"
 - Produces: `ContentFetchService.fetch_body(...)`, `fetch_attachment(...)`, `fetch_raw_eml(...)`.
 - Consumes: `ObjectStore`, `MimeTree`, message and object repositories.
 
-- [ ] **Step 1: Write content fetch tests**
+- [x] **Step 1: Write content fetch tests**
 
 Prove:
 
@@ -596,11 +599,11 @@ Prove:
 - concurrent same-content request deduplicates by job key;
 - eviction deletes body search document and reference, not message metadata.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement body state transition guard**
+- [x] **Step 3: Implement body state transition guard**
 
 Allowed transitions:
 
@@ -615,19 +618,19 @@ ready -> evicted
 
 Reject illegal transitions with `ConflictError`.
 
-- [ ] **Step 4: Implement precise body fetch**
+- [x] **Step 4: Implement precise body fetch**
 
 Fetch selected text/HTML parts, decode transfer encoding and charset with bounded memory, sanitize before storage, write compressed object when compression saves space, attach references and update body state in one database transaction after object durability.
 
-- [ ] **Step 5: Implement CID fetch**
+- [x] **Step 5: Implement CID fetch**
 
 Parse sanitized HTML references, normalize Content-ID and enqueue only matched allowed image parts below size limit. Replace CID with authenticated API reference token identifier, not a public object hash.
 
-- [ ] **Step 6: Implement attachment and raw source fetch**
+- [x] **Step 6: Implement attachment and raw source fetch**
 
-Use partial ranges when provider/core supports reliable chunking. Enforce declared and actual size limits. Cancellation deletes temp files. A raw source task may use full RFC 822 fetch and is tagged for body quota/LRU.
+Use partial ranges when provider/core supports reliable chunking. Enforce declared and actual size limits before and during network reads. Stream attachment bytes through transfer decoding and quota checks directly into the object store; cancellation deletes temporary files. A raw source task may use full RFC 822 fetch and is tagged for body quota/LRU. Schema 8 persists exact text/HTML part metadata per remote instance. Ready or already-fetching content rejects duplicate execution before a second remote request.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_content_fetch -v

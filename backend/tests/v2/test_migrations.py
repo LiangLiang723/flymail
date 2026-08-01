@@ -24,7 +24,7 @@ EXPECTED_TABLES = {
     "oauth_authorization_states", "outbound_proxy_configs",
     "mailboxes", "messages", "message_headers", "message_remote_instances",
     "message_memberships", "threads", "thread_messages", "thread_projections",
-    "message_bodies", "message_attachments",
+    "message_bodies", "message_body_parts", "message_attachments",
     "content_objects", "content_references", "body_search_documents",
     "mail_operations", "outbox_events", "worker_jobs", "job_attempts",
     "sync_cursors", "account_runtime_state", "realtime_events",
@@ -116,9 +116,9 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         return [(str(row[0]), row[1]) for row in rows]
 
     async def test_empty_database_applies_all_migrations_and_second_run_is_noop(self):
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8])
         async with self.pool.acquire() as connection:
-            self.assertEqual(await current_schema_version(connection), 7)
+            self.assertEqual(await current_schema_version(connection), 8)
         self.assertEqual(await run_migrations(self.pool), [])
 
         records = await self.fetchall(
@@ -132,6 +132,7 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (5, "job_claim_order"),
             (6, "message_thread_fallback_index"),
             (7, "worker_scheduler_scope"),
+            (8, "message_body_parts"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -152,10 +153,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_runners_apply_each_version_once(self):
         results = await asyncio.gather(run_migrations(self.pool), run_migrations(self.pool))
-        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6, 7]])
+        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6, 7, 8]])
         self.assertEqual(
             await self.scalar("SELECT COUNT(*) FROM schema_migrations"),
-            7,
+            8,
         )
 
     async def test_partial_ddl_without_version_record_recovers_idempotently(self):
@@ -164,8 +165,8 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute(IDENTITY_MIGRATION.statements[0])
                 await connection.commit()
 
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7])
-        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 7)
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 8)
 
     async def test_job_claim_index_upgrade_and_crash_recovery_are_idempotent(self):
         await run_migrations(self.pool)
@@ -243,6 +244,26 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await connection.commit()
         self.assertEqual(await run_migrations(self.pool), [7])
 
+    async def test_message_body_parts_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 8")
+                await cursor.execute("DROP TABLE message_body_parts")
+                await connection.commit()
+
+        self.assertEqual(await run_migrations(self.pool), [8])
+        self.assertEqual(
+            await self.index_columns("message_body_parts", "uq_message_body_parts_kind"),
+            [("remote_instance_id", "A"), ("body_kind", "A")],
+        )
+
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 8")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [8])
+
     async def test_critical_index_column_order_and_direction(self):
         await run_migrations(self.pool)
 
@@ -269,6 +290,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             await self.index_columns("messages", "idx_messages_subject_fallback"),
             [("user_uid", "A"), ("normalized_subject", "A"), ("received_at", "D"), ("id", "D")],
+        )
+        self.assertEqual(
+            await self.index_columns("message_body_parts", "uq_message_body_parts_kind"),
+            [("remote_instance_id", "A"), ("body_kind", "A")],
         )
         self.assertEqual(
             await self.index_columns("outbox_events", "idx_outbox_unpublished"),

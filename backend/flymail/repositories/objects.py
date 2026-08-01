@@ -512,6 +512,20 @@ class ObjectRepository:
                     """,
                     (now, user_uid, *message_ids),
                 )
+                await cursor.execute(
+                    f"""
+                    UPDATE messages AS message
+                    JOIN message_bodies AS body
+                      ON body.message_id = message.id
+                     AND body.user_uid = message.user_uid
+                    SET message.body_state = body.state,
+                        message.search_state = 'evicted',
+                        message.updated_at = %s
+                    WHERE message.user_uid = %s
+                      AND message.id IN ({placeholders})
+                    """,
+                    (now, user_uid, *message_ids),
+                )
 
         return DetachedBodyObject(
             content_sha256=digest,

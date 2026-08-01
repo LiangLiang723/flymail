@@ -8,9 +8,10 @@ from typing import Iterable
 
 import aiomysql
 
+from flymail.domain.errors import ConflictError, NotFoundError
 from flymail.domain.ids import new_id
 from flymail.domain.threading import normalize_message_id
-from flymail.repositories.base import TenantContext, fetch_all
+from flymail.repositories.base import TenantContext, fetch_all, fetch_one
 
 
 @dataclass(frozen=True, slots=True)
@@ -502,6 +503,95 @@ class MessageRepository:
             )
             for row in rows
         }
+
+    async def transition_body_state(
+        self,
+        tenant: TenantContext,
+        message_id: str,
+        target_state: str,
+        *,
+        now: float,
+    ) -> bool:
+        allowed = {
+            "not_requested": {"queued"},
+            "queued": {"fetching", "failed"},
+            "fetching": {"ready", "failed", "unavailable"},
+            "ready": {"evicted"},
+            "evicted": {"queued"},
+            "failed": {"queued"},
+            "unavailable": set(),
+        }
+        normalized_message = str(message_id or "").strip()
+        normalized_target = str(target_state or "").strip().casefold()
+        if not normalized_message:
+            raise ValueError("message_id is required")
+        if normalized_target not in allowed:
+            raise ValueError("unsupported body state")
+        row = await fetch_one(
+            self.connection,
+            """
+            SELECT state
+            FROM message_bodies
+            WHERE user_uid = %s AND message_id = %s
+            FOR UPDATE
+            """,
+            (tenant.user_uid, normalized_message),
+        )
+        if row is None:
+            raise NotFoundError("message body state was not found")
+        current = str(row["state"])
+        if current == normalized_target:
+            return False
+        if normalized_target not in allowed[current]:
+            raise ConflictError(
+                f"body state cannot transition from {current} to {normalized_target}"
+            )
+        search_state = {
+            "queued": "queued",
+            "fetching": "queued",
+            "ready": "ready",
+            "evicted": "evicted",
+            "failed": "failed",
+            "unavailable": "failed",
+        }.get(normalized_target, "metadata")
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE message_bodies
+                SET state = %s, updated_at = %s,
+                    last_error_class = CASE WHEN %s IN ('queued','fetching','ready') THEN '' ELSE last_error_class END,
+                    last_error_message = CASE WHEN %s IN ('queued','fetching','ready') THEN '' ELSE last_error_message END
+                WHERE user_uid = %s AND message_id = %s AND state = %s
+                """,
+                (
+                    normalized_target,
+                    float(now),
+                    normalized_target,
+                    normalized_target,
+                    tenant.user_uid,
+                    normalized_message,
+                    current,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise ConflictError("body state changed concurrently")
+            await cursor.execute(
+                """
+                UPDATE messages
+                SET body_state = %s, search_state = %s, updated_at = %s
+                WHERE user_uid = %s AND id = %s
+                """,
+                (
+                    normalized_target,
+                    search_state,
+                    float(now),
+                    tenant.user_uid,
+                    normalized_message,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise NotFoundError("message was not found")
+        return True
 
     async def _message_ids_by_keys(
         self,
