@@ -653,10 +653,10 @@ git commit -m "⚡ 实现 V2 分层正文与附件按需获取"
 
 - Produces operation kinds: `set_read`, `set_starred`, `add_label`, `remove_label`, `move`, `archive`, `trash`, `delete_permanent`.
 - Produces: `OperationService.record_local_intent(...) -> str`
-- Produces: `OperationApplyHandler`.
+- Produces: `OperationApplyHandler`, directly compatible with the Worker `JobHandler` contract.
 - Produces conflict outcomes: merged, superseded, conflict, terminal_missing, retry.
 
-- [ ] **Step 1: Write operation tests**
+- [x] **Step 1: Write operation tests**
 
 Prove:
 
@@ -666,33 +666,36 @@ Prove:
 - Gmail archive removes Inbox label;
 - generic archive uses mapped archive mailbox;
 - first delete creates trash operation;
-- permanent delete requires message currently in trash and explicit confirmation flag;
+- permanent delete requires message currently in trash, an already-synced Trash operation and explicit confirmation flag;
 - remote missing is terminal success;
-- retries use same idempotency key;
+- retries use the same full-intent idempotency key;
+- concurrent duplicate intents create one operation, one Job and one Outbox event;
+- repeated thread intent reuses its original operation group;
 - partial thread operation records per-message outcomes;
-- stale remote version produces conflict or recomputed target, never blind replay.
+- stale remote version produces conflict or recomputed target, never blind replay;
+- Provider exceptions are sanitized, while database finalization failures remain infrastructure errors.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement operation intent model**
+- [x] **Step 3: Implement operation intent model**
 
 Required fields include operation ID, user, account, remote instance, kind, target, observed remote version, idempotency key, status, retry count and safe error code.
 
-- [ ] **Step 4: Implement local projection update**
+- [x] **Step 4: Implement local projection update**
 
 Application service updates thread/message projection, writes operation and Outbox in one UoW. It does not call Provider.
 
-- [ ] **Step 5: Implement apply handler**
+- [x] **Step 5: Implement apply handler**
 
-Handler loads fresh remote state, invokes plugin/core operation, records exact outcome and emits realtime projection event. Unsupported direct MOVE uses safe copy/delete fallback only when plugin contract permits.
+Handler loads fresh remote state, invokes plugin/core operation, records exact outcome and emits realtime projection event. Unsupported direct MOVE uses safe copy/delete fallback only when plugin contract permits. Superseded and terminal operations never contact the Provider again.
 
-- [ ] **Step 6: Implement undo boundary**
+- [x] **Step 6: Implement undo boundary**
 
 Pending operations can be cancelled. Already-synced reversible operations create a compensating operation using captured previous state. Permanent delete is not presented as reversible after remote confirmation.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_operation_apply -v
