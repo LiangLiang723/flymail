@@ -15,10 +15,11 @@ from flymail.infrastructure.db.migrations.v0003_jobs import MIGRATION as JOBS_MI
 from flymail.infrastructure.db.migrations.v0004_content_search import build_migration as build_content_migration
 from flymail.infrastructure.db.migrations.v0005_job_claim_order import MIGRATION as JOB_CLAIM_ORDER_MIGRATION
 from flymail.infrastructure.db.migrations.v0006_message_fallback_index import MIGRATION as MESSAGE_FALLBACK_INDEX_MIGRATION
+from flymail.infrastructure.db.migrations.v0007_worker_scheduler_scope import MIGRATION as WORKER_SCHEDULER_SCOPE_MIGRATION
 from flymail.infrastructure.db.pool import DatabasePool
 
 
-LATEST_SCHEMA_VERSION = MESSAGE_FALLBACK_INDEX_MIGRATION.version
+LATEST_SCHEMA_VERSION = WORKER_SCHEDULER_SCOPE_MIGRATION.version
 
 _MIGRATION_LOCK_NAME = "flymail_v2_schema_migration"
 _CREATE_TABLE_PATTERN = re.compile(
@@ -27,6 +28,10 @@ _CREATE_TABLE_PATTERN = re.compile(
 )
 _ADD_INDEX_PATTERN = re.compile(
     r"^\s*ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?\s+ADD\s+(?:UNIQUE\s+)?(?:KEY|INDEX)\s+`?([A-Za-z0-9_]+)`?",
+    re.IGNORECASE,
+)
+_ADD_COLUMN_PATTERN = re.compile(
+    r"^\s*ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?\s+ADD\s+COLUMN\s+`?([A-Za-z0-9_]+)`?",
     re.IGNORECASE,
 )
 _SCHEMA_MIGRATIONS_DDL = """
@@ -48,6 +53,26 @@ async def _table_exists(connection: aiomysql.Connection, table_name: str) -> boo
             WHERE table_schema = DATABASE() AND table_name = %s
             """,
             (table_name,),
+        )
+        row = await cursor.fetchone()
+        return bool(row and int(row[0] or 0) > 0)
+
+
+async def _column_exists(
+    connection: aiomysql.Connection,
+    table_name: str,
+    column_name: str,
+) -> bool:
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = %s
+              AND column_name = %s
+            """,
+            (table_name, column_name),
         )
         row = await cursor.fetchone()
         return bool(row and int(row[0] or 0) > 0)
@@ -104,12 +129,20 @@ async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
         content_migration,
         JOB_CLAIM_ORDER_MIGRATION,
         MESSAGE_FALLBACK_INDEX_MIGRATION,
+        WORKER_SCHEDULER_SCOPE_MIGRATION,
     )
 
 
 async def _execute_idempotent_ddl(connection: aiomysql.Connection, statement: str) -> None:
     table_match = _CREATE_TABLE_PATTERN.match(statement)
     if table_match and await _table_exists(connection, table_match.group(1)):
+        return
+    column_match = _ADD_COLUMN_PATTERN.match(statement)
+    if column_match and await _column_exists(
+        connection,
+        column_match.group(1),
+        column_match.group(2),
+    ):
         return
     index_match = _ADD_INDEX_PATTERN.match(statement)
     if index_match and await _index_exists(

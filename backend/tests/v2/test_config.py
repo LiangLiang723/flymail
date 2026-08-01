@@ -145,7 +145,7 @@ class DevelopmentEntrypointTests(unittest.IsolatedAsyncioTestCase):
         expected = {
             "status": "ok",
             "role": "api",
-            "schema_version": 6,
+            "schema_version": 7,
             "database": "ok",
             "object_store": "ok",
         }
@@ -186,7 +186,9 @@ class DevelopmentEntrypointTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("now_fn", parameters)
         source = inspect.getsource(run_worker).lower()
         self.assertIn("release_expired_leases", source)
-        self.assertIn("stop.is_set", source)
+        self.assertIn("asyncio.taskgroup", source)
+        self.assertIn("await stop.wait()", source)
+        self.assertIn("_release_worker_leases", source)
         self.assertNotIn("not implemented", source)
 
 

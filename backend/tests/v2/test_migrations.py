@@ -116,9 +116,9 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         return [(str(row[0]), row[1]) for row in rows]
 
     async def test_empty_database_applies_all_migrations_and_second_run_is_noop(self):
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6])
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7])
         async with self.pool.acquire() as connection:
-            self.assertEqual(await current_schema_version(connection), 6)
+            self.assertEqual(await current_schema_version(connection), 7)
         self.assertEqual(await run_migrations(self.pool), [])
 
         records = await self.fetchall(
@@ -131,6 +131,7 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (4, "content_and_search"),
             (5, "job_claim_order"),
             (6, "message_thread_fallback_index"),
+            (7, "worker_scheduler_scope"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -151,10 +152,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_runners_apply_each_version_once(self):
         results = await asyncio.gather(run_migrations(self.pool), run_migrations(self.pool))
-        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6]])
+        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6, 7]])
         self.assertEqual(
             await self.scalar("SELECT COUNT(*) FROM schema_migrations"),
-            6,
+            7,
         )
 
     async def test_partial_ddl_without_version_record_recovers_idempotently(self):
@@ -163,8 +164,8 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute(IDENTITY_MIGRATION.statements[0])
                 await connection.commit()
 
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6])
-        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 6)
+        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 7)
 
     async def test_job_claim_index_upgrade_and_crash_recovery_are_idempotent(self):
         await run_migrations(self.pool)
@@ -206,6 +207,42 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await connection.commit()
         self.assertEqual(await run_migrations(self.pool), [6])
 
+    async def test_worker_scheduler_scope_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 7")
+                await cursor.execute("ALTER TABLE worker_jobs DROP INDEX idx_worker_jobs_scheduler")
+                await cursor.execute("ALTER TABLE worker_jobs DROP COLUMN provider_key")
+                await cursor.execute("ALTER TABLE worker_jobs DROP COLUMN account_id")
+                await connection.commit()
+
+        self.assertEqual(await run_migrations(self.pool), [7])
+        self.assertEqual(
+            int(await self.scalar(
+                """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'worker_jobs'
+                  AND column_name IN ('account_id', 'provider_key')
+                """
+            ) or 0),
+            2,
+        )
+        self.assertEqual(
+            await self.index_columns("worker_jobs", "idx_worker_jobs_scheduler"),
+            [
+                ("queue_name", "A"), ("status", "A"),
+                ("available_at", "A"), ("priority", "A"),
+                ("provider_key", "A"), ("account_id", "A"), ("id", "A"),
+            ],
+        )
+
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 7")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [7])
+
     async def test_critical_index_column_order_and_direction(self):
         await run_migrations(self.pool)
 
@@ -220,6 +257,14 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             await self.index_columns("worker_jobs", "idx_worker_jobs_claim_order"),
             [("queue_name", "A"), ("priority", "A"), ("available_at", "A"), ("id", "A"), ("status", "A")],
+        )
+        self.assertEqual(
+            await self.index_columns("worker_jobs", "idx_worker_jobs_scheduler"),
+            [
+                ("queue_name", "A"), ("status", "A"),
+                ("available_at", "A"), ("priority", "A"),
+                ("provider_key", "A"), ("account_id", "A"), ("id", "A"),
+            ],
         )
         self.assertEqual(
             await self.index_columns("messages", "idx_messages_subject_fallback"),

@@ -422,17 +422,23 @@ git commit -m "🧵 实现 V2 邮件摄取标签关系与标准会话"
 
 - Create: `backend/flymail/workers/dispatcher.py`
 - Create: `backend/flymail/workers/scheduler.py`
+- Modify: `backend/flymail/repositories/jobs.py`
+- Create: `backend/flymail/infrastructure/db/migrations/v0007_worker_scheduler_scope.py`
+- Modify: `backend/flymail/infrastructure/db/migrations/runner.py`
 - Modify: `backend/v2_worker.py`
 - Create: `backend/tests/v2/test_worker_scheduler.py`
+- Modify: migration, health, foundation integration and README contracts for schema `7`.
 
 **Interfaces:**
 
 - Produces: `JobHandler` protocol
 - Produces: `WorkerDispatcher.register(kind: str, handler: JobHandler)`
 - Produces: `FairScheduler.next_claims(now: float) -> list[ClaimRequest]`
+- Produces: account/provider-scoped `JobSpec`, diversified MySQL candidates and `claim_ids`.
 - Produces queues: `interactive`, `operations`, `realtime`, `reconcile`, `history`, `maintenance`.
+- Produces schema `7` with explicit Worker job account/provider scope.
 
-- [ ] **Step 1: Write scheduler tests**
+- [x] **Step 1: Write scheduler tests**
 
 Prove:
 
@@ -443,11 +449,11 @@ Prove:
 - disabled or auth-required account jobs are not claimed;
 - graceful shutdown stops new claims and allows current short jobs to release leases.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement weighted fair selection**
+- [x] **Step 3: Implement weighted fair selection**
 
 Default weights:
 
@@ -460,9 +466,9 @@ history 1
 maintenance 1
 ```
 
-Apply per-account and per-provider caps before claiming. Persist priority and queue in MySQL; in-memory scheduler only decides current claim mix.
+Apply per-account and per-provider caps before claiming. MySQL uses per-queue, per-account and per-provider window ranking so one hot account cannot hide another account or a low-weight queue before the in-memory scheduler sees it. Persist priority and queue in MySQL; in-memory scheduler only decides current claim mix.
 
-- [ ] **Step 4: Implement handler registry**
+- [x] **Step 4: Implement handler registry**
 
 Unknown job kinds fail permanently with safe error. Handler signature:
 
@@ -471,16 +477,16 @@ class JobHandler(Protocol):
     async def __call__(self, context: JobContext, payload: Mapping[str, object]) -> JobOutcome: ...
 ```
 
-- [ ] **Step 5: Wire Worker lifecycle**
+- [x] **Step 5: Wire Worker lifecycle**
 
-`v2_worker.py` starts dispatcher, heartbeat, lease reaper and scheduler in one `asyncio.TaskGroup`. SIGTERM stops claiming, waits bounded grace period, releases leases and closes sessions/pools.
+`v2_worker.py` starts dispatcher, heartbeat, lease reaper and scheduler in one `asyncio.TaskGroup`. SIGTERM stops claiming, waits bounded grace period, releases leases and closes sessions/pools. Internal task failures follow the same cleanup path before being propagated.
 
-- [ ] **Step 6: Run tests repeatedly and commit**
+- [x] **Step 6: Run tests repeatedly and commit**
 
 ```bash
 for i in $(seq 1 10); do python -m unittest tests.v2.test_worker_scheduler -q || exit 1; done
-git add backend/flymail/workers/dispatcher.py backend/flymail/workers/scheduler.py backend/v2_worker.py backend/tests/v2/test_worker_scheduler.py
-git commit -m "⚖️ 实现 V2 Worker 公平调度与优先队列"
+git add backend/flymail/workers/dispatcher.py backend/flymail/workers/scheduler.py backend/flymail/repositories/jobs.py backend/flymail/infrastructure/db/migrations/v0007_worker_scheduler_scope.py backend/flymail/infrastructure/db/migrations/runner.py backend/v2_worker.py backend/tests/v2/test_worker_scheduler.py backend/tests/v2/test_migrations.py backend/tests/v2/test_config.py backend/tests/v2/test_foundation_integration.py README.md
+git commit -m "⚖️ 实现 V2 Worker 公平调度与优雅停机"
 ```
 
 ---

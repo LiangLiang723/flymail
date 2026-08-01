@@ -137,7 +137,7 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
         assert self.api_pool is not None
         assert self.worker_pool is not None
 
-        self.assertEqual(await run_migrations(self.api_pool), [1, 2, 3, 4, 5, 6])
+        self.assertEqual(await run_migrations(self.api_pool), [1, 2, 3, 4, 5, 6, 7])
         store = ObjectStore(
             self.settings("api").object_dir,
             self.settings("api").object_tmp_dir,
@@ -226,7 +226,7 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
             {
                 "status": "ok",
                 "role": "api",
-                "schema_version": 6,
+                "schema_version": 7,
                 "database": "ok",
                 "object_store": "ok",
             },
@@ -270,7 +270,7 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     (event_id,),
                 )
                 self.assertEqual((await cursor.fetchone())[0], 1)
-                self.assertEqual(await current_schema_version(connection), 6)
+                self.assertEqual(await current_schema_version(connection), 7)
 
         async with self.api_pool.acquire() as connection:
             objects = ObjectRepository(connection)

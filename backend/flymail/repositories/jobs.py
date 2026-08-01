@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any, Mapping
@@ -66,6 +67,8 @@ class JobSpec:
     job_kind: str
     payload: dict
     user_uid: str | None = None
+    account_id: str | None = None
+    provider_key: str | None = None
     priority: int = 100
     available_at: float = 0
     max_attempts: int = 10
@@ -75,21 +78,40 @@ class JobSpec:
         object.__setattr__(self, "queue_name", _required_text(self.queue_name, "queue_name"))
         object.__setattr__(self, "job_kind", _required_text(self.job_kind, "job_kind"))
         normalized_user = str(self.user_uid or "").strip() or None
+        normalized_account = str(self.account_id or "").strip() or None
+        normalized_provider = str(self.provider_key or "").strip().casefold() or None
         normalized_dedupe = str(self.dedupe_key or "").strip() or None
+        if bool(normalized_account) != bool(normalized_provider):
+            raise ValueError("account_id and provider_key must be supplied together")
+        if normalized_account and not normalized_user:
+            raise ValueError("account-scoped jobs require user_uid")
         object.__setattr__(self, "user_uid", normalized_user)
+        object.__setattr__(self, "account_id", normalized_account)
+        object.__setattr__(self, "provider_key", normalized_provider)
         object.__setattr__(self, "dedupe_key", normalized_dedupe)
         if not isinstance(self.payload, dict):
             raise ValueError("job payload must be an object")
         validate_safe_payload(self.payload, path="job.payload")
         object.__setattr__(self, "payload", dict(self.payload))
-        if int(self.max_attempts) < 1:
+        if isinstance(self.priority, bool):
+            raise TypeError("priority must be an integer")
+        priority = int(self.priority)
+        available_at = float(self.available_at)
+        if not math.isfinite(available_at) or available_at < 0:
+            raise ValueError("available_at must be a finite non-negative timestamp")
+        if isinstance(self.max_attempts, bool) or int(self.max_attempts) < 1:
             raise ValueError("max_attempts must be at least 1")
+        object.__setattr__(self, "priority", priority)
+        object.__setattr__(self, "available_at", available_at)
+        object.__setattr__(self, "max_attempts", int(self.max_attempts))
 
 
 @dataclass(frozen=True, slots=True)
 class LeasedJob:
     id: str
     user_uid: str | None
+    account_id: str | None
+    provider_key: str | None
     queue_name: str
     job_kind: str
     priority: int
@@ -101,6 +123,19 @@ class LeasedJob:
     max_attempts: int
     dedupe_key: str | None
     payload: dict
+
+
+@dataclass(frozen=True, slots=True)
+class JobCandidate:
+    id: str
+    queue_name: str
+    priority: int
+    available_at: float
+    account_id: str | None
+    provider_key: str | None
+    account_status: str
+    runtime_status: str
+    backoff_until: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +153,11 @@ class JobRepository:
 
     async def enqueue(self, spec: JobSpec, *, now: float | None = None) -> str:
         timestamp = float(time.time() if now is None else now)
+        if not math.isfinite(timestamp):
+            raise ValueError("enqueue time must be finite")
         available_at = float(spec.available_at or timestamp)
+        if spec.account_id:
+            await self._validate_account_scope(spec)
         if spec.dedupe_key:
             existing = await self._get_deduped_for_update(spec.queue_name, spec.dedupe_key)
             if existing:
@@ -134,6 +173,111 @@ class JobRepository:
                 raise
             return await self._reuse_or_supersede(existing, spec, timestamp, available_at)
 
+    async def list_ready_candidates(
+        self,
+        queue_names: tuple[str, ...] | list[str],
+        *,
+        now: float | None = None,
+        limit: int = 200,
+        per_account_limit: int = 2,
+        per_provider_limit: int = 2,
+    ) -> list[JobCandidate]:
+        normalized_queues = tuple(dict.fromkeys(_required_text(value, "queue_name") for value in queue_names))
+        normalized_limit = int(limit)
+        account_limit = int(per_account_limit)
+        provider_limit = int(per_provider_limit)
+        if not normalized_queues:
+            raise ValueError("at least one queue is required")
+        if normalized_limit < 1:
+            raise ValueError("candidate limit must be at least 1")
+        if account_limit < 1 or provider_limit < 1:
+            raise ValueError("candidate scope limits must be at least 1")
+        timestamp = float(time.time() if now is None else now)
+        placeholders = ",".join("%s" for _ in normalized_queues)
+        queue_order_placeholders = ",".join("%s" for _ in normalized_queues)
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                f"""
+                WITH eligible AS (
+                    SELECT w.id, w.queue_name, w.priority, w.available_at,
+                           w.account_id, w.provider_key,
+                           COALESCE(a.status, CASE WHEN w.account_id IS NULL THEN 'active' ELSE 'missing' END) AS account_status,
+                           COALESCE(r.status, 'normal') AS runtime_status,
+                           COALESCE(r.backoff_until, 0) AS backoff_until,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY w.queue_name,
+                                   CASE WHEN w.account_id IS NULL THEN CONCAT('job:', w.id)
+                                        ELSE CONCAT('account:', w.account_id) END
+                               ORDER BY w.priority ASC, w.available_at ASC, w.id ASC
+                           ) AS account_rank,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY w.queue_name,
+                                   CASE WHEN w.provider_key = '' THEN CONCAT('job:', w.id)
+                                        ELSE CONCAT('provider:', w.provider_key) END
+                               ORDER BY w.priority ASC, w.available_at ASC, w.id ASC
+                           ) AS provider_rank
+                    FROM worker_jobs w FORCE INDEX (idx_worker_jobs_scheduler)
+                    LEFT JOIN mail_accounts a
+                      ON a.id = w.account_id AND a.user_uid = w.user_uid
+                    LEFT JOIN users u ON u.id = w.user_uid
+                    LEFT JOIN account_runtime_state r
+                      ON r.account_id = w.account_id AND r.user_uid = w.user_uid
+                    WHERE w.queue_name IN ({placeholders})
+                      AND w.status IN ('pending', 'retry_wait')
+                      AND w.available_at <= %s
+                      AND (
+                        w.account_id IS NULL OR (
+                          a.id IS NOT NULL
+                          AND u.enabled = 1
+                          AND a.status = 'active'
+                          AND a.provider_key = w.provider_key
+                          AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
+                          AND COALESCE(r.backoff_until, 0) <= %s
+                        )
+                      )
+                ), diversified AS (
+                    SELECT eligible.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY queue_name
+                               ORDER BY priority ASC, available_at ASC, id ASC
+                           ) AS queue_rank
+                    FROM eligible
+                    WHERE account_rank <= %s AND provider_rank <= %s
+                )
+                SELECT id, queue_name, priority, available_at,
+                       account_id, provider_key, account_status,
+                       runtime_status, backoff_until
+                FROM diversified
+                WHERE queue_rank <= %s
+                ORDER BY FIELD(queue_name, {queue_order_placeholders}),
+                         priority ASC, available_at ASC, id ASC
+                """,
+                (
+                    *normalized_queues,
+                    timestamp,
+                    timestamp,
+                    account_limit,
+                    provider_limit,
+                    normalized_limit,
+                    *normalized_queues,
+                ),
+            )
+            rows = [dict(row) for row in await cursor.fetchall()]
+        return [
+            JobCandidate(
+                id=str(row["id"]),
+                queue_name=str(row["queue_name"]),
+                priority=int(row["priority"] or 0),
+                available_at=float(row["available_at"] or 0),
+                account_id=str(row["account_id"]) if row["account_id"] else None,
+                provider_key=str(row["provider_key"]) if row["provider_key"] else None,
+                account_status=str(row["account_status"] or "missing"),
+                runtime_status=str(row["runtime_status"] or "normal"),
+                backoff_until=float(row["backoff_until"] or 0),
+            )
+            for row in rows
+        ]
+
     async def claim(
         self,
         queue_name: str,
@@ -144,33 +288,102 @@ class JobRepository:
         now: float | None = None,
     ) -> list[LeasedJob]:
         normalized_queue = _required_text(queue_name, "queue_name")
-        normalized_worker = _required_text(worker_id, "worker_id")
         normalized_limit = int(limit)
-        normalized_lease = int(lease_seconds)
         if normalized_limit < 1:
             raise ValueError("claim limit must be at least 1")
-        if normalized_lease < 1:
-            raise ValueError("lease_seconds must be at least 1")
         timestamp = float(time.time() if now is None else now)
-        lease_expires_at = timestamp + normalized_lease
-
         async with self.connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute(
                 """
-                SELECT id, user_uid, queue_name, job_kind, priority, available_at,
-                       attempt_count, max_attempts, dedupe_key, payload
-                FROM worker_jobs FORCE INDEX (idx_worker_jobs_claim_order)
-                WHERE queue_name = %s
-                  AND status IN ('pending', 'retry_wait')
-                  AND available_at <= %s
-                ORDER BY priority ASC, available_at ASC, id ASC
+                SELECT w.id, w.user_uid, w.account_id, w.provider_key,
+                       w.queue_name, w.job_kind, w.priority, w.available_at,
+                       w.attempt_count, w.max_attempts, w.dedupe_key, w.payload
+                FROM worker_jobs w FORCE INDEX (idx_worker_jobs_claim_order)
+                LEFT JOIN mail_accounts a
+                  ON a.id = w.account_id AND a.user_uid = w.user_uid
+                LEFT JOIN users u ON u.id = w.user_uid
+                LEFT JOIN account_runtime_state r
+                  ON r.account_id = w.account_id AND r.user_uid = w.user_uid
+                WHERE w.queue_name = %s
+                  AND w.status IN ('pending', 'retry_wait')
+                  AND w.available_at <= %s
+                  AND (
+                    w.account_id IS NULL OR (
+                      a.id IS NOT NULL
+                      AND u.enabled = 1
+                      AND a.status = 'active'
+                      AND a.provider_key = w.provider_key
+                      AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
+                      AND COALESCE(r.backoff_until, 0) <= %s
+                    )
+                  )
+                ORDER BY w.priority ASC, w.available_at ASC, w.id ASC
                 LIMIT %s
                 FOR UPDATE SKIP LOCKED
                 """,
-                (normalized_queue, timestamp, normalized_limit),
+                (normalized_queue, timestamp, timestamp, normalized_limit),
             )
             rows = [dict(row) for row in await cursor.fetchall()]
+        return await self._lease_rows(rows, worker_id, lease_seconds, timestamp)
 
+    async def claim_ids(
+        self,
+        job_ids: tuple[str, ...] | list[str],
+        worker_id: str,
+        *,
+        lease_seconds: int,
+        now: float | None = None,
+    ) -> list[LeasedJob]:
+        normalized_ids = tuple(dict.fromkeys(_required_text(value, "job_id") for value in job_ids))
+        if not normalized_ids:
+            return []
+        timestamp = float(time.time() if now is None else now)
+        placeholders = ",".join("%s" for _ in normalized_ids)
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                f"""
+                SELECT w.id, w.user_uid, w.account_id, w.provider_key,
+                       w.queue_name, w.job_kind, w.priority, w.available_at,
+                       w.attempt_count, w.max_attempts, w.dedupe_key, w.payload
+                FROM worker_jobs w
+                LEFT JOIN mail_accounts a
+                  ON a.id = w.account_id AND a.user_uid = w.user_uid
+                LEFT JOIN users u ON u.id = w.user_uid
+                LEFT JOIN account_runtime_state r
+                  ON r.account_id = w.account_id AND r.user_uid = w.user_uid
+                WHERE w.id IN ({placeholders})
+                  AND w.status IN ('pending', 'retry_wait')
+                  AND w.available_at <= %s
+                  AND (
+                    w.account_id IS NULL OR (
+                      a.id IS NOT NULL
+                      AND u.enabled = 1
+                      AND a.status = 'active'
+                      AND a.provider_key = w.provider_key
+                      AND COALESCE(r.status, 'normal') NOT IN ('auth_required', 'disabled')
+                      AND COALESCE(r.backoff_until, 0) <= %s
+                    )
+                  )
+                ORDER BY FIELD(w.id, {placeholders})
+                FOR UPDATE SKIP LOCKED
+                """,
+                (*normalized_ids, timestamp, timestamp, *normalized_ids),
+            )
+            rows = [dict(row) for row in await cursor.fetchall()]
+        return await self._lease_rows(rows, worker_id, lease_seconds, timestamp)
+
+    async def _lease_rows(
+        self,
+        rows: list[Mapping[str, Any]],
+        worker_id: str,
+        lease_seconds: int,
+        timestamp: float,
+    ) -> list[LeasedJob]:
+        normalized_worker = _required_text(worker_id, "worker_id")
+        normalized_lease = int(lease_seconds)
+        if normalized_lease < 1:
+            raise ValueError("lease_seconds must be at least 1")
+        lease_expires_at = timestamp + normalized_lease
         leased: list[LeasedJob] = []
         for row in rows:
             lease_token = new_id("lease")
@@ -208,18 +421,14 @@ class JobRepository:
                         duration_ms, safe_metadata
                     ) VALUES (%s, %s, %s, %s, %s, NULL, 'running', '', '', 0, NULL)
                     """,
-                    (
-                        new_id("attempt"),
-                        row["id"],
-                        next_attempt,
-                        normalized_worker,
-                        timestamp,
-                    ),
+                    (new_id("attempt"), row["id"], next_attempt, normalized_worker, timestamp),
                 )
             leased.append(
                 LeasedJob(
                     id=str(row["id"]),
                     user_uid=str(row["user_uid"]) if row["user_uid"] else None,
+                    account_id=str(row["account_id"]) if row.get("account_id") else None,
+                    provider_key=str(row["provider_key"]) if row.get("provider_key") else None,
                     queue_name=str(row["queue_name"]),
                     job_kind=str(row["job_kind"]),
                     priority=int(row["priority"] or 0),
@@ -234,6 +443,25 @@ class JobRepository:
                 )
             )
         return leased
+
+    async def mark_running(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        timestamp = float(time.time() if now is None else now)
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE worker_jobs
+                SET status = 'running', updated_at = %s
+                WHERE id = %s AND lease_token = %s AND status = 'leased'
+                """,
+                (timestamp, _required_text(job_id, "job_id"), _required_text(lease_token, "lease_token")),
+            )
+            return cursor.rowcount == 1
 
     async def heartbeat(
         self,
@@ -449,6 +677,62 @@ class JobRepository:
                 released += int(cursor.rowcount or 0)
         return released
 
+    async def release_worker_leases(
+        self,
+        worker_id: str,
+        *,
+        now: float | None = None,
+    ) -> int:
+        normalized_worker = _required_text(worker_id, "worker_id")
+        timestamp = float(time.time() if now is None else now)
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT id, attempt_count, max_attempts
+                FROM worker_jobs
+                WHERE lease_owner = %s AND status IN ('leased', 'running')
+                ORDER BY id ASC
+                FOR UPDATE SKIP LOCKED
+                """,
+                (normalized_worker,),
+            )
+            rows = [dict(row) for row in await cursor.fetchall()]
+        released = 0
+        for row in rows:
+            terminal = int(row["attempt_count"] or 0) >= int(row["max_attempts"] or 1)
+            next_status = "failed" if terminal else "retry_wait"
+            await self._finish_attempt(
+                str(row["id"]),
+                int(row["attempt_count"] or 0),
+                "failed" if terminal else "retry",
+                timestamp,
+                error_class="WorkerShutdown",
+                error_message="worker stopped before job completion",
+            )
+            async with self.connection.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    UPDATE worker_jobs
+                    SET status = %s, available_at = %s, lease_owner = '',
+                        lease_token = NULL, lease_expires_at = NULL,
+                        heartbeat_at = NULL, last_error_class = 'WorkerShutdown',
+                        last_error_message = 'worker stopped before job completion',
+                        updated_at = %s, finished_at = %s
+                    WHERE id = %s AND lease_owner = %s
+                      AND status IN ('leased', 'running')
+                    """,
+                    (
+                        next_status,
+                        timestamp,
+                        timestamp,
+                        timestamp if terminal else None,
+                        row["id"],
+                        normalized_worker,
+                    ),
+                )
+                released += int(cursor.rowcount or 0)
+        return released
+
     async def touch_worker_jobs(
         self,
         worker_id: str,
@@ -475,11 +759,29 @@ class JobRepository:
             )
             return int(cursor.rowcount or 0)
 
+    async def _validate_account_scope(self, spec: JobSpec) -> None:
+        if spec.account_id is None or spec.provider_key is None or spec.user_uid is None:
+            return
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT provider_key
+                FROM mail_accounts
+                WHERE id = %s AND user_uid = %s
+                """,
+                (spec.account_id, spec.user_uid),
+            )
+            row = await cursor.fetchone()
+        if not row:
+            raise ValueError("job account does not belong to user")
+        if str(row["provider_key"] or "").strip().casefold() != spec.provider_key:
+            raise ValueError("job provider does not match account")
+
     async def _get_deduped_for_update(self, queue_name: str, dedupe_key: str) -> Mapping[str, Any] | None:
         async with self.connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute(
                 """
-                SELECT id, status
+                SELECT id, status, user_uid, account_id, provider_key, job_kind
                 FROM worker_jobs
                 WHERE queue_name = %s AND dedupe_key = %s
                 FOR UPDATE
@@ -500,17 +802,19 @@ class JobRepository:
             await cursor.execute(
                 """
                 INSERT INTO worker_jobs (
-                    id, user_uid, queue_name, job_kind, status, priority,
-                    available_at, lease_owner, lease_token, lease_expires_at,
-                    heartbeat_at, attempt_count, max_attempts, dedupe_key,
-                    payload, last_error_class, last_error_message,
-                    created_at, updated_at, finished_at
-                ) VALUES (%s, %s, %s, %s, 'pending', %s, %s, '', NULL,
+                    id, user_uid, account_id, provider_key, queue_name,
+                    job_kind, status, priority, available_at, lease_owner,
+                    lease_token, lease_expires_at, heartbeat_at, attempt_count,
+                    max_attempts, dedupe_key, payload, last_error_class,
+                    last_error_message, created_at, updated_at, finished_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, '', NULL,
                           NULL, NULL, 0, %s, %s, %s, '', '', %s, %s, NULL)
                 """,
                 (
                     job_id,
                     spec.user_uid,
+                    spec.account_id,
+                    spec.provider_key or "",
                     spec.queue_name,
                     spec.job_kind,
                     int(spec.priority),
@@ -531,6 +835,20 @@ class JobRepository:
         timestamp: float,
         available_at: float,
     ) -> str:
+        existing_scope = (
+            str(existing["user_uid"]) if existing.get("user_uid") else None,
+            str(existing["account_id"]) if existing.get("account_id") else None,
+            str(existing["provider_key"] or "").strip().casefold() or None,
+            str(existing["job_kind"] or ""),
+        )
+        requested_scope = (
+            spec.user_uid,
+            spec.account_id,
+            spec.provider_key,
+            spec.job_kind,
+        )
+        if existing_scope != requested_scope:
+            raise ValueError("dedupe key belongs to a different job scope")
         job_id = str(existing["id"])
         status = str(existing["status"])
         if status in _ACTIVE_STATUSES or status not in _TERMINAL_STATUSES:
