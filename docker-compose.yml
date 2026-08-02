@@ -5,8 +5,6 @@ services:
     image: benxianyu/flymail:0.0.25
     container_name: flymail
     restart: always
-    env_file:
-      - .env
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
@@ -15,9 +13,10 @@ services:
       FLYMAIL_STORAGE_ROOT: /data
       FLYMAIL_DATA_DIR: /data/flymail
       FLYMAIL_UI_DIR: /app/frontend-dist
+      FLYMAIL_SESSION_SECRET: ${FLYMAIL_SESSION_SECRET:?FLYMAIL_SESSION_SECRET is required}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-flymail}
       MYSQL_USER: ${MYSQL_USER:-flymail}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-flymail}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
       FLYMAIL_HTTP_PROXY: ${FLYMAIL_HTTP_PROXY:-}
       FLYMAIL_HTTPS_PROXY: ${FLYMAIL_HTTPS_PROXY:-}
       FLYMAIL_ALL_PROXY: ${FLYMAIL_ALL_PROXY:-}

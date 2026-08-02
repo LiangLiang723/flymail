@@ -36,7 +36,8 @@ WORKDIR /app/backend
 COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-COPY backend/ /app/backend/
+COPY backend/flymail/ /app/backend/flymail/
+COPY backend/main.py backend/worker.py backend/migrate.py backend/version.py /app/backend/
 COPY VERSION /app/VERSION
 COPY --from=frontend-builder /app/dist/ui /app/frontend-dist
 COPY scripts/docker-entrypoint.sh /usr/local/bin/flymail-entrypoint

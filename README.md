@@ -47,12 +47,10 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 ```env
 APP_PORT=8080
 FLYMAIL_BASE_PATH=
-FLYMAIL_ADMIN_USERNAME=admin
-FLYMAIL_ADMIN_PASSWORD=change_me_please
 FLYMAIL_SESSION_SECRET=replace_with_a_long_random_secret
 MYSQL_DATABASE=flymail
 MYSQL_USER=flymail
-MYSQL_PASSWORD=flymail
+MYSQL_PASSWORD=replace_with_a_strong_database_password
 FLYMAIL_HTTP_PROXY=
 FLYMAIL_HTTPS_PROXY=
 FLYMAIL_ALL_PROXY=
@@ -63,12 +61,10 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 - `APP_PORT`: 宿主机暴露端口
 - `FLYMAIL_BASE_PATH`: 可选，反向代理子路径，例如 `/mail`
-- `FLYMAIL_ADMIN_USERNAME`: 首次启动时初始化的管理员用户名
-- `FLYMAIL_ADMIN_PASSWORD`: 首次启动时初始化的管理员密码
 - `FLYMAIL_SESSION_SECRET`: 会话签名密钥，必须至少 16 位；推荐使用 `openssl rand -hex 32` 生成
 - `MYSQL_DATABASE`: 镜像内置 MySQL 的数据库名，默认 `flymail`
 - `MYSQL_USER`: 镜像内置 MySQL 的业务账号，默认 `flymail`
-- `MYSQL_PASSWORD`: 镜像内置 MySQL 的业务账号密码，默认 `flymail`，正式部署请修改
+- `MYSQL_PASSWORD`: 镜像内置 MySQL 的业务账号密码，必须显式配置；支持引号、反斜杠、`@`、`:`、`/` 和 `%` 等特殊字符
 - `FLYMAIL_DATA_PATH`: 可选，Docker 数据目录映射的宿主机路径，默认 `./data`
 - `FLYMAIL_HTTP_PROXY`: 可选，HTTP 出站代理
 - `FLYMAIL_HTTPS_PROXY`: 可选，HTTPS 出站代理，Gmail/Google OAuth 建议配置这个
@@ -89,7 +85,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 - 使用当前仓库源码构建 `benxianyu/flymail:0.0.25` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
-- 读取根目录 `.env`
+- 通过 Docker Compose 变量替换读取根目录 `.env` 中列出的部署变量，不会把整个 `.env` 无差别注入容器
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
 - 将 `${FLYMAIL_DATA_PATH:-./data}` 映射到容器内唯一持久化目录 `/data`
 
@@ -169,11 +165,11 @@ docker push benxianyu/flymail:0.0.25
 - `/data/flymail/files/uploads/`: 写信时上传的临时附件，默认每周一 02:00 自动清理
 - `/data/flymail/files/avatars/`: 用户头像，统一裁剪并保存为 256 × 256 WebP
 - `/data/flymail/files/account-icons/`: 自定义邮箱账号图标，按用户和账号隔离保存为 256 × 256 WebP
-- `/data/flymail/files/objects/sha256/`: 普通附件与内嵌图片的 SHA-256 共享对象
+- `/data/flymail/objects/sha256/`: V2 正文、附件、内嵌图片和其他内容对象的 SHA-256 共享存储
 - `/data/flymail/files/download/`: 仅用于升级迁移的旧版附件目录；迁移完成后不会继续写入
 - `/data/flymail/logs/`: 运行日志
 
-普通附件与内嵌图片按内容 SHA-256 全局去重，相同内容只保留一份物理文件；只有最后一条邮件引用删除后才回收该文件。邮件备份默认写入 `/data/flymail/backup`；额外 NAS 目录必须先映射到容器 `/data` 下并显式授权。服务器端删除邮件时，本地 `.eml` 备份会保留并标记删除状态。
+V2 内容对象保存在 `/data/flymail/objects/sha256/`，并按内容 SHA-256 去重；相同内容只保留一份物理文件，只有最后一条引用释放后才回收。邮件备份默认写入 `/data/flymail/backup`；额外 NAS 目录必须先映射到容器 `/data` 下并显式授权。旧版 `/data/flymail/files/objects/sha256/` 目录仅用于切换前数据审查，不能据此认定已完成 V2 数据迁移。
 
 ### 普通附件缓存容量
 
@@ -361,6 +357,8 @@ Gate 4 已完成独立 V2 Vue 前端验收。V2 使用一次 Bootstrap 获取用
 Gate 5 Task 1 已增加集中式安全 JSON 日志、请求分段计时和 Worker 任务指标。日志只接受请求/任务 ID、脱敏账号标识、服务商、操作、错误类别、耗时、队列等待、字节数、结果数和缓存状态等已审核低基数字段；数据库连接、密码、邮箱授权码、OAuth/会话令牌、Cookie、正文和附件文件名会被丢弃。HTTP 响应的 `Server-Timing` 包含 `total`、`db`、`object` 和 `serialize`，Worker 记录排队、执行、重试、输入/输出字节和结果数。正式健康入口为 `/api/health`，并保留 `/api/v2/health`；两者共享数据库、schema、Worker 心跳和对象存储判定。管理员诊断仍只返回安全聚合数据。当前 OpenAPI 为 90 个路径、114 个操作和 138 个 schema，SHA-256 为 `e156e46739ef5c19e1f22077e4958990854ea3ec4a6ce80c01e936474b84ba79`。
 
 Gate 5 Task 2 已完成正式源码入口切换。`backend/main.py` 只创建 V2 API，`backend/worker.py` 启动包内持久化 Worker，`frontend/src/main.ts` 是默认 V2 前端入口；`backend/v2_dev.py`、`backend/v2_worker.py`、`frontend/src/v2-main.ts` 和 `frontend/v2.html` 已移除。API 与 Worker 保持独立数据库连接池，Worker 在关闭时停止领取新任务、等待短任务、取消超时任务并释放租约。隔离 MySQL 完整后端回归为 `604/604`，兼容前端回归为 `96/96`，V2 前端回归为 `64/64`，默认生产构建通过。此源码切换不代表真实 IMAP、SMTP、OAuth 服务商网关已完成生产验收，也不代表当前生产容器或 `/Docker/flymail/data` 已迁移。
+
+Gate 5 Task 3 已将单容器启动顺序固定为 MySQL 初始化与业务账号配置、一次性 V2 schema 迁移、Worker 启动并等待数据库心跳、最后启动 V2 API。入口脚本同时监督 MySQL、Worker 和 API；任一关键进程退出都会按 API、Worker、MySQL 的顺序安全关闭并传播失败状态。镜像只复制 V2 运行时源码、正式前端构建、版本文件和入口脚本，不包含后端测试、旧版路由或开发入口。隔离容器已使用包含引号、反斜杠、`@`、`:`、`/` 和 `%` 的数据库密码完成首次启动、健康检查、重启持久化和 MySQL 安全关闭验证。V2 新装环境当前不会读取旧版 `FLYMAIL_ADMIN_USERNAME`/`FLYMAIL_ADMIN_PASSWORD` 自动创建管理员；首个管理员建立和现有生产用户迁移必须在部署切换方案中明确完成，不能仅凭容器健康检查认定业务已可登录。
 
 ## 文档
 

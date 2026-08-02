@@ -227,7 +227,7 @@ git commit -m "🚦 切换 FlyMail V2 正式 API Worker 与前端入口"
 - Entrypoint supervises `mysqld`, `flymail-worker` and `flymail-api`.
 - API readiness requires migrations complete, Worker heartbeat current and object store writable.
 
-- [ ] **Step 1: Write entrypoint contract tests**
+- [x] **Step 1: Write entrypoint contract tests**
 
 Tests inspect and execute controlled stubs to prove:
 
@@ -241,11 +241,11 @@ Tests inspect and execute controlled stubs to prove:
 - no real password is in Dockerfile ENV;
 - health command checks V2 `/api/health`.
 
-- [ ] **Step 2: Run tests and verify expected legacy mismatch**
+- [x] **Step 2: Run tests and verify expected legacy mismatch**
 
 Expected: FAIL until entrypoint supports Worker.
 
-- [ ] **Step 3: Implement process supervision**
+- [x] **Step 3: Implement process supervision**
 
 Entrypoint sequence:
 
@@ -260,15 +260,15 @@ Entrypoint sequence:
 9. on any critical exit, execute ordered shutdown;
 10. return failing process exit code.
 
-- [ ] **Step 4: Preserve password safety**
+- [x] **Step 4: Preserve password safety**
 
 Use MySQL client mechanisms that avoid password command-line exposure. Application logs use redacted URL. Docker image history and config must not contain actual test values.
 
-- [ ] **Step 5: Update Dockerfile build**
+- [x] **Step 5: Update Dockerfile build**
 
 Build V2 frontend through normal `npm run build`. Copy only runtime backend source, static distribution, VERSION and entrypoint. Do not include tests, temporary benchmark data, `.env`, node_modules or Git metadata in final image.
 
-- [ ] **Step 6: Implement reusable smoke script**
+- [x] **Step 6: Implement reusable smoke script**
 
 `scripts/test-v2-container.sh` must:
 
@@ -284,7 +284,7 @@ Build V2 frontend through normal `npm run build`. Copy only runtime backend sour
 - clean only its own temp resources in `trap`;
 - reject `/Docker/flymail/data` as an input path.
 
-- [ ] **Step 7: Validate syntax and compose**
+- [x] **Step 7: Validate syntax and compose**
 
 ```bash
 bash -n scripts/docker-entrypoint.sh
@@ -292,7 +292,9 @@ bash -n scripts/test-v2-container.sh
 docker compose --env-file .env.example config
 ```
 
-- [ ] **Step 8: Commit**
+**Measured verification:** six deterministic entrypoint contract tests passed after first proving the legacy mismatch. Shell syntax and Docker Compose rendering passed with no MySQL host publication. Local image `benxianyu/flymail:v2-task3-49d2e5b` built successfully. A unique isolated container using a generated database password containing quote, backslash, `@`, `:`, `/` and `%` reached `healthy`, reported repository version `0.0.25`, MySQL `8.0.46` with data directory `/data/mysql/` and bind address `127.0.0.1`, produced a current Worker heartbeat, preserved a controlled database marker and content object across restart, and recorded a clean MySQL shutdown. The smoke script rejected the production data path and did not touch `/Docker/flymail/data`.
+
+- [x] **Step 8: Commit**
 
 ```bash
 git add scripts/docker-entrypoint.sh scripts/test-v2-container.sh Dockerfile docker-compose.yml backend/tests/test_docker_entrypoint.py backend/tests/v2/test_runtime_shutdown.py
