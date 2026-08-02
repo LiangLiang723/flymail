@@ -8,7 +8,7 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 
 - 本地用户名密码登录；用户名或密码错误、账号禁用和网络异常会在登录页显示明确提示
 - 应用启动时先校验现有会话，刷新页面不会短暂闪出登录界面；同一账号支持多个浏览器或设备同时保持登录
-- 使用 `.env` 初始化超级管理员
+- 空数据库首次启动时使用 `.env` 创建一个管理员；数据库已有任何用户后，启动变量不会新建或重置账号
 - 管理员创建用户、编辑用户名/昵称/头像、重置密码、启用/禁用用户
 - 普通用户可在个人资料中修改用户名、昵称和头像，并可自行修改密码
 - 用户之间邮箱数据相互隔离
@@ -42,49 +42,43 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 
 ## 环境变量
 
-参考根目录的 [`.env.example`](.env.example)：
+参考根目录的 [`.env.example`](.env.example)。V2 正式容器不支持旧版 `FLYMAIL_BASE_PATH` 子路径变量；需要子路径部署时应由反向代理改写，并先完成独立浏览器验收。
 
-```env
-APP_PORT=8080
-FLYMAIL_BASE_PATH=
-FLYMAIL_SESSION_SECRET=replace_with_a_long_random_secret
-MYSQL_DATABASE=flymail
-MYSQL_USER=flymail
-MYSQL_PASSWORD=replace_with_a_strong_database_password
-FLYMAIL_HTTP_PROXY=
-FLYMAIL_HTTPS_PROXY=
-FLYMAIL_ALL_PROXY=
-FLYMAIL_NO_PROXY=127.0.0.1,localhost
+| 变量 | 默认/要求 | 秘密 | 重建容器后的影响 |
+|---|---|---:|---|
+| `APP_PORT` | 默认 `8080` | 否 | 修改宿主机映射端口 |
+| `FLYMAIL_DATA_PATH` | 默认 `./data` | 否 | 指向另一套完整实例数据；生产固定为 `/Docker/flymail/data` |
+| `FLYMAIL_SESSION_SECRET` | 必填，至少 16 字符；推荐 `openssl rand -hex 32` | 是 | 签名会话并派生邮箱、代理、通知凭据的实例加密密钥；已有数据时不得直接更换 |
+| `FLYMAIL_ADMIN_USERNAME` | 空数据库必填，最长 191 字符 | 否 | 只在 `users` 表为空时创建首个管理员；已有用户后忽略 |
+| `FLYMAIL_ADMIN_PASSWORD` | 空数据库必填，至少 12 字符 | 是 | 只用于首次管理员创建；已有用户后不会重置密码 |
+| `MYSQL_DATABASE` | 默认 `flymail` | 否 | 改为另一数据库；不要在已有实例上随意修改 |
+| `MYSQL_USER` | 默认 `flymail` | 否 | 改变容器内部业务数据库账号 |
+| `MYSQL_PASSWORD` | 必填，禁止换行 | 是 | 每次启动执行 `ALTER USER`，可通过安全更新 `.env` 并重建容器轮换 |
+| `FLYMAIL_HTTP_PROXY` | 可选 | 可能 | 全局 HTTP 出站代理 |
+| `FLYMAIL_HTTPS_PROXY` | 可选 | 可能 | 全局 HTTPS 出站代理 |
+| `FLYMAIL_ALL_PROXY` | 可选 | 可能 | 全局兜底代理 |
+| `FLYMAIL_NO_PROXY` | 默认 `127.0.0.1,localhost` | 否 | 保证内部 MySQL/API 等本地流量不走代理 |
+
+生成部署秘密：
+
+```bash
+openssl rand -hex 32
 ```
-
-字段说明：
-
-- `APP_PORT`: 宿主机暴露端口
-- `FLYMAIL_BASE_PATH`: 可选，反向代理子路径，例如 `/mail`
-- `FLYMAIL_SESSION_SECRET`: 会话签名密钥，必须至少 16 位；推荐使用 `openssl rand -hex 32` 生成
-- `MYSQL_DATABASE`: 镜像内置 MySQL 的数据库名，默认 `flymail`
-- `MYSQL_USER`: 镜像内置 MySQL 的业务账号，默认 `flymail`
-- `MYSQL_PASSWORD`: 镜像内置 MySQL 的业务账号密码，必须显式配置；支持引号、反斜杠、`@`、`:`、`/` 和 `%` 等特殊字符
-- `FLYMAIL_DATA_PATH`: 可选，Docker 数据目录映射的宿主机路径，默认 `./data`
-- `FLYMAIL_HTTP_PROXY`: 可选，HTTP 出站代理
-- `FLYMAIL_HTTPS_PROXY`: 可选，HTTPS 出站代理，Gmail/Google OAuth 建议配置这个
-- `FLYMAIL_ALL_PROXY`: 可选，全局代理
-- `FLYMAIL_NO_PROXY`: 可选，不走代理的地址
 
 注意：
 
-- MySQL 仅监听容器内的 `127.0.0.1:3306`，不会映射到宿主机。
-- 如果服务器整体出站网络需要代理，可以在 `.env` 中配置代理变量，然后执行 `docker compose up -d --force-recreate` 让容器重新加载环境变量。
-- Gmail 还可以在“设置”页面按当前用户配置 HTTP CONNECT 代理。该配置会写入当前用户的 Gmail 账号凭据，不会影响其他用户；代理 URL 可包含用户名和密码，但不会写入日志。
-- Telegram 和 Webhook 通知可以选择复用当前用户的 Gmail 代理。
-- `.env` 不会提交到 Git，请在本地自行维护。
+- MySQL 仅监听容器内 `127.0.0.1:3306`，不会映射到宿主机。
+- `FLYMAIL_SESSION_SECRET` 同时保护业务凭据；直接更换会让已有加密邮箱、代理和通知秘密无法解密，不只是让用户重新登录。
+- 更新代理、数据库密码或端口后使用 `docker compose up -d --build --force-recreate`。
+- 用户级 HTTP CONNECT 代理只作用于该用户的外部邮箱和显式选择的通知渠道。
+- `.env` 不提交到 Git，也不得写入日志、镜像 `ENV` 或命令示例。
 
 ## Docker 部署
 
 当前仓库自带 `docker-compose.yml`，会：
 
 - 使用当前仓库源码构建 `benxianyu/flymail:0.0.25` 单容器镜像
-- 在镜像内部运行 FlyMail 与 MySQL 8.0
+- 在镜像内部独立运行 MySQL 8.0、持久化 Worker 和 FastAPI/Vue 服务
 - 通过 Docker Compose 变量替换读取根目录 `.env` 中列出的部署变量，不会把整个 `.env` 无差别注入容器
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
 - 将 `${FLYMAIL_DATA_PATH:-./data}` 映射到容器内唯一持久化目录 `/data`
@@ -129,17 +123,7 @@ docker compose down
 docker build -t benxianyu/flymail:0.0.25 .
 ```
 
-登录 Docker Hub：
-
-```bash
-docker login
-```
-
-推送镜像：
-
-```bash
-docker push benxianyu/flymail:0.0.25
-```
+默认只使用本地镜像，不执行 `docker login` 或 `docker push`。只有在明确要求上传 Docker Hub，并完成最终版本、镜像 digest、秘密扫描和发布审批后才可推送。
 
 ## 数据存储
 
@@ -328,7 +312,7 @@ V2 Worker 的 Gate 2 注册表覆盖当前 15 类持久化任务：账号校验�
 
 V2 API Task 1 已建立独立 FastAPI 应用工厂和统一请求边界。`/api/v2/health` 只检查 API、MySQL、当前 schema、独立 Worker 进程心跳和对象存储，不会连接第三方邮箱；Worker 在启动宽限期内缺失或过期时返回 `degraded`，宽限期后返回 HTTP `503`。`/api/v2/version` 返回仓库版本和 V2 schema 版本。所有响应携带安全的 `X-Request-ID` 与 `Server-Timing`，404、405、参数错误、权限错误、冲突、资源不存在和意外异常统一使用 `{"error":{"code","message","request_id","details"}}` 信封，日志不记录认证、写信、凭证或备份请求正文。正式 API 入口只运行 HTTP/WebSocket 与本地数据库/对象存储服务，不在 API 进程启动同步 Worker、定时器或 IMAP/SMTP 会话；当前生产容器尚未替换。
 
-V2 API Task 2 已实现本地用户名密码认证、服务端会话和管理员用户管理。登录 Cookie 只保存签名后的会话 ID 与随机令牌，数据库只保存令牌与 CSRF 哈希，并同时校验过期时间、账号启用状态和密码版本；认证写操作要求同源 `Origin` 与会话 CSRF 令牌。登录失败按哈希后的用户名和来源在进程内与 MySQL 双层限流，不保存原始用户名、密码或来源地址。管理员可创建用户、重置密码、启用或禁用用户并撤销会话，普通用户可修改密码并选择是否撤销其他会话；登录、退出、密码和管理员安全操作均写入不含秘密的审计记录。修改 `FLYMAIL_SESSION_SECRET` 会让现有 V2 会话失效，但不会删除用户或邮件数据。
+V2 API Task 2 已实现本地用户名密码认证、服务端会话和管理员用户管理。登录 Cookie 只保存签名后的会话 ID 与随机令牌，数据库只保存令牌与 CSRF 哈希，并同时校验过期时间、账号启用状态和密码版本；认证写操作要求同源 `Origin` 与会话 CSRF 令牌。登录失败按哈希后的用户名和来源在进程内与 MySQL 双层限流，不保存原始用户名、密码或来源地址。管理员可创建用户、重置密码、启用或禁用用户并撤销会话，普通用户可修改密码并选择是否撤销其他会话；登录、退出、密码和管理员安全操作均写入不含秘密的审计记录。`FLYMAIL_SESSION_SECRET` 还用于派生业务凭据加密密钥；已有数据时直接更换不仅会让会话失效，还会使现有邮箱、代理和通知秘密无法解密。
 
 V2 API Task 3 已实现按用户隔离的邮箱账号、加密凭证、多发件身份、用户级 HTTP 代理和 OAuth 状态流。账号创建、更新、重新授权、校验和删除意图均通过事务、Outbox 与安全审计落库；API 响应和 Worker 任务载荷不包含密码、授权码、OAuth 令牌、代理认证信息或密文。自定义 IMAP/SMTP 地址和代理地址在保存及 Worker 使用前都会重新校验 DNS/IP，只允许公网目标；账号校验由 `account.verify` Worker 解密最新凭证后执行，账号删除先阻断结果不确定的发送、禁用运行状态并排队 `account.cleanup`。Gmail/Outlook OAuth 使用短期、会话绑定、单次消费的签名 state 与 PKCE，真实授权仍需要后续配置服务商 OAuth 客户端和生产协议网关。该能力已挂载到正式源码 API 入口，但当前生产容器和真实服务商配置尚未替换或验证。
 
@@ -358,13 +342,15 @@ Gate 5 Task 1 已增加集中式安全 JSON 日志、请求分段计时和 Worke
 
 Gate 5 Task 2 已完成正式源码入口切换。`backend/main.py` 只创建 V2 API，`backend/worker.py` 启动包内持久化 Worker，`frontend/src/main.ts` 是默认 V2 前端入口；`backend/v2_dev.py`、`backend/v2_worker.py`、`frontend/src/v2-main.ts` 和 `frontend/v2.html` 已移除。API 与 Worker 保持独立数据库连接池，Worker 在关闭时停止领取新任务、等待短任务、取消超时任务并释放租约。隔离 MySQL 完整后端回归为 `604/604`，兼容前端回归为 `96/96`，V2 前端回归为 `64/64`，默认生产构建通过。此源码切换不代表真实 IMAP、SMTP、OAuth 服务商网关已完成生产验收，也不代表当前生产容器或 `/Docker/flymail/data` 已迁移。
 
-Gate 5 Task 3 已将单容器启动顺序固定为 MySQL 初始化与业务账号配置、一次性 V2 schema 迁移、Worker 启动并等待数据库心跳、最后启动 V2 API。入口脚本同时监督 MySQL、Worker 和 API；任一关键进程退出都会按 API、Worker、MySQL 的顺序安全关闭并传播失败状态。镜像只复制 V2 运行时源码、正式前端构建、版本文件和入口脚本，不包含后端测试、旧版路由或开发入口。隔离容器已使用包含引号、反斜杠、`@`、`:`、`/` 和 `%` 的数据库密码完成首次启动、健康检查、重启持久化和 MySQL 安全关闭验证。V2 新装环境当前不会读取旧版 `FLYMAIL_ADMIN_USERNAME`/`FLYMAIL_ADMIN_PASSWORD` 自动创建管理员；首个管理员建立和现有生产用户迁移必须在部署切换方案中明确完成，不能仅凭容器健康检查认定业务已可登录。
+Gate 5 Task 3 已将单容器启动顺序固定为 MySQL 初始化与业务账号配置、一次性 V2 schema 迁移、Worker 启动并等待数据库心跳、最后启动 V2 API。入口脚本同时监督 MySQL、Worker 和 API；任一关键进程退出都会按 API、Worker、MySQL 的顺序安全关闭并传播失败状态。镜像只复制 V2 运行时源码、正式前端构建、版本文件和入口脚本，不包含后端测试、旧版路由或开发入口。隔离容器已使用包含引号、反斜杠、`@`、`:`、`/` 和 `%` 的数据库密码完成首次启动、健康检查、重启持久化和 MySQL 安全关闭验证。空数据库会在迁移后使用 `FLYMAIL_ADMIN_USERNAME` 和 `FLYMAIL_ADMIN_PASSWORD` 创建唯一首个管理员；一旦存在任何用户，后续启动不会创建替代账号或重置密码。
 
 Gate 5 Task 4 已增加可复用的隔离容器持久化、过期租约恢复和秘密扫描。扫描覆盖镜像配置与历史、容器与应用日志、Compose 渲染以及 Git 未暂存/已暂存差异，并检查测试秘密、未脱敏 MySQL URL、Authorization 凭证和会话签名密钥；端口检查只允许 `8080/tcp`。候选镜像 `benxianyu/flymail:v2-rc-bb21c3d` 已通过，生产 `/Docker/flymail/data` 未触碰。
 
 Gate 5 Task 5 已建立统一故障注入矩阵，不增加生产故障开关。14 类故障通过依赖注入的假协议传输、真实 MySQL 事务、Worker 租约和临时对象存储重跑 17 个生产路径测试；双 Worker 并发领取连续 20 次通过。提交前结果为顶层 `3/3`、不变量失败 0，覆盖事务边界、远端结果不确定、数据库不可用、对象写入/缺失、IMAP/SMTP 中断、Outbox、IDLE、限流、SIGTERM 和时钟调整。真实服务商网络、宿主机断电和生产负载长时间演练仍需独立验证。
 
 Gate 5 Task 7 已建立真实服务商、代理、通知、图床、浏览器和无障碍验收手册及脱敏结果矩阵。本次 DevSpace 没有隔离邮箱、OAuth 客户端、代理、通知端点、图床、桌面浏览器、移动设备或屏幕阅读器，因此所有真实外部行均明确标记为 `blocked`，没有用假 Provider 或静态测试冒充真实通过。Provider、协议和代理合同回归为 `79/79`，PWA 与无障碍静态合同为 `10/10`。正式 Worker 当前默认创建空 Dispatcher，空数据库时可能仅凭心跳通过健康检查但不能处理真实任务；该问题与真实 IMAP、SMTP、OAuth 网关装配均是生产切换阻断项。
+
+Gate 5 Task 8 已统一 V2 环境变量、单容器部署、业务备份、隔离恢复演练、生产切换和回滚文档。空数据库首次管理员、实例密钥不可直接轮换、内部 MySQL 密码轮换、业务备份与完整文件系统快照的区别，以及 `/Docker/flymail/data` 破坏性替换前的单独确认均已明确。备份专项回归为 `7/7`，候选容器首次管理员、重启持久化、秘密扫描和安全关闭已通过；生产目录仍未修改。
 
 ## 文档
 
@@ -375,6 +361,8 @@ Gate 5 Task 7 已建立真实服务商、代理、通知、图床、浏览器和
 - [V2 故障恢复验证结果](docs/benchmarks/flymail-v2-fault-results.md)
 - [V2 真实服务商与浏览器验收手册](docs/operations/flymail-v2-provider-validation.md)
 - [V2 真实服务商与浏览器验收结果](docs/benchmarks/flymail-v2-real-provider-results.md)
+- [V2 业务备份与恢复演练](docs/operations/flymail-v2-backup-restore.md)
+- [V2 生产切换与回滚](docs/operations/flymail-v2-cutover.md)
 
 ## 许可证
 

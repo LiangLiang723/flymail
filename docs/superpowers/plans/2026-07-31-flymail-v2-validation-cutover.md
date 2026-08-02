@@ -586,11 +586,11 @@ git commit -m "✅ 完成 V2 真实邮箱与多端浏览器验收"
 
 - Produces complete operator documentation before production deletion confirmation.
 
-- [ ] **Step 1: Document exact environment contract**
+- [x] **Step 1: Document exact environment contract**
 
 For each variable specify purpose, required/default, secret status and restart effect. Include `FLYMAIL_SESSION_SECRET` minimum 16 and recommended `openssl rand -hex 32`. Do not add real values.
 
-- [ ] **Step 2: Rewrite README for V2**
+- [x] **Step 2: Rewrite README for V2**
 
 Document:
 
@@ -611,24 +611,26 @@ Document:
 - build/run/stop/update commands;
 - no Docker Hub upload by default.
 
-- [ ] **Step 3: Document backup and restore drill**
+- [x] **Step 3: Document backup and restore drill**
 
 Include create, inspect, password failure, checksum failure, temporary restore validation, maintenance switch, paused restored operations and rollback. Verify commands against a temporary container.
 
-- [ ] **Step 4: Document cutover and rollback**
+- [x] **Step 4: Document cutover and rollback**
 
 State exact current production directory `/Docker/flymail/data`, required snapshot, checksum, stop/start commands, no old/new database compatibility and rollback restore steps. Do not include a command that deletes production data without a preceding explicit confirmation checkpoint.
 
-- [ ] **Step 5: Check documentation consistency**
+- [x] **Step 5: Check documentation consistency**
 
 Run `rg` for old version numbers, legacy feature claims, old routes, Redis, old attachment paths and old single-process descriptions. Correct conflicts.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add README.md .env.example docs/operations
 git commit -m "📝 完成 FlyMail V2 部署备份与切换文档"
 ```
+
+**Measured verification:** the environment contract was reconciled against the V2 settings, Compose and entrypoint implementation. Legacy `FLYMAIL_BASE_PATH` was removed from the formal environment example. The documentation records that `FLYMAIL_SESSION_SECRET` also protects encrypted business credentials, that MySQL password rotation occurs through `ALTER USER`, and that initial administrator values only apply to an empty database. Backup and restore API regression passed `7/7`; the candidate container smoke and secret scan passed with initial administrator creation, restart persistence and safe shutdown. No production data was modified.
 
 ---
 
