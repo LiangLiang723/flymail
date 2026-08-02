@@ -513,7 +513,7 @@ git commit -m "🗂️ 实现 V2 会话操作撤销与安全内容下载"
 - Produces: search suggestion, recent history, saved-search CRUD.
 - Produces: `SearchFilter` with keyword, from, to, dates, accounts, mailboxes, labels, read, starred, attachment and size fields.
 
-- [ ] **Step 1: Write search tests**
+- [x] **Step 1: Write search tests**
 
 Tests cover:
 
@@ -529,29 +529,31 @@ Tests cover:
 - full raw search keyword is absent from normal performance logs;
 - saved search stores validated structured JSON only.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement validated compiler**
+- [x] **Step 3: Implement validated compiler**
 
 Map allowed filter fields to fixed SQL fragments. Empty condition sets are allowed only for normal mailbox browsing limits; search endpoint requires at least one condition.
 
-- [ ] **Step 4: Implement FULLTEXT and fallback policy**
+- [x] **Step 4: Implement FULLTEXT and fallback policy**
 
 Use MySQL FULLTEXT for cached body and normalized metadata. If ngram parser is unavailable, expose capability in response and use standard FULLTEXT; do not fall back to unbounded `%LIKE%` over body HTML. Short unsupported keyword may search bounded subject/address columns only.
 
-- [ ] **Step 5: Implement suggestions and history limits**
+- [x] **Step 5: Implement suggestions and history limits**
 
 Suggestions use user contacts, frequent participants, account identities, labels and recent searches. Cap history and allow user clear. Do not expose other users' participants.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_search -v
 git add backend/flymail/repositories/search.py backend/flymail/application/search_queries.py backend/flymail/api/schemas/search.py backend/flymail/api/routes/search.py backend/tests/v2/test_api_search.py
 git commit -m "🔎 实现 V2 高级组合搜索与搜索历史"
 ```
+
+**Measured verification:** Task 7 search contracts `5/5`. Structural filters remain available without body cache; FULLTEXT results disappear immediately when the current search document is evicted. Values are bound parameters, SQL fragments come only from validated fields, every search is tenant-scoped, result pages aggregate by thread with authenticated cursors, and searches create no remote jobs. Ngram false positives were eliminated with parameterized exact Boolean phrases; history is capped at 50 and saved searches persist only validated structured JSON.
 
 ---
 
