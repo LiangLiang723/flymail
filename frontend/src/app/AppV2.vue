@@ -5,11 +5,14 @@ import { RouterView, useRoute, useRouter } from 'vue-router';
 import NavigationPanel from '../features/navigation/NavigationPanel.vue';
 import MobileNavigationDrawer from '../features/navigation/MobileNavigationDrawer.vue';
 import { toNavigationAccounts } from '../features/navigation/navigation-state.ts';
+import { threadCursorMemory } from '../features/threads/thread-query.ts';
 import DesktopMailLayout from '../layouts/DesktopMailLayout.vue';
 import TabletMailLayout from '../layouts/TabletMailLayout.vue';
 import MobileMailLayout from '../layouts/MobileMailLayout.vue';
 import LoginPage from '../features/auth/LoginPage.vue';
-import { apiClient } from '../shared/api/client.ts';
+import { apiClient, queryCache } from '../shared/api/client.ts';
+import type { BootstrapResponse, ThreadProjection } from '../shared/api/generated.ts';
+import { RealtimeClient } from '../shared/realtime/client.ts';
 import { useBootstrap } from './bootstrap.ts';
 import { createErrorBoundaryState } from './error-boundary.ts';
 import { layoutForWidth } from './router.ts';
@@ -33,6 +36,8 @@ const expandedAccountIds = computed(() => {
 });
 const mobileDrawerOpen = ref(false);
 const mobileNavigationButton = ref<HTMLElement | null>(null);
+const availableVersion = ref('');
+let realtimeClient: RealtimeClient | undefined;
 
 function updateViewport() {
   viewportWidth.value = window.innerWidth;
@@ -51,7 +56,39 @@ async function saveNavigationPreference(value: { expanded_account_ids: string[] 
 function handleAccountAction(accountId: string, action: 'reauthorize' | 'enable' | 'verify') {
   void router.push({ name: 'settings', query: { account: accountId, action } });
 }
+
+function refreshApplication() {
+  window.location.reload();
+}
+
+function startRealtime(data: BootstrapResponse) {
+  realtimeClient?.destroy();
+  realtimeClient = new RealtimeClient({
+    initialSequence: data.realtime_cursor,
+    fetchBacklog: (after) => apiClient.request({ method: 'GET', path: '/api/v2/events', query: { after, limit: 500 } }),
+    handlers: {
+      patchThread: (threadId, projection) => threadCursorMemory.patch(threadId, (projection || {}) as Partial<ThreadProjection>),
+      removeThread: (threadId) => threadCursorMemory.remove(threadId),
+      invalidateThread: (threadId) => queryCache.invalidate(['thread', threadId]),
+      invalidateBody: (messageId) => queryCache.invalidate(['body', messageId]),
+      invalidateScopes: (scopes) => {
+        const scopeSet = new Set(scopes);
+        if (scopeSet.has('threads')) threadCursorMemory.clear();
+        queryCache.invalidateWhere((key) => scopes.some((scope) => key.includes(`\"${scope}\"`)));
+      },
+      authExpired: () => {
+        bootstrap.clear();
+        void router.replace('/login');
+      },
+      versionChanged: (version) => { availableVersion.value = version; },
+      statusFallback: () => { void apiClient.request({ method: 'GET', path: '/api/v2/sync' }).catch(() => undefined); },
+    },
+  });
+  realtimeClient.connect(data.realtime_cursor);
+}
+
 const removeAuthListener = apiClient.onAuthExpired(() => {
+  realtimeClient?.destroy();
   bootstrap.clear();
   void router.replace('/login');
 });
@@ -64,6 +101,7 @@ onErrorCaptured((error) => {
 onMounted(async () => {
   window.addEventListener('resize', updateViewport, { passive: true });
   const data = await bootstrap.load();
+  if (data) startRealtime(data);
   if (!data && bootstrap.state.phase === 'anonymous' && router.currentRoute.value.path !== '/login') {
     await router.replace('/login');
   }
@@ -72,6 +110,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateViewport);
   removeAuthListener();
+  realtimeClient?.destroy();
 });
 </script>
 
@@ -96,6 +135,10 @@ onBeforeUnmount(() => {
     </section>
 
     <template v-else>
+      <aside v-if="availableVersion" class="v2-version-banner" role="status">
+        <span>FlyMail {{ availableVersion }} 已可用。</span>
+        <button type="button" @click="refreshApplication">安全刷新</button>
+      </aside>
       <button
         v-if="layoutMode === 'mobile'"
         ref="mobileNavigationButton"

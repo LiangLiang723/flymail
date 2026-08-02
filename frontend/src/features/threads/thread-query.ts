@@ -137,3 +137,5 @@ export class ThreadCursorMemory {
     if (oldest) this.pages.delete(oldest[0]);
   }
 }
+
+export const threadCursorMemory = new ThreadCursorMemory(24);

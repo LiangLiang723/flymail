@@ -444,7 +444,7 @@ git commit -m "📖 实现 V2 会话详情安全正文与附件体验"
 - Produces event handlers that patch or invalidate exact query scopes.
 - Produces connection states: connecting, online, reconnecting, offline, resync_required.
 
-- [ ] **Step 1: Write realtime tests**
+- [x] **Step 1: Write realtime tests**
 
 Tests prove:
 
@@ -459,25 +459,27 @@ Tests prove:
 - reconnect backoff is bounded and reset after stable connection;
 - disconnect falls back to low-frequency status refresh without page reload.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement event decoder**
+- [x] **Step 3: Implement event decoder**
 
 Validate event type and schema before dispatch. Unknown event types are ignored with safe diagnostics and trigger no broad cache mutation.
 
-- [ ] **Step 4: Implement connection lifecycle**
+- [x] **Step 4: Implement connection lifecycle**
 
 Use Bootstrap cursor, heartbeat timeout, exponential reconnect with jitter and visibility awareness. Do not reconnect aggressively while browser is hidden.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 npm run test:v2 -- realtime
 git add frontend/src/shared/realtime frontend/tests/v2/realtime.test.ts
 git commit -m "🔔 实现 V2 实时事件与精准缓存更新"
 ```
+
+**Measured verification:** cumulative V2 contracts `30/30` passed and the V2 production build passed. The client consumes the real `/api/v2/realtime?after=` WebSocket and `/api/v2/events?after=` backlog envelopes, validates a strict event whitelist, ignores duplicates, fills sequence gaps, and invalidates only declared scopes. Reconnect delay is jittered and capped at 30 seconds, hidden tabs wait at least 15 seconds, and disconnect uses `/api/v2/sync` as a low-frequency fallback. Node environments require an explicitly injected socket so tests cannot leak reconnect handles. Initial V2 JavaScript is approximately `65.94 KB` gzip.
 
 ---
 

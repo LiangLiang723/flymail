@@ -203,6 +203,14 @@ export class QueryCache {
     return () => entry?.subscribers.delete(subscriber);
   }
 
+  invalidateWhere(predicate: (serializedKey: string) => boolean): void {
+    for (const [key, entry] of this.entries) {
+      if (!predicate(key)) continue;
+      entry.staleAt = 0;
+      this.notify(entry);
+    }
+  }
+
   clearUserData(): void {
     for (const entry of this.entries.values()) entry.controller?.abort();
     this.entries.clear();

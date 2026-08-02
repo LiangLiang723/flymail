@@ -8,12 +8,11 @@ import { apiClient } from '../../shared/api/client.ts';
 import type { ThreadListResponse } from '../../shared/api/generated.ts';
 import { normalizeApiError } from '../../shared/api/errors.ts';
 import ThreadList from './ThreadList.vue';
-import { ThreadCursorMemory, ThreadListController, createThreadQueryKey } from './thread-query.ts';
+import { ThreadListController, createThreadQueryKey, threadCursorMemory } from './thread-query.ts';
 
 const route = useRoute();
 const router = useRouter();
 const bootstrap = useBootstrap();
-const cursorMemory = new ThreadCursorMemory(24);
 const state = reactive<ThreadListState>({ threads: [], nextCursor: null, loading: false, refreshing: false });
 const descriptor = computed(() => ({
   scope: String(route.params.scope || 'semantic'),
@@ -35,7 +34,7 @@ const controller = new ThreadListController(async (request, signal) => apiClient
 
 async function load(refresh = false) {
   const key = queryKey.value;
-  const cached = cursorMemory.get(key);
+  const cached = threadCursorMemory.get(key);
   if (cached && !refresh) {
     state.threads = cached.threads;
     state.nextCursor = cached.next_cursor || null;
@@ -47,7 +46,7 @@ async function load(refresh = false) {
   try {
     const response = await controller.load({ key, cursor: null });
     if (key !== queryKey.value) return;
-    const next = cursorMemory.set(key, response);
+    const next = threadCursorMemory.set(key, response);
     state.threads = next.threads;
     state.nextCursor = next.next_cursor || null;
   } catch (value: unknown) {
@@ -68,7 +67,7 @@ async function loadMore() {
       path: '/api/v2/threads',
       query: { scope: descriptor.value.scope, mailbox: descriptor.value.key, cursor: state.nextCursor },
     });
-    const next = cursorMemory.set(queryKey.value, response, true);
+    const next = threadCursorMemory.set(queryKey.value, response, true);
     state.threads = next.threads;
     state.nextCursor = next.next_cursor || null;
   } catch (value: unknown) {
