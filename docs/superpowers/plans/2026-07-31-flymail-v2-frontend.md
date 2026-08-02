@@ -628,7 +628,7 @@ git commit -m "📝 实现 V2 写信草稿附件与发送队列界面"
 - Produces structured filter request matching frozen OpenAPI.
 - Produces route-serializable search state.
 
-- [ ] **Step 1: Write search tests**
+- [x] **Step 1: Write search tests**
 
 Tests cover:
 
@@ -642,25 +642,27 @@ Tests cover:
 - clear history updates UI without affecting saved searches;
 - mobile filters use accessible sheet and apply/cancel semantics.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement quick and advanced search**
+- [x] **Step 3: Implement quick and advanced search**
 
 Quick keyword uses same structured endpoint. Advanced filters produce removable chips and do not generate raw query syntax. Empty search returns to current mailbox view.
 
-- [ ] **Step 4: Implement result cursor cache**
+- [x] **Step 4: Implement result cursor cache**
 
 Search cache key includes normalized filter object and cursor. Search results do not share list cache with normal mailbox views, but realtime thread patches update matching visible projections.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 npm run test:v2 -- search
 git add frontend/src/features/search frontend/tests/v2/search.test.ts
 git commit -m "🔍 实现 V2 快速与高级组合搜索体验"
 ```
+
+**Measured verification:** cumulative V2 contracts `45/45` passed and the V2 production build passed. Structured filters round-trip through the route, invalid date/size ranges are rejected before requests, prior suggestions and search requests are aborted, and cursor pages aggregate by thread while preserving the newest matching message. Search history and saved searches use distinct APIs and state; clearing history does not alter saved searches. The UI states that body terms cover only cached local bodies. The async search chunk is `4.63 KB` gzip.
 
 ---
 

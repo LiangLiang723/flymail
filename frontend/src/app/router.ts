@@ -12,7 +12,7 @@ export const routeRecords: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: () => import('../features/auth/LoginPage.vue') },
   { path: '/', redirect: '/mail/inbox' },
   { path: '/mail/:scope?/:key?', name: 'mail', component: () => import('../features/threads/ThreadListPage.vue') },
-  { path: '/search', name: 'search', component: () => import('./route-placeholders.ts').then((module) => module.SearchPlaceholder) },
+  { path: '/search', name: 'search', component: () => import('../features/search/SearchPage.vue') },
   { path: '/compose/:draftId?', name: 'compose', component: () => import('../features/compose/ComposePage.vue') },
   { path: '/settings', name: 'settings', component: () => import('./route-placeholders.ts').then((module) => module.SettingsPlaceholder) },
   { path: '/sync', name: 'sync', component: () => import('./route-placeholders.ts').then((module) => module.SyncPlaceholder) },
