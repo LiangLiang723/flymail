@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { ThreadDetailResponse } from '../../entities/message/types.ts';
 import { apiClient } from '../../shared/api/client.ts';
 import { normalizeApiError } from '../../shared/api/errors.ts';
+import ThreadActions from '../operations/ThreadActions.vue';
 import ImageViewer from './ImageViewer.vue';
 import MessageTimelineItem from './MessageTimelineItem.vue';
 
@@ -43,6 +44,10 @@ function toggle(messageId: string) {
   expandedIds.value = next;
 }
 
+function patchProjection(projection: ThreadDetailResponse['projection']) {
+  if (state.detail) state.detail = { ...state.detail, projection };
+}
+
 function openImage(src: string) {
   imageSources.value = [src];
   imageViewerOpen.value = true;
@@ -58,6 +63,12 @@ onMounted(() => { void load(); });
       <h1>{{ state.detail?.subject || '会话详情' }}</h1>
       <span v-if="state.detail">{{ state.detail.messages.length }} 封邮件</span>
     </header>
+    <ThreadActions
+      v-if="state.detail"
+      :thread-id="state.detail.id"
+      :target-name="state.detail.subject || '（无主题）'"
+      @projection="patchProjection"
+    />
     <p v-if="state.loading" role="status">正在加载会话结构…</p>
     <p v-else-if="state.error" class="v2-error" role="alert">{{ state.error }} <button type="button" @click="load">重试</button></p>
     <div v-else-if="state.detail" class="v2-message-timeline">

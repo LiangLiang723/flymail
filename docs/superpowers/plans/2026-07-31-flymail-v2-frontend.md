@@ -500,7 +500,7 @@ git commit -m "🔔 实现 V2 实时事件与精准缓存更新"
 - Produces actions for read, star, archive, move, labels, trash, permanent delete, query-scoped mark-all-read and undo.
 - Produces conflict views for draft versions, uncertain send, missing mailbox and operation conflict.
 
-- [ ] **Step 1: Write operation UI tests**
+- [x] **Step 1: Write operation UI tests**
 
 Tests cover:
 
@@ -515,25 +515,27 @@ Tests cover:
 - mailbox/filter mark-all-read shows affected-count confirmation, submits one bulk operation group and reports batch progress without freezing the list;
 - mobile actions available in bottom toolbar.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement command adapter**
+- [x] **Step 3: Implement command adapter**
 
 Use server-returned projection and operation IDs as the only optimistic state. Do not predict provider-specific outcomes in the browser.
 
-- [ ] **Step 4: Implement undo lifecycle**
+- [x] **Step 4: Implement undo lifecycle**
 
 Toast has bounded visible timer but operation undo capability comes from server expiry, not animation timer alone. Keyboard focus can reach Undo.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 npm run test:v2 -- operations
 git add frontend/src/entities/operation frontend/src/features/operations frontend/tests/v2/operations.test.ts
 git commit -m "↩️ 实现 V2 邮件操作反馈撤销与冲突中心"
 ```
+
+**Measured verification:** cumulative V2 contracts `35/35` passed and the V2 production build passed. Identical in-flight commands share one promise, only server-returned projections are applied, failures reload the authoritative projection, pending markers remain available for realtime advancement, undo uses server expiry, and permanent delete requires both a confirmation token and an exact typed target. Conflict resolutions are whitelisted by API conflict kind and safe details are rendered as text. Operation UI remains inside the async detail chunk (`18.80 KB` gzip); initial core stays approximately `65.94 KB` gzip.
 
 ---
 
