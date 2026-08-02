@@ -214,10 +214,12 @@ class AuthAdminApiTests(MySqlIsolatedAsyncioTestCase):
                 self.assertEqual(login.status_code, 200)
                 cookie_value = client.cookies.get(SESSION_COOKIE_NAME)
                 self.assertTrue(cookie_value)
+                client.cookies.clear()
                 client.cookies.set(
                     SESSION_COOKIE_NAME,
                     str(cookie_value)[:-1] + ("A" if str(cookie_value)[-1] != "A" else "B"),
-                    path="/api/v2",
+                    domain="testserver",
+                    path="/",
                 )
                 self.assertEqual((await client.get("/api/v2/auth/me")).status_code, 401)
 
@@ -235,10 +237,12 @@ class AuthAdminApiTests(MySqlIsolatedAsyncioTestCase):
         rotated_app = create_app(rotated)
         async with rotated_app.router.lifespan_context(rotated_app):
             async with self.client(rotated_app, "203.0.113.15") as client:
+                client.cookies.clear()
                 client.cookies.set(
                     SESSION_COOKIE_NAME,
                     str(cookie_value),
-                    path="/api/v2",
+                    domain="testserver",
+                    path="/",
                 )
                 response = await client.get("/api/v2/auth/me")
         self.assertEqual(response.status_code, 401)

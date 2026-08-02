@@ -12,6 +12,26 @@ from flymail.domain.ids import new_id
 from flymail.repositories.base import TenantContext
 
 
+REALTIME_EVENT_TYPES = frozenset(
+    {
+        "thread.created",
+        "thread.updated",
+        "thread.removed",
+        "message.body_state",
+        "operation.updated",
+        "send.updated",
+        "account.status_changed",
+        "sync.updated",
+        "conflict.created",
+        "settings.updated",
+        "session.revoked",
+        "version.changed",
+        "notification.created",
+        "notification.updated",
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class RealtimeEvent:
     sequence: int
@@ -22,24 +42,7 @@ class RealtimeEvent:
 
 
 class RealtimeRepository:
-    EVENT_TYPES = frozenset(
-        {
-            "thread.created",
-            "thread.updated",
-            "thread.removed",
-            "message.body_state",
-            "operation.updated",
-            "send.updated",
-            "account.status_changed",
-            "sync.updated",
-            "conflict.created",
-            "settings.updated",
-            "session.revoked",
-            "version.changed",
-            "notification.created",
-            "notification.updated",
-        }
-    )
+    EVENT_TYPES = REALTIME_EVENT_TYPES
     _DENIED_KEYS = frozenset(
         {
             "body",

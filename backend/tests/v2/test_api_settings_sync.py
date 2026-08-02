@@ -208,9 +208,15 @@ class SettingsSyncApiTests(MySqlIsolatedAsyncioTestCase):
                         "attachment_cache_quota_bytes": 100 * MEBIBYTE,
                     },
                 )
+                client.cookies.clear()
+                second_csrf = await self.login(
+                    client,
+                    "sync-user",
+                    "UserPassword!123",
+                )
                 second = await client.put(
                     "/api/v2/settings",
-                    headers=self.csrf_headers(csrf),
+                    headers=self.csrf_headers(second_csrf),
                     json={
                         "body_cache_quota_bytes": 100 * MEBIBYTE,
                         "attachment_cache_quota_bytes": 100 * MEBIBYTE,
@@ -220,8 +226,9 @@ class SettingsSyncApiTests(MySqlIsolatedAsyncioTestCase):
         self.assertEqual(loaded.json()["body_cache_quota_bytes"], 5 * 1024**3)
         self.assertEqual(loaded.json()["body_cache_usage_bytes"], 500)
         self.assertEqual(loaded.json()["attachment_cache_usage_bytes"], 100)
-        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.status_code, 200, first.text)
         self.assertTrue(first.json()["cleanup_task_id"].startswith("job_"))
+        self.assertEqual(second.status_code, 200, second.text)
         self.assertIsNone(second.json()["cleanup_task_id"])
         self.assertEqual(
             await self.scalar(

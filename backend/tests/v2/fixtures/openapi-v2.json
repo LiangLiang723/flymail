@@ -1,0 +1,24 @@
+{
+  "event_types": [
+    "account.status_changed",
+    "conflict.created",
+    "message.body_state",
+    "notification.created",
+    "notification.updated",
+    "operation.updated",
+    "send.updated",
+    "session.revoked",
+    "settings.updated",
+    "sync.updated",
+    "thread.created",
+    "thread.removed",
+    "thread.updated",
+    "version.changed"
+  ],
+  "operation_count": 113,
+  "path_count": 89,
+  "schema_count": 138,
+  "sha256": "1552538e3c7cd1062d1ce51b9c6f99b8829fef0b6abc9c4a9add88c33971c6ac",
+  "title": "FlyMail V2",
+  "version": "0.0.25"
+}

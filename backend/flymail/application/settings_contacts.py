@@ -220,8 +220,6 @@ class SettingsContactsService:
                             tenant.user_uid,
                         ),
                     )
-                    if cursor.rowcount != 1:
-                        raise NotFoundError("user settings were not found")
                 current_body_quota = int(current["body_cache_quota_bytes"] or 0)
                 current_attachment_quota = int(current["attachment_cache_quota_bytes"] or 0)
                 quota_lowered = (

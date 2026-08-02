@@ -891,8 +891,12 @@ git commit -m "💾 实现 V2 配置业务备份与安全恢复"
 **Files:**
 
 - Create: `backend/tests/v2/test_api_security.py`
-- Create: `backend/tests/v2/test_api_integration.py`
-- Modify: `backend/v2_dev.py`
+- Create: `backend/tests/v2/test_api_feature_contracts.py`
+- Create: `backend/tests/v2/test_api_feature_integration.py`
+- Create: `backend/tests/v2/fixtures/openapi-v2.json`
+- Modify: `backend/flymail/application/settings_contacts.py`
+- Modify: `backend/flymail/repositories/realtime.py`
+- Modify: `backend/version.py`
 - Modify: `README.md`
 
 **Interfaces:**
@@ -900,11 +904,11 @@ git commit -m "💾 实现 V2 配置业务备份与安全恢复"
 - Produces: frozen V2 OpenAPI and event schema consumed by frontend plan.
 - Produces: Gate 3 evidence.
 
-- [ ] **Step 1: Add cross-resource security matrix**
+- [x] **Step 1: Add cross-resource security matrix**
 
 For two users, attempt guessed IDs against profiles, contacts, accounts, identities, account icons, notification channels/events, storage roots, threads, messages, attachments, drafts, jobs, operations, search history, saved search, backup and WebSocket cursor. Every unauthorized lookup returns a non-enumerating denial and creates no side effect. Repeat content, attachment, draft and full-search-history requests under an administrator session and assert they are denied unless the resource belongs to that administrator; administrator diagnostics may return only aggregate counts and masked identifiers.
 
-- [ ] **Step 2: Add malicious input tests**
+- [x] **Step 2: Add malicious input tests**
 
 Cover:
 
@@ -918,15 +922,15 @@ Cover:
 - backup zip path traversal;
 - object hash guessed directly.
 
-- [ ] **Step 3: Add full API integration scenario**
+- [x] **Step 3: Add full API integration scenario**
 
 Test login, profile/avatar, contacts/autocomplete, account creation/icon/signature, notification channel test, authorized storage attachment, async verify, Bootstrap, initial sync projection, list, detail body task, search, read/star/move/mark-all-read, draft autosave, upload, schedule send, realtime updates, quota change, sync retry, backup create/inspect/restore validate and logout.
 
-- [ ] **Step 4: Freeze schemas**
+- [x] **Step 4: Freeze schemas**
 
 Generate OpenAPI JSON in test memory and assert operation IDs, route paths, enum values and error envelope. Store a reviewed snapshot at `backend/tests/v2/fixtures/openapi-v2.json`; changes require explicit review.
 
-- [ ] **Step 5: Run all V2 backend tests**
+- [x] **Step 5: Run all V2 backend tests**
 
 ```bash
 cd backend
@@ -935,7 +939,7 @@ FLYMAIL_TEST_DATABASE_URL='mysql://...' python -m unittest discover -s tests/v2 
 
 Expected: PASS.
 
-- [ ] **Step 6: Run legacy backend regression**
+- [x] **Step 6: Run legacy backend regression**
 
 ```bash
 python -m unittest discover -s tests -v
@@ -943,11 +947,11 @@ python -m unittest discover -s tests -v
 
 Expected: PASS.
 
-- [ ] **Step 7: Update README**
+- [x] **Step 7: Update README**
 
 Document V2 API prefix, local session model, async task semantics, local-only search boundary, backup scope and that current production entry remains unchanged.
 
-- [ ] **Step 8: Commit and push Gate 3**
+- [x] **Step 8: Commit and push Gate 3**
 
 ```bash
 git add backend/v2_dev.py backend/tests/v2/test_api_security.py backend/tests/v2/test_api_integration.py backend/tests/v2/fixtures/openapi-v2.json README.md
@@ -957,19 +961,21 @@ git push origin main
 
 ## Gate 3 Completion Checklist
 
-- [ ] Local login, sessions and admin operations work and are audited.
-- [ ] Account credentials remain encrypted and absent from API responses.
-- [ ] Bootstrap is single-request and bounded.
-- [ ] Thread list/detail use cursor projection and do not access remote mailbox.
-- [ ] Body and attachment misses return task state instead of blocking.
-- [ ] Local operations, undo and permanent delete rules are enforced.
-- [ ] Advanced search is local, structured and tenant-scoped.
-- [ ] Drafts, uploads, immediate send and scheduled send use reliable queue.
-- [ ] Realtime events are user-scoped and resumable.
-- [ ] Settings, quotas, sync status and conflicts are complete.
-- [ ] Profiles, contacts, signatures, account icons, notification configuration and authorized storage paths are complete.
-- [ ] Backup and restore validation are safe and portable.
-- [ ] Cross-user and malicious input matrix passes.
-- [ ] OpenAPI and realtime event schema are frozen for frontend.
-- [ ] Legacy backend tests remain green.
-- [ ] Production container and data remain untouched.
+- [x] Local login, sessions and admin operations work and are audited.
+- [x] Account credentials remain encrypted and absent from API responses.
+- [x] Bootstrap is single-request and bounded.
+- [x] Thread list/detail use cursor projection and do not access remote mailbox.
+- [x] Body and attachment misses return task state instead of blocking.
+- [x] Local operations, undo and permanent delete rules are enforced.
+- [x] Advanced search is local, structured and tenant-scoped.
+- [x] Drafts, uploads, immediate send and scheduled send use reliable queue.
+- [x] Realtime events are user-scoped and resumable.
+- [x] Settings, quotas, sync status and conflicts are complete.
+- [x] Profiles, contacts, signatures, account icons, notification configuration and authorized storage paths are complete.
+- [x] Backup and restore validation are safe and portable.
+- [x] Cross-user and malicious input matrix passes.
+- [x] OpenAPI and realtime event schema are frozen for frontend.
+- [x] Legacy backend tests remain green.
+- [x] Production container and data remain untouched.
+
+**Measured verification:** isolated MySQL full backend regression `596/596` passed with no skips; Task 13 contract, security and vertical integration tests passed. The frozen OpenAPI reports version `0.0.25`, 89 paths, 113 operations and 138 schemas; canonical OpenAPI SHA-256 is `1552538e3c7cd1062d1ce51b9c6f99b8829fef0b6abc9c4a9add88c33971c6ac`. Cross-tenant resource guessing, forged cursors and delete tokens, CSRF/Origin mismatch, SQL-like search values, oversized and active image input, and real V2 session replay after password change are covered. Production container `flymail` and `/Docker/flymail/data` remained untouched.

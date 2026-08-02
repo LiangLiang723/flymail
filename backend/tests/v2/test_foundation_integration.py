@@ -13,7 +13,11 @@ import httpx
 
 from flymail.config import FlyMailSettings
 from flymail.domain.enums import ObjectKind
-from flymail.infrastructure.db.migrations.runner import current_schema_version, run_migrations
+from flymail.infrastructure.db.migrations.runner import (
+    LATEST_SCHEMA_VERSION,
+    current_schema_version,
+    run_migrations,
+)
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.infrastructure.db.uow import SqlUnitOfWork
 from flymail.infrastructure.object_store.store import ObjectStore
@@ -139,7 +143,10 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
         assert self.api_pool is not None
         assert self.worker_pool is not None
 
-        self.assertEqual(await run_migrations(self.api_pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        self.assertEqual(
+            await run_migrations(self.api_pool),
+            list(range(1, LATEST_SCHEMA_VERSION + 1)),
+        )
         store = ObjectStore(
             self.settings("api").object_dir,
             self.settings("api").object_tmp_dir,
@@ -236,7 +243,7 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
         payload = response.json()
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["role"], "api")
-        self.assertEqual(payload["schema_version"], 12)
+        self.assertEqual(payload["schema_version"], LATEST_SCHEMA_VERSION)
         self.assertEqual(payload["database"], "ok")
         self.assertEqual(payload["worker"], "ok")
         self.assertEqual(payload["object_store"], "ok")
@@ -279,7 +286,10 @@ class FoundationIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     (event_id,),
                 )
                 self.assertEqual((await cursor.fetchone())[0], 1)
-                self.assertEqual(await current_schema_version(connection), 12)
+                self.assertEqual(
+                    await current_schema_version(connection),
+                    LATEST_SCHEMA_VERSION,
+                )
 
         async with self.api_pool.acquire() as connection:
             objects = ObjectRepository(connection)

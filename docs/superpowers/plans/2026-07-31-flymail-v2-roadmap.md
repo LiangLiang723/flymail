@@ -117,6 +117,8 @@ frontend/src/
 
 ### Gate 3: API Feature Complete
 
+**状态：已于 2026-08-02 完成。** 隔离 MySQL 完整后端回归 `596/596` 通过且无跳过；OpenAPI 与实时事件契约已冻结，生产容器和 `/Docker/flymail/data` 未切换。
+
 必须满足：
 
 - 当前全部用户功能拥有 V2 API。
