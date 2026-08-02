@@ -757,7 +757,7 @@ git commit -m "🛠️ 实现 V2 设置同步管理与备份页面"
 - Produces profile/avatar, full account CRUD/OAuth/proxy management, contacts/autocomplete, identity signature, account icon and notification UI.
 - Produces installable PWA shell that caches only same-origin static application assets and never caches API responses, mail bodies, attachment downloads or credentials.
 
-- [ ] **Step 1: Write feature and PWA tests**
+- [x] **Step 1: Write feature and PWA tests**
 
 Tests cover:
 
@@ -779,7 +779,7 @@ Tests cover:
 - no mail data is written to localStorage, IndexedDB or Cache Storage;
 - PWA offline state shows the application shell and a server-unreachable message, not stale mail content.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run:
 
@@ -790,19 +790,19 @@ npm run test:v2 -- personal-notifications-pwa
 
 Expected: FAIL because these feature modules and PWA files do not exist.
 
-- [ ] **Step 3: Implement profile, contacts and identity signature UI**
+- [x] **Step 3: Implement profile, contacts and identity signature UI**
 
 Use generated API types and Query Cache. Image crop remains an interaction helper; submit the source and crop parameters to the backend normalization endpoint. Contact autocomplete debounces, cancels stale requests and merges exact typed addresses without silently replacing user input. Signature HTML is edited through the same safe editor policy as compose.
 
-- [ ] **Step 4: Implement account management and icon customization**
+- [x] **Step 4: Implement account management and icon customization**
 
 Build provider-first setup with generic advanced fields, async verification status, OAuth popup/callback route, encrypted-secret placeholder semantics, user proxy form, disable/reauthorize/delete flows and identity/signature management. The frontend never retains password, authorization code, OAuth token or proxy password after request submission. Offer provider default, reviewed built-in presets and user upload for account icons; update all visible icon projections through one realtime/query patch.
 
-- [ ] **Step 5: Implement notification center and channel settings**
+- [x] **Step 5: Implement notification center and channel settings**
 
 Notification drawer/details load after the mail shell. Saved channel and image-publisher secrets render as “configured” state only. Test-delivery displays queued/running/success/failure from Worker events. Channel forms use provider-specific public fields but a shared safe secret-input component. Image publisher controls are optional, explain text fallback, and never expose local object paths or public URLs from previous private messages.
 
-- [ ] **Step 6: Implement static-only PWA service worker**
+- [x] **Step 6: Implement static-only PWA service worker**
 
 Register only in production build. The service worker must execute an early bypass:
 
@@ -814,7 +814,7 @@ if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
 
 Also bypass WebSocket upgrades, downloads, uploads and non-GET requests. Cache successful hashed JS/CSS/font/image application assets; never cache authenticated HTML responses containing user state. On logout/version change, clear FlyMail static caches.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 npm run test:v2 -- personal-notifications-pwa
@@ -822,6 +822,8 @@ npm run build:v2
 git add frontend/src/features/profile frontend/src/features/accounts frontend/src/features/contacts frontend/src/features/notifications frontend/src/features/account-customization frontend/src/features/pwa frontend/public/manifest.webmanifest frontend/public/flymail-sw.js frontend/tests/v2/personal-notifications-pwa.test.ts
 git commit -m "📱 实现 V2 资料联系人通知图标与 PWA 壳"
 ```
+
+**Measured verification:** Task 11 focused contracts `5/5`; complete V2 frontend suite at this checkpoint `54/54`; `npm run build:v2` passed. Profile/avatar, account setup and OAuth callback, proxy semantics, contacts/autocomplete, identity signature hooks, account icon selection, notification center/settings and static-only PWA shell are present. Manifest and HTML icon references are verified against real files. The service worker bypasses API, body, attachment, backup, upload, cross-origin and non-GET requests; mail data is not cached. The remaining editor chunk budget failure belongs to Task 12.
 
 ---
 

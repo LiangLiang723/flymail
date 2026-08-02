@@ -4,6 +4,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import type { BodyResponse, MessageSummary } from '../../entities/message/types.ts';
 import { apiClient } from '../../shared/api/client.ts';
 import { normalizeApiError } from '../../shared/api/errors.ts';
+import QuickAddContact from '../contacts/QuickAddContact.vue';
 import AttachmentList from './AttachmentList.vue';
 import MessageBody from './MessageBody.vue';
 import { BodyRequestRegistry, bodyStateMessage } from './body-state.ts';
@@ -12,6 +13,7 @@ import { exportSanitizedMailToPdf } from './export-pdf.ts';
 const props = defineProps<{ message: MessageSummary; expanded: boolean }>();
 const emit = defineEmits<{ toggle: []; openImage: [src: string] }>();
 const bodyContainer = ref<HTMLElement | null>(null);
+const showQuickContact = ref(false);
 const state = reactive<{ loading: boolean; response?: BodyResponse; error?: string }>({ loading: false });
 const displayState = computed(() => state.response?.state || props.message.body_state);
 
@@ -60,8 +62,16 @@ watch(() => props.expanded, (expanded) => { if (expanded) void loadBody(); }, { 
 
     <div v-if="expanded" class="v2-message-item__content">
       <div class="v2-message-actions">
+        <button type="button" @click="showQuickContact = true">添加发件人为联系人</button>
         <button type="button" :disabled="!state.response || state.response.state !== 'ready'" @click="exportPdf">导出 PDF</button>
       </div>
+      <QuickAddContact
+        v-if="showQuickContact && message.from[0]?.address"
+        :address="message.from[0].address"
+        :display-name="message.from[0].name"
+        @created="showQuickContact = false"
+        @close="showQuickContact = false"
+      />
       <p v-if="state.loading" role="status">正在读取本地正文状态…</p>
       <p v-else-if="state.error" class="v2-error" role="alert">{{ state.error }} <button type="button" @click="loadBody">重试</button></p>
       <div v-else-if="displayState !== 'ready'" class="v2-body-state" role="status">

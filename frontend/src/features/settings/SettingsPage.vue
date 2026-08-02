@@ -35,6 +35,13 @@ onMounted(() => { void load(); });
 <template>
   <main class="v2-settings-page">
     <header><p class="v2-eyebrow">偏好</p><h1>设置</h1></header>
+    <nav class="v2-settings-links" aria-label="设置分类">
+      <router-link to="/profile">个人资料</router-link>
+      <router-link to="/accounts">邮箱账号</router-link>
+      <router-link to="/contacts">联系人</router-link>
+      <router-link to="/notification-settings">通知与图床</router-link>
+      <router-link to="/about">关于</router-link>
+    </nav>
     <p v-if="state.loading">正在加载设置…</p>
     <p v-if="state.errors.load" class="v2-error">{{ state.errors.load }}</p>
     <template v-if="state.data">
