@@ -5,6 +5,24 @@ class FlyMailError(Exception):
     """Base class for expected FlyMail V2 failures."""
 
 
+class ApiContractError(FlyMailError):
+    """Stable API error with an explicit public code and safe details."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        status_code: int = 400,
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = str(code or "request_error")[:128]
+        self.public_message = str(message or "请求无法处理")[:512]
+        self.status_code = int(status_code)
+        self.details = dict(details) if isinstance(details, dict) else None
+
+
 class ConfigurationError(FlyMailError, ValueError):
     """Raised when required runtime configuration is invalid."""
 

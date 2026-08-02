@@ -386,7 +386,7 @@ git commit -m "🚀 实现 V2 单请求启动与统一导航"
 - Produces: `GET /api/v2/messages/{message_id}/body`
 - Cursor type: URL-safe encoded `(latest_message_at, thread_id)`.
 
-- [ ] **Step 1: Write list and detail tests**
+- [x] **Step 1: Write list and detail tests**
 
 Tests cover:
 
@@ -397,40 +397,42 @@ Tests cover:
 - cross-account thread displays each source account;
 - detail returns timeline and body cache states without waiting for remote fetch;
 - cached body streams from object store;
-- uncached body enqueues or reuses one P0 job and returns `202`;
+- uncached body enqueues or reuses one highest-priority interactive job and returns `202`;
 - user isolation for thread and message IDs.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement cursor codec**
+- [x] **Step 3: Implement cursor codec**
 
 Sign or authenticate cursor payload to prevent arbitrary SQL-position manipulation. Invalid cursor returns `400 invalid_cursor`, not a server error.
 
-- [ ] **Step 4: Implement projection-only list query**
+- [x] **Step 4: Implement projection-only list query**
 
 List query reads `thread_projections` plus bounded label/account display data. It never joins body objects or search documents.
 
-- [ ] **Step 5: Implement detail structure query**
+- [x] **Step 5: Implement detail structure query**
 
 Return thread metadata, ordered message headers, memberships, attachments metadata, operation states and body cache states. Old folded messages do not automatically stream bodies.
 
-- [ ] **Step 6: Implement body streaming**
+- [x] **Step 6: Implement body streaming**
 
-Verify tenant and body reference, open object, set safe content type and stream decompression. Missing physical object atomically marks body `evicted`, enqueues repair/fetch and returns `202`.
+Verify tenant and body reference, open object, set safe content type and stream decompression. Missing physical object atomically transitions the body to the queued repair state, enqueues fetch and returns `202`.
 
-- [ ] **Step 7: Run EXPLAIN integration assertions**
+- [x] **Step 7: Run EXPLAIN integration assertions**
 
 For representative data, assert core list plan uses the intended cursor index and does not report filesort. Store normalized EXPLAIN fixture in test output, not production logs.
 
-- [ ] **Step 8: Run tests and commit**
+- [x] **Step 8: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_threads -v
 git add backend/flymail/application/thread_queries.py backend/flymail/api/schemas/threads.py backend/flymail/api/routes/threads.py backend/tests/v2/test_api_threads.py
 git commit -m "📨 实现 V2 会话列表详情与游标查询"
 ```
+
+**Measured verification:** Task 5 contract tests `6/6`; affected API, authentication, account and Bootstrap regression tests `42/42`. Cursor queries use `idx_thread_projection_cursor`, avoid OFFSET and body/search joins, and representative EXPLAIN output contains no filesort. Cached bodies stream from verified content objects; missing cache objects transition to the queued repair state and reuse one `content.body` interactive job.
 
 ---
 

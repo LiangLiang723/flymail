@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from flymail.api.errors import (
+    api_contract_error_handler,
     authentication_error_handler,
     authorization_error_handler,
     conflict_error_handler,
@@ -33,12 +34,15 @@ from flymail.api.routes.accounts import router as accounts_router
 from flymail.api.routes.admin import router as admin_router
 from flymail.api.routes.auth import router as auth_router
 from flymail.api.routes.bootstrap import router as bootstrap_router
+from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
 from flymail.application.accounts import AccountsService
 from flymail.application.auth import AuthService
 from flymail.application.bootstrap import BootstrapService
+from flymail.application.thread_queries import ThreadQueryService
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import (
+    ApiContractError,
     AuthenticationError,
     AuthorizationError,
     ConflictError,
@@ -209,6 +213,12 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 settings.session_secret,
             )
             app.state.bootstrap_service = BootstrapService(pool)
+            app.state.thread_query_service = ThreadQueryService(
+                pool,
+                store,
+                settings.session_secret,
+                now_fn=app.state.now_fn,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -248,9 +258,11 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.auth_service = None
     app.state.accounts_service = None
     app.state.bootstrap_service = None
+    app.state.thread_query_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
+    app.add_exception_handler(ApiContractError, api_contract_error_handler)
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_error_handler)
     app.add_exception_handler(AuthenticationError, authentication_error_handler)
     app.add_exception_handler(CsrfError, csrf_error_handler)
@@ -271,6 +283,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(accounts_router)
     app.include_router(bootstrap_router)
+    app.include_router(threads_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

@@ -14,6 +14,7 @@ from flymail.api.dependencies import RequestContext
 from flymail.api.middleware import safe_request_id
 from flymail.api.schemas.common import ErrorBody, ErrorEnvelope
 from flymail.domain.errors import (
+    ApiContractError,
     AuthenticationError,
     AuthorizationError,
     ConflictError,
@@ -60,6 +61,19 @@ def error_response(
             "X-Request-ID": request_id,
             "Server-Timing": "total;dur=0.000, db;dur=0.000, serialize;dur=0.000",
         },
+    )
+
+
+async def api_contract_error_handler(
+    request: Request,
+    exc: ApiContractError,
+) -> JSONResponse:
+    return error_response(
+        request,
+        status_code=exc.status_code,
+        code=exc.code,
+        message=exc.public_message,
+        details=exc.details,
     )
 
 
