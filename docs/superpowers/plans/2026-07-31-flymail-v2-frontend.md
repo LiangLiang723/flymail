@@ -682,7 +682,7 @@ git commit -m "🔍 实现 V2 快速与高级组合搜索体验"
 - Produces dynamic routes for settings, sync, admin, backup and About/version information.
 - Produces role-gated admin navigation.
 
-- [ ] **Step 1: Write feature tests**
+- [x] **Step 1: Write feature tests**
 
 Tests cover:
 
@@ -701,23 +701,23 @@ Tests cover:
 - restored pending sends and remote operations display explicit `review_required` state, cannot offer automatic execution, and route the user to revalidation or cancellation actions;
 - About page displays the backend-reported version, product/build information, license and documentation links without exposing environment secrets, filesystem paths or dependency internals.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement settings modules**
+- [x] **Step 3: Implement settings modules**
 
 Separate appearance, cache quota, remote images and compose preferences. Personal profile, contacts, account icons and notification configuration are implemented in the next task. Save each card independently; one error does not discard another card's saved state.
 
-- [ ] **Step 4: Implement sync center**
+- [x] **Step 4: Implement sync center**
 
 Use local status endpoints and realtime events. Display account runtime, next reconcile, current phase, pending operations, recent safe errors and actions. Avoid raw provider responses.
 
-- [ ] **Step 5: Implement admin, backup and About modules**
+- [x] **Step 5: Implement admin, backup and About modules**
 
 Lazy load admin and backup. Require role at router and API. High-risk operations use exact confirmation. Backup password inputs clear immediately after request submission. About loads the public version endpoint, shows product/version/license/documentation and provides a safe update-state message; it never renders raw server environment or health diagnostics.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 npm run test:v2 -- settings-admin-backup
@@ -725,6 +725,8 @@ npm run build
 git add frontend/src/features/settings frontend/src/features/sync-center frontend/src/features/admin frontend/src/features/backup frontend/src/features/about frontend/tests/v2/settings-admin-backup.test.ts
 git commit -m "🛠️ 实现 V2 设置同步管理与备份页面"
 ```
+
+**Measured verification:** cumulative V2 contracts `49/49` passed and the V2 production build passed. Settings cards save independently, quota copy distinguishes logical usage from shared physical release, and zero means unlimited. Sync status separates summary/body/index phases, local status refresh from explicit remote task creation, and uses the real conflict resolution action contract. Admin and backup are protected at router and page level; exact confirmations gate disable/reset, backup passwords clear after each request, and restore rehearsal exposes `review_required` items without automatic execution. About reads `/api/v2/version` and only displays public product/contract information. Each management page remains a separate async chunk.
 
 ---
 
