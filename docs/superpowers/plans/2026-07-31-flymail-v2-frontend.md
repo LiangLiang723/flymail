@@ -261,7 +261,7 @@ git commit -m "🖥️ 建立 V2 认证启动与响应式应用壳"
 - Produces semantic routes for inbox, sent, drafts, trash, junk, archive, saved search, account mailbox and native label.
 - Navigation selection serializes to route; local state only tracks expansion and drawer visibility.
 
-- [ ] **Step 1: Write navigation tests**
+- [x] **Step 1: Write navigation tests**
 
 Tests cover:
 
@@ -273,25 +273,27 @@ Tests cover:
 - navigation badges update from realtime event without full Bootstrap reload;
 - no mailbox path is inserted as raw HTML.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement route model**
+- [x] **Step 3: Implement route model**
 
 Use typed location objects, not hand-built URL strings. Native mailbox keys are encoded as route params and decoded only by router schema.
 
-- [ ] **Step 4: Implement accessible tree/navigation**
+- [x] **Step 4: Implement accessible tree/navigation**
 
 Use proper buttons and links, visible focus, `aria-expanded`, and text labels. Nested labels are keyboard reachable; no hover-only reveal.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 npm run test:v2 -- navigation
 git add frontend/src/entities/account frontend/src/features/navigation frontend/tests/v2/navigation.test.ts
 git commit -m "🧭 实现 V2 统一文件夹与账号标签导航"
 ```
+
+**Measured verification:** cumulative V2 contracts `15/15` passed and the V2 production build passed. Semantic folders are aggregated once, native labels remain account-scoped, disabled/auth-required/pending-verification accounts expose explicit actions, mobile selection closes the modal drawer and restores focus, and expansion state is serialized only as a non-sensitive server preference. Badge patches preserve unrelated account object identity. Current initial V2 JavaScript is approximately `62.20 KB` gzip.
 
 ---
 

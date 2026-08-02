@@ -37,26 +37,99 @@
 .v2-layout__detail,
 .v2-layout__content { overflow: auto; }
 
-.v2-primary-nav {
+.v2-navigation-panel {
   display: grid;
-  gap: var(--v2-space-2);
+  align-content: start;
+  gap: var(--v2-space-4);
+  min-height: 100%;
   padding: var(--v2-space-4);
 }
 
-.v2-primary-nav a {
+.v2-navigation-panel h2 {
+  margin: 0 0 var(--v2-space-2);
+  color: var(--v2-text-muted);
+  font-size: .78rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.v2-navigation-brand,
+.v2-account-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v2-space-2);
+}
+
+.v2-compose-link,
+.v2-navigation-list a,
+.v2-navigation-button {
   min-height: var(--v2-control-height);
   display: flex;
   align-items: center;
+  gap: var(--v2-space-2);
   padding: 0 var(--v2-space-3);
   border-radius: var(--v2-radius-sm);
   color: var(--v2-text);
   text-decoration: none;
 }
 
-.v2-primary-nav a:hover,
-.v2-primary-nav a.router-link-active {
-  background: var(--v2-surface-muted);
-  color: var(--v2-accent-strong);
+.v2-navigation-list {
+  display: grid;
+  gap: var(--v2-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v2-navigation-list a { justify-content: space-between; }
+.v2-navigation-list a:hover,
+.v2-navigation-list a.router-link-active,
+.v2-navigation-button:hover { background: var(--v2-surface-muted); color: var(--v2-accent-strong); }
+
+.v2-navigation-button {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.v2-navigation-button small {
+  overflow: hidden;
+  color: var(--v2-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-navigation-action { min-height: 34px; padding-inline: var(--v2-space-2); font-size: .78rem; }
+.v2-account-section { margin-block: var(--v2-space-2); }
+.v2-account-section .v2-navigation-list { padding-left: var(--v2-space-4); }
+
+.v2-mobile-navigation-trigger {
+  position: fixed;
+  z-index: 30;
+  top: max(var(--v2-space-3), env(safe-area-inset-top));
+  left: var(--v2-space-3);
+}
+
+.v2-drawer-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 88vw) 1fr;
+  background: rgb(3 8 20 / 45%);
+}
+
+.v2-mobile-drawer {
+  max-width: 360px;
+  height: 100%;
+  overflow: auto;
+  padding-top: max(var(--v2-space-3), env(safe-area-inset-top));
+  background: var(--v2-surface);
+  box-shadow: var(--v2-shadow);
 }
 
 @media (max-width: 767px) {

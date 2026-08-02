@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onErrorCaptured, onMounted, ref } from 'vue';
-import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { RouterView, useRouter } from 'vue-router';
 
+import NavigationPanel from '../features/navigation/NavigationPanel.vue';
+import MobileNavigationDrawer from '../features/navigation/MobileNavigationDrawer.vue';
+import { toNavigationAccounts } from '../features/navigation/navigation-state.ts';
 import DesktopMailLayout from '../layouts/DesktopMailLayout.vue';
 import TabletMailLayout from '../layouts/TabletMailLayout.vue';
 import MobileMailLayout from '../layouts/MobileMailLayout.vue';
@@ -18,9 +21,33 @@ const boundary = createErrorBoundaryState(async () => {
   await router.replace(router.currentRoute.value.fullPath);
 });
 const layouts = { desktop: DesktopMailLayout, tablet: TabletMailLayout, mobile: MobileMailLayout };
-const activeLayout = computed(() => layouts[layoutForWidth(viewportWidth.value)]);
+const layoutMode = computed(() => layoutForWidth(viewportWidth.value));
+const activeLayout = computed(() => layouts[layoutMode.value]);
+const navigationAccounts = computed(() => toNavigationAccounts(bootstrap.state.data?.accounts || []));
+const expandedAccountIds = computed(() => {
+  const value = bootstrap.state.data?.preferences.expanded_account_ids;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+});
+const mobileDrawerOpen = ref(false);
+const mobileNavigationButton = ref<HTMLElement | null>(null);
 
-function updateViewport() { viewportWidth.value = window.innerWidth; }
+function updateViewport() {
+  viewportWidth.value = window.innerWidth;
+  if (layoutMode.value !== 'mobile') mobileDrawerOpen.value = false;
+}
+
+async function saveNavigationPreference(value: { expanded_account_ids: string[] }) {
+  const current = bootstrap.state.data?.preferences || {};
+  await apiClient.request({
+    method: 'PUT',
+    path: '/api/v2/settings',
+    body: { ui_preferences: { ...current, ...value } },
+  });
+}
+
+function handleAccountAction(accountId: string, action: 'reauthorize' | 'enable' | 'verify') {
+  void router.push({ name: 'settings', query: { account: accountId, action } });
+}
 const removeAuthListener = apiClient.onAuthExpired(() => {
   bootstrap.clear();
   void router.replace('/login');
@@ -65,19 +92,37 @@ onBeforeUnmount(() => {
       <button type="button" @click="boundary.retry">重试当前页面</button>
     </section>
 
-    <component :is="activeLayout" v-else>
-      <template #navigation>
-        <nav class="v2-primary-nav" aria-label="主导航">
-          <RouterLink to="/mail/inbox">收件箱</RouterLink>
-          <RouterLink to="/search">搜索</RouterLink>
-          <RouterLink to="/compose">写信</RouterLink>
-          <RouterLink to="/sync">同步</RouterLink>
-          <RouterLink to="/settings">设置</RouterLink>
-        </nav>
-      </template>
-      <template #default><RouterView /></template>
-      <template #list><RouterView /></template>
-      <template #detail><div class="v2-detail-empty">选择一封会话查看详情</div></template>
-    </component>
+    <template v-else>
+      <button
+        v-if="layoutMode === 'mobile'"
+        ref="mobileNavigationButton"
+        type="button"
+        class="v2-mobile-navigation-trigger"
+        aria-haspopup="dialog"
+        :aria-expanded="mobileDrawerOpen"
+        @click="mobileDrawerOpen = true"
+      >
+        邮箱导航
+      </button>
+      <MobileNavigationDrawer
+        :open="mobileDrawerOpen"
+        :accounts="navigationAccounts"
+        :return-focus="mobileNavigationButton"
+        @close="mobileDrawerOpen = false"
+      />
+      <component :is="activeLayout">
+        <template #navigation>
+          <NavigationPanel
+            :accounts="navigationAccounts"
+            :expanded-account-ids="expandedAccountIds"
+            @preference="saveNavigationPreference"
+            @account-action="handleAccountAction"
+          />
+        </template>
+        <template #default><RouterView /></template>
+        <template #list><RouterView /></template>
+        <template #detail><div class="v2-detail-empty">选择一封会话查看详情</div></template>
+      </component>
+    </template>
   </div>
 </template>
