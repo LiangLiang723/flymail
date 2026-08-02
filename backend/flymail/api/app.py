@@ -34,11 +34,15 @@ from flymail.api.routes.accounts import router as accounts_router
 from flymail.api.routes.admin import router as admin_router
 from flymail.api.routes.auth import router as auth_router
 from flymail.api.routes.bootstrap import router as bootstrap_router
+from flymail.api.routes.content import router as content_router
+from flymail.api.routes.operations import router as operations_router
 from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
 from flymail.application.accounts import AccountsService
 from flymail.application.auth import AuthService
 from flymail.application.bootstrap import BootstrapService
+from flymail.application.content import ContentApiService
+from flymail.application.operations import MailOperationApiService
 from flymail.application.thread_queries import ThreadQueryService
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import (
@@ -219,6 +223,16 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 settings.session_secret,
                 now_fn=app.state.now_fn,
             )
+            app.state.mail_operation_api_service = MailOperationApiService(
+                pool,
+                settings.session_secret,
+                now_fn=app.state.now_fn,
+            )
+            app.state.content_api_service = ContentApiService(
+                pool,
+                store,
+                now_fn=app.state.now_fn,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -259,6 +273,8 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.accounts_service = None
     app.state.bootstrap_service = None
     app.state.thread_query_service = None
+    app.state.mail_operation_api_service = None
+    app.state.content_api_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
@@ -284,6 +300,8 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(accounts_router)
     app.include_router(bootstrap_router)
     app.include_router(threads_router)
+    app.include_router(operations_router)
+    app.include_router(content_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

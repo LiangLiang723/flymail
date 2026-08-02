@@ -10,7 +10,11 @@ from urllib.parse import unquote, urlparse
 import aiomysql
 from pymysql.err import IntegrityError
 
-from flymail.infrastructure.db.migrations.runner import current_schema_version, run_migrations
+from flymail.infrastructure.db.migrations.runner import (
+    LATEST_SCHEMA_VERSION,
+    current_schema_version,
+    run_migrations,
+)
 from flymail.infrastructure.db.migrations.v0001_identity import MIGRATION as IDENTITY_MIGRATION
 from flymail.infrastructure.db.pool import DatabasePool
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
@@ -26,7 +30,7 @@ EXPECTED_TABLES = {
     "message_memberships", "threads", "thread_messages", "thread_projections",
     "message_bodies", "message_body_parts", "message_attachments",
     "content_objects", "content_references", "body_search_documents",
-    "mail_operations", "outbox_events", "worker_jobs", "job_attempts",
+    "mail_operations", "bulk_mail_operations", "outbox_events", "worker_jobs", "job_attempts",
     "process_heartbeats", "login_rate_limits", "sync_cursors", "account_runtime_state", "realtime_events",
     "notification_channels", "notification_rules", "notification_image_publishers",
     "notification_events", "notification_deliveries",
@@ -128,9 +132,10 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         return [(str(row[0]), row[1]) for row in rows]
 
     async def test_empty_database_applies_all_migrations_and_second_run_is_noop(self):
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        expected_versions = list(range(1, LATEST_SCHEMA_VERSION + 1))
+        self.assertEqual(await run_migrations(self.pool), expected_versions)
         async with self.pool.acquire() as connection:
-            self.assertEqual(await current_schema_version(connection), 12)
+            self.assertEqual(await current_schema_version(connection), LATEST_SCHEMA_VERSION)
         self.assertEqual(await run_migrations(self.pool), [])
 
         records = await self.fetchall(
@@ -149,6 +154,7 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (10, "notification_asset_reference"),
             (11, "process_heartbeats"),
             (12, "authentication_sessions"),
+            (13, "bulk_mail_operations"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -169,10 +175,13 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_runners_apply_each_version_once(self):
         results = await asyncio.gather(run_migrations(self.pool), run_migrations(self.pool))
-        self.assertEqual(sorted(results, key=len), [[], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]])
+        self.assertEqual(
+            sorted(results, key=len),
+            [[], list(range(1, LATEST_SCHEMA_VERSION + 1))],
+        )
         self.assertEqual(
             await self.scalar("SELECT COUNT(*) FROM schema_migrations"),
-            12,
+            LATEST_SCHEMA_VERSION,
         )
 
     async def test_partial_ddl_without_version_record_recovers_idempotently(self):
@@ -181,8 +190,14 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute(IDENTITY_MIGRATION.statements[0])
                 await connection.commit()
 
-        self.assertEqual(await run_migrations(self.pool), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-        self.assertEqual(await self.scalar("SELECT COUNT(*) FROM schema_migrations"), 12)
+        self.assertEqual(
+            await run_migrations(self.pool),
+            list(range(1, LATEST_SCHEMA_VERSION + 1)),
+        )
+        self.assertEqual(
+            await self.scalar("SELECT COUNT(*) FROM schema_migrations"),
+            LATEST_SCHEMA_VERSION,
+        )
 
     async def test_job_claim_index_upgrade_and_crash_recovery_are_idempotent(self):
         await run_migrations(self.pool)
@@ -421,6 +436,35 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await connection.commit()
         self.assertEqual(await run_migrations(self.pool), [12])
 
+    async def test_bulk_mail_operation_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        self.assertEqual(
+            await self.index_columns(
+                "bulk_mail_operations",
+                "uq_bulk_mail_operations_idempotency",
+            ),
+            [("user_uid", "A"), ("idempotency_key", "A")],
+        )
+
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 13")
+                await cursor.execute("DROP TABLE bulk_mail_operations")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [13])
+        self.assertEqual(
+            await self.scalar(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='bulk_mail_operations'"
+            ),
+            1,
+        )
+
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 13")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [13])
+
     async def test_critical_index_column_order_and_direction(self):
         await run_migrations(self.pool)
 
@@ -462,6 +506,13 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             await self.index_columns("notification_events", "idx_notification_events_asset"),
             [("notification_asset_id", "A"), ("id", "A")],
+        )
+        self.assertEqual(
+            await self.index_columns(
+                "bulk_mail_operations",
+                "idx_bulk_mail_operations_user_status",
+            ),
+            [("user_uid", "A"), ("status", "A"), ("id", "A")],
         )
         self.assertEqual(
             await self.index_columns("outbox_events", "idx_outbox_unpublished"),

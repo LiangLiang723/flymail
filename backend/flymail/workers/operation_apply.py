@@ -195,6 +195,17 @@ class OperationService:
                 if observed_thread != normalized_thread:
                     raise ConflictError("remote message moved to another thread")
                 operation_ids.append(operation_id)
+            await OutboxRepository(connection, tenant).append(
+                "mail.operation.group.pending",
+                group_id,
+                {
+                    "operation_group_id": group_id,
+                    "thread_id": normalized_thread,
+                    "operation_ids": operation_ids,
+                },
+                aggregate_type="mail_operation_group",
+                now=timestamp,
+            )
             await ThreadRepository(connection).refresh_projections(
                 tenant,
                 (normalized_thread,),

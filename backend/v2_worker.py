@@ -33,6 +33,7 @@ WORKER_JOB_KINDS = (
     "content.inline",
     "content.raw_eml",
     "mail.operation.apply",
+    "mail.operation.bulk_mark_read",
     "notification.deliver",
     "send.append_sent_copy",
     "send.deliver",

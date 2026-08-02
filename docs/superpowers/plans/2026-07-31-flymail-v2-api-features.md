@@ -451,7 +451,7 @@ git commit -m "📨 实现 V2 会话列表详情与游标查询"
 - Produces operation endpoints for read, star, labels, move, archive, trash, permanent delete, query-scoped mark-all-read and undo.
 - Produces attachment metadata/download and raw `.eml` request/status/download endpoints.
 
-- [ ] **Step 1: Write command and content route tests**
+- [x] **Step 1: Write command and content route tests**
 
 Tests prove:
 
@@ -467,31 +467,33 @@ Tests prove:
 - dangerous HTML/SVG attachments use download disposition and isolated content type;
 - query-scoped mark-all-read validates the current mailbox/filter scope, creates one operation group and processes remote instances in bounded batches without loading the full result set into API memory.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement operation application service**
+- [x] **Step 3: Implement operation application service**
 
 One UoW validates scope, updates projection, writes one operation per remote instance, writes one aggregate Outbox event and returns task IDs. Partial authorization is not allowed; unauthorized thread causes whole request rejection.
 
 For query-scoped mark-all-read, persist a validated filter snapshot and enqueue a bounded batch job. Each batch uses tenant-scoped set queries, updates projections, creates remote operations and advances a cursor; it never enumerates millions of message IDs inside one HTTP request or one transaction.
 
-- [ ] **Step 4: Implement confirmation token for permanent deletion**
+- [x] **Step 4: Implement confirmation token for permanent deletion**
 
 Token contains user, thread/message IDs, observed trash state and short expiry, signed with separate derived key. State change invalidates token.
 
-- [ ] **Step 5: Implement authenticated content routes**
+- [x] **Step 5: Implement authenticated content routes**
 
 Never accept object SHA in URL. Resolve through message and attachment IDs under tenant. Use RFC 5987-safe filename encoding and strip path separators/control characters.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_operations_content -v
 git add backend/flymail/application/operations.py backend/flymail/application/content.py backend/flymail/api/routes/operations.py backend/flymail/api/routes/content.py backend/tests/v2/test_api_operations_content.py
 git commit -m "🗂️ 实现 V2 会话操作撤销与安全内容下载"
 ```
+
+**Measured verification:** Task 6 API contracts `7/7`; operation, content-fetch, migration and Worker-registry regression tests `67/67`. Permanent-delete confirmations are independently signed, expire after five minutes and are invalidated by trash/remote-version changes. Query-scoped mark-all-read persists a tenant-scoped filter snapshot in schema 13 and advances through deterministic bounded Worker batches. Content routes stream only verified local objects, sanitize filenames, enforce download disposition for dangerous types and enqueue quota-tagged jobs on cache misses.
 
 ---
 
