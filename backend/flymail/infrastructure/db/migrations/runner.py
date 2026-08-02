@@ -23,10 +23,11 @@ from flymail.infrastructure.db.migrations.v0011_process_heartbeats import MIGRAT
 from flymail.infrastructure.db.migrations.v0012_authentication_sessions import MIGRATION as AUTHENTICATION_SESSIONS_MIGRATION
 from flymail.infrastructure.db.migrations.v0013_bulk_mail_operations import MIGRATION as BULK_MAIL_OPERATIONS_MIGRATION
 from flymail.infrastructure.db.migrations.v0014_draft_versions import MIGRATION as DRAFT_VERSIONS_MIGRATION
+from flymail.infrastructure.db.migrations.v0015_notification_preferences import MIGRATION as NOTIFICATION_PREFERENCES_MIGRATION
 from flymail.infrastructure.db.pool import DatabasePool
 
 
-LATEST_SCHEMA_VERSION = DRAFT_VERSIONS_MIGRATION.version
+LATEST_SCHEMA_VERSION = NOTIFICATION_PREFERENCES_MIGRATION.version
 
 _MIGRATION_LOCK_NAME = "flymail_v2_schema_migration"
 _CREATE_TABLE_PATTERN = re.compile(
@@ -144,6 +145,7 @@ async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
         AUTHENTICATION_SESSIONS_MIGRATION,
         BULK_MAIL_OPERATIONS_MIGRATION,
         DRAFT_VERSIONS_MIGRATION,
+        NOTIFICATION_PREFERENCES_MIGRATION,
     )
 
 

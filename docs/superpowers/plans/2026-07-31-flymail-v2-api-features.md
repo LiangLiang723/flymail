@@ -741,6 +741,8 @@ git commit -m "⚙️ 实现 V2 设置配额与同步冲突中心 API"
 
 ---
 
+**Task 10 execution status:** Implemented current-user settings, tenant-scoped contact CRUD/search, administrator-only history-sync inspection and pause/resume/retry controls. Writes are audited, publish bounded realtime invalidations and preserve Worker payloads plus `sync_cursors` checkpoints.
+
 ### Task 11: 实现个人资料、联系人、签名、账号图标和通知配置
 
 **Files:**
@@ -819,6 +821,8 @@ git commit -m "👤 实现 V2 资料联系人图标签名与通知配置"
 ```
 
 ---
+
+**Task 11 execution status:** Implemented tenant-scoped notification-center pagination, unread state changes and safe per-user notification preferences. Channel credentials remain encrypted in the existing notification Worker path and are never returned by these APIs. Schema 15 adds notification preferences with crash-recovery migration coverage.
 
 ### Task 12: 实现配置业务备份、独立密码加密和安全恢复
 

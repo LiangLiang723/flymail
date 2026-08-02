@@ -32,13 +32,17 @@ from flymail.api.errors import (
 from flymail.api.middleware import RequestContextMiddleware
 from flymail.api.routes.accounts import router as accounts_router
 from flymail.api.routes.admin import router as admin_router
+from flymail.api.routes.admin_sync import router as admin_sync_router
 from flymail.api.routes.auth import router as auth_router
 from flymail.api.routes.bootstrap import router as bootstrap_router
 from flymail.api.routes.compose import router as compose_router
+from flymail.api.routes.contacts import router as contacts_router
 from flymail.api.routes.content import router as content_router
+from flymail.api.routes.notifications import router as notifications_router
 from flymail.api.routes.operations import router as operations_router
 from flymail.api.routes.realtime import router as realtime_router
 from flymail.api.routes.search import router as search_router
+from flymail.api.routes.settings import router as settings_router
 from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
 from flymail.application.accounts import AccountsService
@@ -46,9 +50,14 @@ from flymail.application.auth import AuthService
 from flymail.application.bootstrap import BootstrapService
 from flymail.application.compose import ComposeService
 from flymail.application.content import ContentApiService
+from flymail.application.notifications_api import NotificationApiService
 from flymail.application.operations import MailOperationApiService
 from flymail.application.realtime import RealtimeService
 from flymail.application.search_queries import SearchQueryService
+from flymail.application.settings_contacts import (
+    AdminHistorySyncService,
+    SettingsContactsService,
+)
 from flymail.application.thread_queries import ThreadQueryService
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import (
@@ -254,6 +263,22 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 auth_service=app.state.auth_service,
                 now_fn=app.state.now_fn,
             )
+            app.state.settings_contacts_service = SettingsContactsService(
+                pool,
+                app.state.realtime_service,
+                now_fn=app.state.now_fn,
+            )
+            app.state.admin_history_sync_service = AdminHistorySyncService(
+                pool,
+                app.state.realtime_service,
+                now_fn=app.state.now_fn,
+            )
+            app.state.notification_api_service = NotificationApiService(
+                pool,
+                app.state.realtime_service,
+                settings.session_secret,
+                now_fn=app.state.now_fn,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -299,6 +324,9 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.search_query_service = None
     app.state.compose_service = None
     app.state.realtime_service = None
+    app.state.settings_contacts_service = None
+    app.state.admin_history_sync_service = None
+    app.state.notification_api_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
@@ -329,6 +357,10 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(search_router)
     app.include_router(compose_router)
     app.include_router(realtime_router)
+    app.include_router(settings_router)
+    app.include_router(contacts_router)
+    app.include_router(admin_sync_router)
+    app.include_router(notifications_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

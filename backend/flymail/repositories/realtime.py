@@ -37,6 +37,7 @@ class RealtimeRepository:
             "session.revoked",
             "version.changed",
             "notification.created",
+            "notification.updated",
         }
     )
     _DENIED_KEYS = frozenset(
