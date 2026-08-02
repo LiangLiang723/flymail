@@ -8,12 +8,10 @@ export function layoutForWidth(width: number): LayoutMode {
   return 'desktop';
 }
 
-const placeholders = () => import('./route-placeholders.ts');
-
 export const routeRecords: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: () => import('../features/auth/LoginPage.vue') },
   { path: '/', redirect: '/mail/inbox' },
-  { path: '/mail/:scope?/:key?', name: 'mail', component: () => placeholders().then((module) => module.MailPlaceholder) },
+  { path: '/mail/:scope?/:key?', name: 'mail', component: () => import('../features/threads/ThreadListPage.vue') },
   { path: '/search', name: 'search', component: () => import('./route-placeholders.ts').then((module) => module.SearchPlaceholder) },
   { path: '/compose/:draftId?', name: 'compose', component: () => import('./route-placeholders.ts').then((module) => module.ComposePlaceholder) },
   { path: '/settings', name: 'settings', component: () => import('./route-placeholders.ts').then((module) => module.SettingsPlaceholder) },

@@ -315,7 +315,7 @@ git commit -m "🧭 实现 V2 统一文件夹与账号标签导航"
 - Produces `patchThreadProjection(threadId, patch)`.
 - Produces list selection API for desktop keyboard and mobile selection mode.
 
-- [ ] **Step 1: Write list tests**
+- [x] **Step 1: Write list tests**
 
 Tests cover:
 
@@ -330,29 +330,31 @@ Tests cover:
 - mobile long-press or explicit select enters selection mode without hover;
 - screen reader text includes unread count, attachment and pending state.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement list query adapter**
+- [x] **Step 3: Implement list query adapter**
 
 Read only API projection fields. Preserve object identity for unchanged rows so Vue does not rerender the entire list. Cursor cache is LRU-bounded in memory.
 
-- [ ] **Step 4: Implement list rendering**
+- [x] **Step 4: Implement list rendering**
 
 Use an independent `ThreadRow` with stable key. Start without virtualization because page size is bounded; add a performance test for 100 rows. Virtualization is introduced only if measured rendering misses target.
 
-- [ ] **Step 5: Implement selection and keyboard behavior**
+- [x] **Step 5: Implement selection and keyboard behavior**
 
 Selection state is route/list scoped and clears on user or mailbox change. Batch actions call one command endpoint and display per-message partial results when returned.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 npm run test:v2 -- thread-list
 git add frontend/src/entities/thread frontend/src/features/threads frontend/tests/v2/thread-list.test.ts
 git commit -m "📥 实现 V2 会话列表游标缓存与批量选择"
 ```
+
+**Measured verification:** cumulative V2 contracts `20/20` passed and the V2 production build passed. User/mailbox/filter/cursor keys are stable, the LRU cursor cache is memory-only, mailbox switches abort old requests and generation checks prevent late replacement, cursor pages append without duplicate IDs, and precise patches preserve unchanged row identity. Keyboard and mobile selection contracts move focus predictably after removal. The async thread-list chunk is `3.79 KB` gzip and the initial core remains approximately `62.22 KB` gzip.
 
 ---
 
