@@ -572,7 +572,7 @@ git commit -m "🔎 实现 V2 高级组合搜索与搜索历史"
 - Produces draft CRUD, autosave with version, attachment upload/remove, reply/forward template and send/schedule/cancel routes.
 - Produces: `DraftVersionConflict` response containing both version metadata, not hidden overwrite.
 
-- [ ] **Step 1: Write compose tests**
+- [x] **Step 1: Write compose tests**
 
 Tests cover:
 
@@ -590,33 +590,35 @@ Tests cover:
 - user may attach a file from an administrator-authorized `/data` root, but path traversal, symlink escape and an unapproved root are rejected;
 - selecting a NAS/server file streams it into `draft_attachment` object storage and does not keep a live reference to the external path.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement versioned drafts**
+- [x] **Step 3: Implement versioned drafts**
 
 Every save supplies `expected_version`. Mismatch returns `409 draft_version_conflict` with server version ID and safe timestamps. Do not return full alternate body unless caller explicitly requests conflict detail under same user.
 
-- [ ] **Step 4: Implement streaming upload**
+- [x] **Step 4: Implement streaming upload**
 
 Read upload in bounded chunks, enforce per-file and total draft limits, use object store kind `draft_attachment`, and attach reference only after complete. Request cancellation cleans temporary file.
 
-- [ ] **Step 5: Implement authorized server-path attachment import**
+- [x] **Step 5: Implement authorized server-path attachment import**
 
 Expose only administrator-defined roots and tenant-visible labels. Resolve with `Path.resolve()`, verify the result remains under the approved root, reject symlinks that escape, require a regular readable file, enforce size limits, then stream the bytes into the content-addressed `draft_attachment` object. The send command never reopens the original NAS path.
 
-- [ ] **Step 6: Implement send command transaction**
+- [x] **Step 6: Implement send command transaction**
 
 Validate identity, recipients, attachment ownership and schedule. Persist immutable send snapshot, Message-ID, body object refs, send task and Outbox in one UoW. Mark draft as queued but preserve until send succeeds.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_compose -v
 git add backend/flymail/repositories/drafts.py backend/flymail/application/compose.py backend/flymail/api/schemas/compose.py backend/flymail/api/routes/compose.py backend/tests/v2/test_api_compose.py
 git commit -m "✍️ 实现 V2 草稿写信附件与可靠发送 API"
 ```
+
+**Measured verification:** Task 8 API contracts `6/6`; compose, reliable-sender and migration regression tests `45/45`. Schema 14 persists immutable draft snapshots and conflict bodies. Upload and server-import paths stream into content-addressed objects, reject path traversal and symlinks, enforce size/quota limits and preserve shared objects until the last reference is removed. Immediate and scheduled sends reuse the same reliable command, make no SMTP call in the API process, keep Bcc envelope-only and allow pre-lease cancellation.
 
 ---
 
