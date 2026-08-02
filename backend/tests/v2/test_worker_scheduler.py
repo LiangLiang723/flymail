@@ -15,7 +15,7 @@ from flymail.repositories.users import UserRepository
 from flymail.workers.dispatcher import JobContext, JobOutcome, WorkerDispatcher
 from flymail.workers.scheduler import ClaimRequest, FairScheduler, ReadyJob
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
-from v2_worker import run_worker
+from flymail.workers.main import run_worker
 
 
 class FairSchedulerTests(unittest.TestCase):

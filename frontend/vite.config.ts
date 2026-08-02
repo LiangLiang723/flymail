@@ -17,22 +17,7 @@ try {
 
 const basePath = (process.env.FLYMAIL_BASE_PATH || '/').replace(/\/+$/, '') || '/';
 
-const devOnlyProxy = {
-  '/oauth/outlook/callback': {
-    target: 'http://localhost:51010',
-    changeOrigin: true,
-    rewrite: () => '/api/auth/callback',
-  },
-  '/oauth/gmail/callback': {
-    target: 'http://localhost:51010',
-    changeOrigin: true,
-    rewrite: () => '/api/auth/callback',
-  },
-};
-
-export default defineConfig(({ command }) => {
-  const v2Build = process.env.FLYMAIL_V2_BUILD === '1';
-  return ({
+export default defineConfig({
   plugins: [
     vue(),
     {
@@ -47,29 +32,26 @@ export default defineConfig(({ command }) => {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
   },
   build: {
-    outDir: v2Build ? '../dist/v2-ui' : '../dist/ui',
+    outDir: '../dist/ui',
     emptyOutDir: true,
-    manifest: v2Build,
-    rollupOptions: v2Build
-      ? {
-          input: resolve(__dirname, 'v2.html'),
-          output: {
-            manualChunks(id) {
-              if (id.includes('/node_modules/vue') || id.includes('/node_modules/@vue/')) return 'vue-core';
-              if (id.includes('/node_modules/axios/')) return 'http-core';
-              if (id.includes('/node_modules/prosemirror-') || id.includes('/node_modules/@tiptap/pm/')) return 'editor-runtime';
-              if (id.includes('/node_modules/@tiptap/core/') || id.includes('/node_modules/@tiptap/vue-3/')) return 'editor-core';
-              if (id.includes('/node_modules/@tiptap/')) return 'editor-extensions';
-              return undefined;
-            },
-          },
-        }
-      : undefined,
+    manifest: true,
+    rollupOptions: {
+      input: resolve(__dirname, 'index.html'),
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/vue') || id.includes('/node_modules/@vue/')) return 'vue-core';
+          if (id.includes('/node_modules/axios/')) return 'http-core';
+          if (id.includes('/node_modules/prosemirror-') || id.includes('/node_modules/@tiptap/pm/')) return 'editor-runtime';
+          if (id.includes('/node_modules/@tiptap/core/') || id.includes('/node_modules/@tiptap/vue-3/')) return 'editor-core';
+          if (id.includes('/node_modules/@tiptap/')) return 'editor-extensions';
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port: 5173,
     proxy: {
-      ...(command === 'serve' ? devOnlyProxy : {}),
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
@@ -81,5 +63,4 @@ export default defineConfig(({ command }) => {
       },
     },
   },
-  });
 });

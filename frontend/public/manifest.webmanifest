@@ -3,7 +3,7 @@
   "short_name": "FlyMail",
   "description": "安全的多用户邮件工作台",
   "lang": "zh-CN",
-  "start_url": "/v2.html",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f4f6fb",

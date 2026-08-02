@@ -17,12 +17,7 @@ from flymail.providers.registry import ProviderRegistry
 from flymail.repositories.jobs import JobCandidate, JobRepository, LeasedJob
 from flymail.workers.dispatcher import JobHandler, JobOutcome, WorkerDispatcher
 from flymail.workers.lease import WorkerHeartbeatService
-from flymail.workers.scheduler import (
-    QUEUE_ORDER,
-    ClaimRequest,
-    FairScheduler,
-    ReadyJob,
-)
+from flymail.workers.scheduler import QUEUE_ORDER, ClaimRequest, FairScheduler, ReadyJob
 
 
 WORKER_JOB_KINDS = (
@@ -47,9 +42,7 @@ WORKER_JOB_KINDS = (
 _RUNNABLE_JOB_STATUSES = ("pending", "retry_wait", "leased", "running")
 
 
-def build_worker_dispatcher(
-    handlers: Mapping[str, JobHandler],
-) -> WorkerDispatcher:
+def build_worker_dispatcher(handlers: Mapping[str, JobHandler]) -> WorkerDispatcher:
     normalized = {str(kind or "").strip(): handler for kind, handler in handlers.items()}
     expected = set(WORKER_JOB_KINDS)
     actual = set(normalized)
@@ -262,7 +255,10 @@ async def _claim_loop(
                     active_tasks[job.id] = task
                     active_claims[job.id] = claim
 
-                    def on_done(completed: asyncio.Task[None], job_id: str = job.id) -> None:
+                    def on_done(
+                        completed: asyncio.Task[None],
+                        job_id: str = job.id,
+                    ) -> None:
                         active_tasks.pop(job_id, None)
                         active_claims.pop(job_id, None)
                         try:
@@ -311,7 +307,9 @@ async def _drain_active_tasks(
     for result in results:
         if isinstance(result, asyncio.CancelledError):
             continue
-        if isinstance(result, BaseException) and all(result is not item for item in fatal_errors):
+        if isinstance(result, BaseException) and all(
+            result is not item for item in fatal_errors
+        ):
             fatal_errors.append(result)
 
 
@@ -437,7 +435,9 @@ async def run_worker(
             if not task.done():
                 task.cancel()
         if active_tasks:
-            await asyncio.gather(*tuple(active_tasks.values()), return_exceptions=True)
+            await asyncio.gather(
+                *tuple(active_tasks.values()), return_exceptions=True
+            )
         for signum in installed_signals:
             loop.remove_signal_handler(signum)
         try:
@@ -468,5 +468,10 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+__all__ = [
+    "WORKER_JOB_KINDS",
+    "build_worker_dispatcher",
+    "main",
+    "run_worker",
+    "validate_worker_job_registry",
+]

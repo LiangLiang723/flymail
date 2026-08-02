@@ -22,7 +22,7 @@ from flymail.infrastructure.security.passwords import hash_password
 from flymail.repositories.base import AdminContext
 from flymail.repositories.users import UserRepository
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
-from v2_dev import create_app
+from flymail.api.app import create_app
 
 
 ORIGIN = "https://testserver"

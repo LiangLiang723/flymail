@@ -1,7 +1,7 @@
 const STATIC_CACHE = 'flymail-v2-static-v1';
-const STATIC_FALLBACK = '/v2.html';
+const STATIC_FALLBACK = '/';
 const STATIC_ASSETS = [
-  '/v2.html',
+  '/',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

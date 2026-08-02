@@ -49,7 +49,7 @@ from tests.v2.test_idle_reconciliation import (
 from tests.v2.test_notification_dispatch import FakeHttpTransport
 from tests.v2.test_operation_apply import FakeOperationGateway
 from tests.v2.test_reliable_sender import FakeMailGateway
-from v2_worker import (
+from flymail.workers.main import (
     WORKER_JOB_KINDS,
     build_worker_dispatcher,
     run_worker,

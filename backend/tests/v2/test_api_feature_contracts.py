@@ -10,7 +10,7 @@ from pathlib import Path
 from flymail.api.routes.realtime import router as realtime_router
 from flymail.config import FlyMailSettings
 from flymail.repositories.realtime import REALTIME_EVENT_TYPES
-from v2_dev import create_app
+from flymail.api.app import create_app
 
 
 EXPECTED_METHODS = {

@@ -25,8 +25,8 @@ from flymail.domain.errors import (
 )
 from flymail.domain.ids import new_id
 from flymail.infrastructure.db.migrations.runner import LATEST_SCHEMA_VERSION
-from v2_dev import create_app
-from v2_worker import run_worker
+from flymail.api.app import create_app
+from flymail.workers.main import run_worker
 
 
 class FlyMailSettingsTests(unittest.TestCase):

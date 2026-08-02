@@ -16,7 +16,7 @@ from flymail.repositories.outbox import OutboxRepository
 from flymail.workers.dispatcher import JobOutcome, WorkerDispatcher
 from flymail.workers.lease import WorkerHeartbeatService
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
-from v2_worker import run_worker
+from flymail.workers.main import run_worker
 
 
 class JobsAndOutboxTests(MySqlIsolatedAsyncioTestCase):
@@ -458,7 +458,7 @@ class JobsAndOutboxTests(MySqlIsolatedAsyncioTestCase):
         )
         process = await asyncio.create_subprocess_exec(
             sys.executable,
-            "v2_worker.py",
+            "worker.py",
             cwd=Path(__file__).resolve().parents[2],
             env=env,
             stdout=asyncio.subprocess.PIPE,

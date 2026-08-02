@@ -17,7 +17,7 @@ from flymail.repositories.users import UserRepository
 from flymail.workers.bulk_operations import BulkMarkReadHandler
 from flymail.workers.dispatcher import JobContext
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
-from v2_dev import create_app
+from flymail.api.app import create_app
 
 
 ORIGIN = "https://testserver"

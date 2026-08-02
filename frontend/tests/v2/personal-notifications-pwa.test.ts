@@ -81,7 +81,7 @@ test('PWA caches static assets only and never mail or API data', async () => {
   const manifest = JSON.parse(await readFile(new URL('../../public/manifest.webmanifest', import.meta.url), 'utf8'));
   const worker = await readFile(new URL('../../public/flymail-sw.js', import.meta.url), 'utf8');
   const register = await readFile(new URL('../../src/features/pwa/register.ts', import.meta.url), 'utf8');
-  const html = await readFile(new URL('../../v2.html', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
   assert.equal(manifest.display, 'standalone');
   assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 2);
   for (const icon of manifest.icons) {

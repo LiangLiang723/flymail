@@ -161,7 +161,7 @@ git commit -m "📊 建立 V2 安全日志性能计时与健康诊断"
   - Worker: `python worker.py`
 - Produces process readiness and maintenance-mode hooks used by entrypoint.
 
-- [ ] **Step 1: Write runtime entry and signal tests**
+- [x] **Step 1: Write runtime entry and signal tests**
 
 Tests prove:
 
@@ -174,19 +174,19 @@ Tests prove:
 - database pools close;
 - application does not swallow cancellation indefinitely.
 
-- [ ] **Step 2: Verify failure before switching**
+- [x] **Step 2: Verify failure before switching**
 
 Expected: tests fail because formal entries still point to legacy behavior.
 
-- [ ] **Step 3: Switch backend entries**
+- [x] **Step 3: Switch backend entries**
 
 Replace `backend/main.py` with a thin V2 app creation entry. Create `backend/worker.py` as a thin async main wrapper. Do not keep compatibility imports or conditional environment flags selecting legacy behavior.
 
-- [ ] **Step 4: Switch frontend entry**
+- [x] **Step 4: Switch frontend entry**
 
 Move V2 app startup from `v2-main.ts` into `main.ts`. Update default `index.html`/Vite input. Remove V2 development HTML only after normal `npm run build` produces V2 UI.
 
-- [ ] **Step 5: Remove development entries and verify references**
+- [x] **Step 5: Remove development entries and verify references**
 
 Run:
 
@@ -196,11 +196,13 @@ rg -n 'v2_dev|v2_worker|v2-main|v2\.html|routes\.(messages|accounts|compose)' ba
 
 Expected: no runtime reference to development entries or legacy route modules. Test fixtures may mention removed names only when asserting absence.
 
-- [ ] **Step 6: Run backend and frontend tests**
+- [x] **Step 6: Run backend and frontend tests**
 
 Run all V2 and full current suites. Expected: V2 is now the normal build and tests PASS.
 
-- [ ] **Step 7: Commit**
+**Measured verification:** the isolated MySQL backend suite passed `604/604` with no skips after the development entries were removed. Formal runtime, signal, lease and protocol integration coverage passed, including graceful short-job completion, timeout cancellation, lease release and restart recovery. The compatibility frontend suite passed `96/96`, the V2 frontend suite passed `64/64`, and normal `npm run build` produced the V2 UI in `dist/ui`. Initial JavaScript measured `66.70 KiB gzip`; the largest asynchronous chunk measured `65.64 KiB gzip`. Repository search found no runtime reference to `v2_dev`, `v2_worker`, `v2-main` or `v2.html`; remaining mentions occur only in tests that assert their absence.
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/main.py backend/worker.py backend/flymail/workers/main.py frontend/src/main.ts frontend/vite.config.ts backend/tests/v2/test_runtime_shutdown.py

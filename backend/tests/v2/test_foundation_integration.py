@@ -30,7 +30,7 @@ from flymail.repositories.objects import ObjectRepository
 from flymail.repositories.outbox import OutboxRepository
 from flymail.repositories.users import UserRepository
 from flymail.workers.lease import WorkerHeartbeatService
-from v2_dev import create_app
+from flymail.api.app import create_app
 
 
 async def chunks(*values: bytes):

@@ -5,14 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:v2": "vite --open /v2.html",
+    "dev:v2": "vite --open /",
     "test": "node --test tests/*.test.mjs tests/*.test.ts",
     "test:v2": "node --test tests/v2/*.test.ts",
     "generate:v2-api": "node scripts/sync-v2-api-types.mjs",
     "check:v2-api-types": "node scripts/sync-v2-api-types.mjs --check",
-    "build": "vue-tsc && vite build",
-    "build:v2": "vue-tsc && FLYMAIL_V2_BUILD=1 vite build && node scripts/check-v2-bundle-budget.mjs",
-    "check:v2-bundle": "node scripts/check-v2-bundle-budget.mjs",
+    "build": "vue-tsc && vite build && node scripts/check-v2-bundle-budget.mjs ../dist/ui",
+    "build:v2": "vue-tsc && vite build && node scripts/check-v2-bundle-budget.mjs ../dist/ui",
+    "check:v2-bundle": "node scripts/check-v2-bundle-budget.mjs ../dist/ui",
     "preview": "vite preview"
   },
   "allowScripts": {

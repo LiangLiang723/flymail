@@ -15,7 +15,7 @@ from flymail.infrastructure.db.migrations.runner import LATEST_SCHEMA_VERSION, r
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.workers.lease import WorkerHeartbeatService
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
-from v2_dev import create_app
+from flymail.api.app import create_app
 
 
 class ApiApplicationTests(MySqlIsolatedAsyncioTestCase):
