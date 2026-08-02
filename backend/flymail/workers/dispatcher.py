@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Protocol, runtime_checkable
 
+from flymail.observability.logging import get_safe_logger
+from flymail.observability.metrics import JobTiming
 from flymail.providers.errors import ProviderError
 from flymail.repositories.jobs import LeasedJob
 
 
 _ACTIONS = {"complete", "retry", "fail"}
+_LOGGER = get_safe_logger("worker.dispatcher")
 
 
 def _required_text(value: str, label: str) -> str:
@@ -40,6 +44,7 @@ class JobContext:
     worker_id: str
     attempt_count: int
     stop_event: asyncio.Event
+    timing: JobTiming = field(default_factory=JobTiming, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "job_id", _required_text(self.job_id, "job_id"))
@@ -47,6 +52,8 @@ class JobContext:
         object.__setattr__(self, "worker_id", _required_text(self.worker_id, "worker_id"))
         if not isinstance(self.stop_event, asyncio.Event):
             raise TypeError("stop_event must be asyncio.Event")
+        if not isinstance(self.timing, JobTiming):
+            raise TypeError("timing must be JobTiming")
         if isinstance(self.attempt_count, bool) or int(self.attempt_count) < 1:
             raise ValueError("attempt_count must be at least 1")
         object.__setattr__(self, "attempt_count", int(self.attempt_count))
@@ -148,12 +155,15 @@ class WorkerDispatcher:
         *,
         stop_event: asyncio.Event,
     ) -> JobOutcome:
-        handler = self._handlers.get(job.job_kind)
-        if handler is None:
-            return JobOutcome.fail(
-                "UnknownJobKind",
-                "worker job kind is not registered",
-            )
+        available_at = float(job.available_at)
+        timing = JobTiming(
+            queue_wait_ms=(
+                max((time.time() - available_at) * 1000.0, 0.0)
+                if available_at > 0
+                else 0.0
+            ),
+            retries=max(int(job.attempt_count) - 1, 0),
+        )
         context = JobContext(
             job_id=job.id,
             user_uid=job.user_uid,
@@ -163,27 +173,73 @@ class WorkerDispatcher:
             worker_id=job.lease_owner,
             attempt_count=job.attempt_count,
             stop_event=stop_event,
+            timing=timing,
         )
-        payload = _freeze(job.payload)
+        handler = self._handlers.get(job.job_kind)
+        started = time.perf_counter()
+        outcome: JobOutcome
         try:
-            outcome = await handler(context, payload)
+            if handler is None:
+                outcome = JobOutcome.fail(
+                    "UnknownJobKind",
+                    "worker job kind is not registered",
+                )
+            else:
+                payload = _freeze(job.payload)
+                candidate = await handler(context, payload)
+                if isinstance(candidate, JobOutcome):
+                    outcome = candidate
+                else:
+                    outcome = JobOutcome.fail(
+                        "InvalidJobOutcome",
+                        "worker handler returned an invalid outcome",
+                    )
         except asyncio.CancelledError:
+            timing.record_execution(
+                max((time.perf_counter() - started) * 1000.0, 0.0)
+            )
+            _LOGGER.warning(
+                "worker job cancelled",
+                job_id=job.id,
+                account_id_masked=job.account_id or "",
+                provider=job.provider_key or "",
+                operation=job.job_kind,
+                duration_ms=timing.execution_ms,
+                queue_wait_ms=timing.queue_wait_ms,
+                retries=timing.retries,
+                bytes_in=timing.bytes_in,
+                bytes_out=timing.bytes_out,
+                result_count=timing.result_count,
+                error_class="CancelledError",
+            )
             raise
         except ProviderError as exc:
             if exc.retryable:
-                return JobOutcome.retry(
-                    exc.code.value,
-                    exc.safe_detail,
-                )
-            return JobOutcome.fail(exc.code.value, exc.safe_detail)
+                outcome = JobOutcome.retry(exc.code.value, exc.safe_detail)
+            else:
+                outcome = JobOutcome.fail(exc.code.value, exc.safe_detail)
         except Exception as exc:
-            return JobOutcome.retry(
+            outcome = JobOutcome.retry(
                 type(exc).__name__,
                 "worker handler raised an unexpected error",
             )
-        if not isinstance(outcome, JobOutcome):
-            return JobOutcome.fail(
-                "InvalidJobOutcome",
-                "worker handler returned an invalid outcome",
-            )
+        timing.record_execution(
+            max((time.perf_counter() - started) * 1000.0, 0.0)
+        )
+        if outcome.action == "retry":
+            timing.add_retry()
+        _LOGGER.info(
+            "worker job finished",
+            job_id=job.id,
+            account_id_masked=job.account_id or "",
+            provider=job.provider_key or "",
+            operation=job.job_kind,
+            duration_ms=timing.execution_ms,
+            queue_wait_ms=timing.queue_wait_ms,
+            retries=timing.retries,
+            bytes_in=timing.bytes_in,
+            bytes_out=timing.bytes_out,
+            result_count=timing.result_count,
+            error_class=outcome.error_class,
+        )
         return outcome

@@ -80,7 +80,7 @@
 - Produces: basic `/api/health` and admin `/api/v2/admin/diagnostics`.
 - Produces `Server-Timing` fields: db, object, serialize.
 
-- [ ] **Step 1: Write log-redaction and timing tests**
+- [x] **Step 1: Write log-redaction and timing tests**
 
 Tests inject values containing:
 
@@ -94,11 +94,11 @@ Tests inject values containing:
 
 Assert none appear in formatted logs. Also assert request timing reports total and bounded components, and Worker metrics include queue wait, execution, retries and byte counts without message content.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement centralized redaction**
+- [x] **Step 3: Implement centralized redaction**
 
 Redact by field name and URL parser, not by replacing one known secret string. Allowed structured fields:
 
@@ -108,11 +108,11 @@ account_id_masked, provider, operation, error_class, duration_ms,
 queue_wait_ms, bytes_in, bytes_out, result_count, cache_state
 ```
 
-- [ ] **Step 4: Implement request and job timing**
+- [x] **Step 4: Implement request and job timing**
 
 Repository/UoW helper records database wait/query durations in request/job context. Object store records read/write/decompress. Do not use high-cardinality subject, email or Message-ID labels in aggregate metrics.
 
-- [ ] **Step 5: Implement health semantics**
+- [x] **Step 5: Implement health semantics**
 
 Basic response:
 
@@ -130,7 +130,7 @@ Basic response:
 
 Admin diagnostics additionally returns safe pool counts, queue counts, stale heartbeat count, free disk bytes and last maintenance result. The displayed `0.0.25` is the planning-time example; implementation must read the active value from `VERSION` and the release task later confirms the final value.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 cd backend
@@ -138,6 +138,8 @@ python -m unittest tests.v2.test_observability -v
 git add backend/flymail/observability backend/flymail/api/middleware.py backend/flymail/api/app.py backend/flymail/workers/dispatcher.py backend/tests/v2/test_observability.py
 git commit -m "📊 建立 V2 安全日志性能计时与健康诊断"
 ```
+
+**Measured verification:** observability, API health, Worker scheduler and frozen-contract regressions `37/37` passed with the isolated MySQL test database and no skips. Safe JSON logging accepts only reviewed low-cardinality fields and drops database URLs, passwords, authorization codes, OAuth/session tokens, cookies, message bodies and attachment filenames. Request responses expose `total`, `db`, `object` and `serialize` timing segments. Worker context exposes queue wait, execution, retries, byte counts and result count without message content. `/api/health` and `/api/v2/health` share the existing schema/Worker/object-store health logic; administrator diagnostics remain aggregate-only. The reviewed OpenAPI now contains 90 paths and 114 operations with SHA-256 `e156e46739ef5c19e1f22077e4958990854ea3ec4a6ce80c01e936474b84ba79`.
 
 ---
 

@@ -162,11 +162,15 @@ async def inspect_health(request: Request) -> tuple[HealthResponse, int]:
     ) + max((time.perf_counter() - db_started) * 1000, 0.0)
 
     object_store_status = "error"
+    object_started = time.perf_counter()
     try:
         await asyncio.to_thread(_probe_object_store, settings)
         object_store_status = "ok"
     except Exception:
         object_store_status = "error"
+    request.state.object_time_ms = float(
+        getattr(request.state, "object_time_ms", 0.0)
+    ) + max((time.perf_counter() - object_started) * 1000, 0.0)
 
     if database_status == "ok":
         if worker_heartbeat_at is None:
@@ -407,6 +411,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(storage_router)
     app.include_router(backups_router)
 
+    @app.get("/api/health", response_model=HealthResponse)
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:
         payload, status_code = await inspect_health(request)

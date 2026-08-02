@@ -160,6 +160,7 @@ class ApiApplicationTests(MySqlIsolatedAsyncioTestCase):
         self.assertIsNone(accepted.json()["actor"])
         self.assertIn("total;dur=", accepted.headers["Server-Timing"])
         self.assertIn("db;dur=", accepted.headers["Server-Timing"])
+        self.assertIn("object;dur=", accepted.headers["Server-Timing"])
         self.assertIn("serialize;dur=", accepted.headers["Server-Timing"])
 
         generated = replaced.headers["X-Request-ID"]

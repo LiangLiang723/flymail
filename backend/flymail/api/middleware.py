@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from flymail.api.dependencies import RequestContext
 from flymail.domain.ids import new_id
+from flymail.observability.timing import RequestTiming
 
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
@@ -50,19 +51,26 @@ class RequestContextMiddleware:
             actor=None,
         )
         state["db_time_ms"] = 0.0
+        state["object_time_ms"] = 0.0
         state["serialization_time_ms"] = 0.0
-        started = self.perf_counter()
+        timing = RequestTiming(perf_counter=self.perf_counter)
+        state["request_timing"] = timing
 
         async def send_with_context(message: Message) -> None:
             if message["type"] == "http.response.start":
-                total_ms = max((self.perf_counter() - started) * 1000, 0.0)
+                timing.record_db(float(state.get("db_time_ms", 0.0)))
+                timing.record_object(float(state.get("object_time_ms", 0.0)))
+                timing.record_serialize(
+                    float(state.get("serialization_time_ms", 0.0))
+                )
+                values = timing.finish()
                 response_headers = MutableHeaders(scope=message)
                 response_headers["X-Request-ID"] = request_id
                 response_headers["Server-Timing"] = (
-                    f"total;dur={total_ms:.3f}, "
-                    f"db;dur={float(state.get('db_time_ms', 0.0)):.3f}, "
-                    "serialize;dur="
-                    f"{float(state.get('serialization_time_ms', 0.0)):.3f}"
+                    f"total;dur={values['total_ms']:.3f}, "
+                    f"db;dur={values['db_ms']:.3f}, "
+                    f"object;dur={values['object_ms']:.3f}, "
+                    f"serialize;dur={values['serialize_ms']:.3f}"
                 )
             await send(message)
 

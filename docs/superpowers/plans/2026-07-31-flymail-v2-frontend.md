@@ -172,7 +172,7 @@ git add frontend/package.json frontend/package-lock.json frontend/vite.config.ts
 git commit -m "🧱 建立 V2 前端 API 类型与查询缓存"
 ```
 
-**Measured verification:** API/client/cache tests `5/5` passed; frozen contract fingerprint check passed for OpenAPI `0.0.25` SHA `522773106b0e6a072a0402ef85c6d61ee6a59e391e1e9ebddb62b39f0ebe80d7`; V2 independent production build passed at approximately `24.52 KB` initial JavaScript gzip including Vue core; legacy production build remained green. The frozen backend fixture is a reviewed contract fingerprint summary rather than a complete OpenAPI document, so the curated generated type surface carries and verifies the frozen version/SHA instead of silently fabricating schemas from incomplete input.
+**Measured verification:** API/client/cache tests `5/5` passed; frozen contract fingerprint check passed for OpenAPI `0.0.25` SHA `e156e46739ef5c19e1f22077e4958990854ea3ec4a6ce80c01e936474b84ba79`; V2 independent production build passed at approximately `24.52 KB` initial JavaScript gzip including Vue core; legacy production build remained green. The frozen backend fixture is a reviewed contract fingerprint summary rather than a complete OpenAPI document, so the curated generated type surface carries and verifies the frozen version/SHA instead of silently fabricating schemas from incomplete input.
 
 ---
 
@@ -960,7 +960,7 @@ git commit -m "✅ 验证 V2 桌面移动端完整前端体验"
 git push origin main
 ```
 
-**Measured verification:** full mocked workflow contracts `3/3`; complete V2 frontend suite `63/63`; legacy frontend suite `96/96`; both production builds passed. V2 initial JavaScript is `66.70 KiB gzip` and the largest async chunk is `65.64 KiB gzip`. Integration review corrected Bootstrap `ui_preferences`/navigation projection mapping, exact thread-list query parameters and the frontend realtime event whitelist to the frozen 14-event backend schema. The reviewed OpenAPI fingerprint is `522773106b0e6a072a0402ef85c6d61ee6a59e391e1e9ebddb62b39f0ebe80d7`; full backend regression remained `596/596`. Production entry and `/Docker/flymail/data` remained unchanged.
+**Measured verification:** full mocked workflow contracts `3/3`; complete V2 frontend suite `63/63`; legacy frontend suite `96/96`; both production builds passed. V2 initial JavaScript is `66.70 KiB gzip` and the largest async chunk is `65.64 KiB gzip`. Integration review corrected Bootstrap `ui_preferences`/navigation projection mapping, exact thread-list query parameters and the frontend realtime event whitelist to the frozen 14-event backend schema. The reviewed OpenAPI fingerprint is `e156e46739ef5c19e1f22077e4958990854ea3ec4a6ce80c01e936474b84ba79`; full backend regression remained `596/596`. Production entry and `/Docker/flymail/data` remained unchanged.
 
 ## Gate 4 Completion Checklist
 

@@ -15,10 +15,10 @@
     "thread.updated",
     "version.changed"
   ],
-  "operation_count": 113,
-  "path_count": 89,
+  "operation_count": 114,
+  "path_count": 90,
   "schema_count": 138,
-  "sha256": "522773106b0e6a072a0402ef85c6d61ee6a59e391e1e9ebddb62b39f0ebe80d7",
+  "sha256": "e156e46739ef5c19e1f22077e4958990854ea3ec4a6ce80c01e936474b84ba79",
   "title": "FlyMail V2",
   "version": "0.0.25"
 }
