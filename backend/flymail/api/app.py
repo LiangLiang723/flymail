@@ -32,9 +32,11 @@ from flymail.api.middleware import RequestContextMiddleware
 from flymail.api.routes.accounts import router as accounts_router
 from flymail.api.routes.admin import router as admin_router
 from flymail.api.routes.auth import router as auth_router
+from flymail.api.routes.bootstrap import router as bootstrap_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
 from flymail.application.accounts import AccountsService
 from flymail.application.auth import AuthService
+from flymail.application.bootstrap import BootstrapService
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import (
     AuthenticationError,
@@ -206,6 +208,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 pool,
                 settings.session_secret,
             )
+            app.state.bootstrap_service = BootstrapService(pool)
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -244,6 +247,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.object_store = None
     app.state.auth_service = None
     app.state.accounts_service = None
+    app.state.bootstrap_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
@@ -266,6 +270,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(admin_router)
     app.include_router(accounts_router)
+    app.include_router(bootstrap_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

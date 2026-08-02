@@ -335,7 +335,7 @@ git commit -m "📮 实现 V2 邮箱账号凭证与发件身份 API"
 - Produces: `GET /api/v2/bootstrap`.
 - Produces response fields: user, permissions, accounts, navigation, ui_preferences, sync_alert_summary, csrf_token, realtime_cursor, version.
 
-- [ ] **Step 1: Write Bootstrap tests**
+- [x] **Step 1: Write Bootstrap tests**
 
 Assert:
 
@@ -346,25 +346,27 @@ Assert:
 - realtime cursor is user-scoped;
 - query count stays below a fixed threshold measured by a test query recorder.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement one query service**
+- [x] **Step 3: Implement one query service**
 
 Use bounded aggregate queries. Do not call existing account, folder or notification route functions internally. Return immutable Pydantic response.
 
-- [ ] **Step 4: Add cache headers**
+- [x] **Step 4: Add cache headers**
 
 Bootstrap response uses `Cache-Control: no-store`. ETag is not used because CSRF token and realtime cursor are session-specific.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_bootstrap -v
 git add backend/flymail/application/bootstrap.py backend/flymail/api/routes/bootstrap.py backend/tests/v2/test_api_bootstrap.py
 git commit -m "🚀 实现 V2 单请求启动与统一导航"
 ```
+
+**Measured verification:** Bootstrap contract tests `4/4`; affected V2 API/auth/account regression tests `36/36`; full backend tests `526/526` with no skips. The authenticated Bootstrap request executes at most six SQL statements including session authentication and uses four fixed aggregate queries for profile/preferences, accounts/runtime/counts, navigation, and cursor/notification summary. Final image and temporary-container verification is recorded in the task delivery commit.
 
 ---
 
