@@ -59,6 +59,8 @@ if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
 fi
 
 SESSION_SECRET="${FLYMAIL_SMOKE_SESSION_SECRET:-$(openssl rand -hex 32)}"
+ADMIN_USERNAME="smoke-admin-$(openssl rand -hex 8)"
+ADMIN_PASSWORD="${FLYMAIL_SMOKE_ADMIN_PASSWORD:-Admin-$(openssl rand -hex 24)}"
 if [[ -n "${FLYMAIL_SMOKE_MYSQL_PASSWORD:-}" ]]; then
   MYSQL_PASSWORD="${FLYMAIL_SMOKE_MYSQL_PASSWORD}"
 else
@@ -191,7 +193,7 @@ PY
 }
 
 assert_runtime() {
-  local version mysql_version mysql_data_dir bind_address heartbeat_age
+  local version mysql_version mysql_data_dir bind_address heartbeat_age admin_count
   version="$(health_version)"
   [[ "${version}" == "${EXPECTED_VERSION}" ]] || {
     echo "健康接口版本不匹配: ${version}" >&2
@@ -218,6 +220,11 @@ assert_runtime() {
     echo "Worker 心跳不新鲜: ${heartbeat_age}" >&2
     return 1
   }
+  admin_count="$(mysql_scalar "SELECT COUNT(*) FROM flymail.users WHERE username='${ADMIN_USERNAME}' AND role='admin' AND enabled=1")"
+  [[ "${admin_count}" == "1" ]] || {
+    echo "首次管理员未正确创建" >&2
+    return 1
+  }
 
   docker exec "${CONTAINER_NAME}" test -d /data/flymail/config
   docker exec "${CONTAINER_NAME}" test -d /data/flymail/logs
@@ -234,6 +241,8 @@ docker run -d \
   --env FLYMAIL_STORAGE_ROOT=/data \
   --env FLYMAIL_DATA_DIR=/data/flymail \
   --env FLYMAIL_SESSION_SECRET="${SESSION_SECRET}" \
+  --env FLYMAIL_ADMIN_USERNAME="${ADMIN_USERNAME}" \
+  --env FLYMAIL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" \
   --env MYSQL_DATABASE=flymail \
   --env MYSQL_USER=flymail \
   --env MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
@@ -273,6 +282,7 @@ mysql_version=8.0
 mysql_data_dir=/data/mysql/
 mysql_bind_address=127.0.0.1
 worker_heartbeat=passed
+initial_admin=passed
 restart_persistence=passed
 lease_recovery=passed
 mysql_shutdown=passed
