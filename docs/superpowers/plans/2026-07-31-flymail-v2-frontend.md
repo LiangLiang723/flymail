@@ -200,7 +200,7 @@ git commit -m "🧱 建立 V2 前端 API 类型与查询缓存"
 - Layout breakpoints: mobile `< 768px`, tablet `768–1199px`, desktop `>= 1200px`.
 - Produces routes for inbox shell, search, compose, settings, sync, admin and backup with dynamic imports.
 
-- [ ] **Step 1: Write shell tests**
+- [x] **Step 1: Write shell tests**
 
 Tests cover:
 
@@ -212,27 +212,27 @@ Tests cover:
 - app-wide error boundary preserves navigation and offers retry;
 - 401 moves to login without a reload loop.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement Bootstrap state**
+- [x] **Step 3: Implement Bootstrap state**
 
 Keep user, permissions, account navigation, preferences, CSRF token, realtime cursor and version in memory. Bootstrap failure states: unauthenticated, retryable network error, maintenance, incompatible version.
 
-- [ ] **Step 4: Implement responsive layout selection**
+- [x] **Step 4: Implement responsive layout selection**
 
 Use `matchMedia` listener and semantic regions. Do not render all three layouts hidden simultaneously. Preserve route and selected thread when breakpoint changes.
 
-- [ ] **Step 5: Implement CSS tokens and density**
+- [x] **Step 5: Implement CSS tokens and density**
 
 Define light/dark color tokens, spacing, typography, focus rings, comfortable/compact density and motion durations. Reuse accessible primitives from current project only where contracts fit; do not import legacy global styles wholesale.
 
-- [ ] **Step 6: Add route-level dynamic imports**
+- [x] **Step 6: Add route-level dynamic imports**
 
 Dynamically load compose/Tiptap, advanced search, settings, admin, backup and sync center. Core shell, navigation, thread list and basic detail remain initial.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 npm run test:v2 -- app-shell
@@ -240,6 +240,8 @@ npm run build
 git add frontend/src/app frontend/src/layouts frontend/src/features/auth frontend/src/styles/v2-* frontend/tests/v2/app-shell.test.ts
 git commit -m "🖥️ 建立 V2 认证启动与响应式应用壳"
 ```
+
+**Measured verification:** V2 API and app-shell contracts `10/10` passed; V2 and legacy production builds passed. Bootstrap is single-flight, keeps identity/permissions/accounts/preferences/CSRF/realtime cursor/version only in memory and classifies unauthenticated, network, maintenance and incompatible states. Only one desktop/tablet/mobile layout is mounted for the active breakpoint, and compose/search/settings/sync/admin/backup routes remain dynamic. Current initial V2 JavaScript is approximately `59.61 KB` gzip across the entry, Axios and Vue core chunks.
 
 ---
 
