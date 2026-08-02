@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onErrorCaptured, onMounted, ref } from 'vue';
-import { RouterView, useRouter } from 'vue-router';
+import { computed, defineAsyncComponent, onBeforeUnmount, onErrorCaptured, onMounted, ref } from 'vue';
+import { RouterView, useRoute, useRouter } from 'vue-router';
 
 import NavigationPanel from '../features/navigation/NavigationPanel.vue';
 import MobileNavigationDrawer from '../features/navigation/MobileNavigationDrawer.vue';
@@ -15,7 +15,9 @@ import { createErrorBoundaryState } from './error-boundary.ts';
 import { layoutForWidth } from './router.ts';
 
 const bootstrap = useBootstrap();
+const route = useRoute();
 const router = useRouter();
+const ThreadDetail = defineAsyncComponent(() => import('../features/message-viewer/ThreadDetail.vue'));
 const viewportWidth = ref(typeof window === 'undefined' ? 1200 : window.innerWidth);
 const boundary = createErrorBoundaryState(async () => {
   await router.replace(router.currentRoute.value.fullPath);
@@ -24,6 +26,7 @@ const layouts = { desktop: DesktopMailLayout, tablet: TabletMailLayout, mobile: 
 const layoutMode = computed(() => layoutForWidth(viewportWidth.value));
 const activeLayout = computed(() => layouts[layoutMode.value]);
 const navigationAccounts = computed(() => toNavigationAccounts(bootstrap.state.data?.accounts || []));
+const selectedThreadId = computed(() => typeof route.query.thread === 'string' ? route.query.thread : '');
 const expandedAccountIds = computed(() => {
   const value = bootstrap.state.data?.preferences.expanded_account_ids;
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -119,9 +122,15 @@ onBeforeUnmount(() => {
             @account-action="handleAccountAction"
           />
         </template>
-        <template #default><RouterView /></template>
+        <template #default>
+          <ThreadDetail v-if="selectedThreadId && layoutMode !== 'desktop'" :thread-id="selectedThreadId" />
+          <RouterView v-else />
+        </template>
         <template #list><RouterView /></template>
-        <template #detail><div class="v2-detail-empty">选择一封会话查看详情</div></template>
+        <template #detail>
+          <ThreadDetail v-if="selectedThreadId" :thread-id="selectedThreadId" />
+          <div v-else class="v2-detail-empty">选择一封会话查看详情</div>
+        </template>
       </component>
     </template>
   </div>

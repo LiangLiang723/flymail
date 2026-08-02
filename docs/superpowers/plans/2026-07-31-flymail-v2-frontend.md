@@ -378,7 +378,7 @@ git commit -m "📥 实现 V2 会话列表游标缓存与批量选择"
 - Produces body states: not_requested, queued, fetching, ready, evicted, failed, unavailable.
 - Produces `requestBody(messageId)` and `requestAttachment(attachmentId)` task-aware actions.
 
-- [ ] **Step 1: Write detail and security tests**
+- [x] **Step 1: Write detail and security tests**
 
 Tests cover:
 
@@ -398,33 +398,35 @@ Tests cover:
 - PDF export uses the sanitized rendered content, preserves light/dark-independent readable colors, and does not mutate original message or reply/forward source;
 - one failed message does not crash thread view.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement sanitizer policy**
+- [x] **Step 3: Implement sanitizer policy**
 
 Configure DOMPurify with reviewed allowlist. Rewrite links through safe component, remove remote resource URLs by default, and render body inside a scoped isolated wrapper. Apply existing color-contrast concepts through a V2 utility with separate tests, not by importing legacy page state.
 
-- [ ] **Step 4: Implement state-aware body loading**
+- [x] **Step 4: Implement state-aware body loading**
 
 Body query key is message ID plus content version. A `202` response subscribes to `message.body_state`; ready event invalidates only that body query. Avoid polling while realtime works; use bounded fallback polling after disconnect.
 
-- [ ] **Step 5: Implement attachment flow**
+- [x] **Step 5: Implement attachment flow**
 
 Metadata displays immediately. Clicking cache miss requests task and shows cancel-safe progress. Browser download starts only after API confirms authenticated object availability.
 
-- [ ] **Step 6: Implement image viewer and PDF export**
+- [x] **Step 6: Implement image viewer and PDF export**
 
 Build the image list from authenticated inline/body image references only. Desktop supports wheel/buttons and arrow-key navigation; mobile supports pointer-event pinch, drag and horizontal switching with interruptible transforms. PDF export clones the sanitized message DOM, removes application controls and remote placeholders, normalizes printable contrast, then calls the existing project PDF mechanism or a reviewed replacement without embedding unsafe original HTML.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 npm run test:v2 -- message-viewer
 git add frontend/src/entities/message frontend/src/features/message-viewer frontend/tests/v2/message-viewer.test.ts
 git commit -m "📖 实现 V2 会话详情安全正文与附件体验"
 ```
+
+**Measured verification:** cumulative V2 contracts `25/25` passed and the V2 production build passed. The sanitizer performs preflight DOM removal, DOMPurify sanitization and postflight removal of active tags/attributes; remote HTTP images are blocked by default, link domains are surfaced and dangerous URLs removed. Body requests deduplicate per message, every cache state has actionable copy, SVG/HTML attachments are never embedded, and printable output clones only the sanitized rendered DOM without mutating the source. The async thread-detail chunk is `16.67 KB` gzip and the initial core is approximately `63.15 KB` gzip.
 
 ---
 
