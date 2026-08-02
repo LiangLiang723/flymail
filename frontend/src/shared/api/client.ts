@@ -150,6 +150,10 @@ export function setCsrfToken(token: string): void {
   inMemoryCsrfToken = String(token || '');
 }
 
+export function getCsrfToken(): string {
+  return inMemoryCsrfToken;
+}
+
 export const apiClient = new ApiClient({
   cache: queryCache,
   csrfToken: () => inMemoryCsrfToken,

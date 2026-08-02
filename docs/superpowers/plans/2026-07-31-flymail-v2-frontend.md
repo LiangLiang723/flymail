@@ -560,7 +560,7 @@ git commit -m "↩️ 实现 V2 邮件操作反馈撤销与冲突中心"
 - Produces immediate/scheduled send queue status.
 - Tiptap chunk loads only when compose route or reply panel opens.
 
-- [ ] **Step 1: Write compose tests**
+- [x] **Step 1: Write compose tests**
 
 Tests cover:
 
@@ -579,27 +579,27 @@ Tests cover:
 - editor crash does not destroy server draft;
 - mobile compose uses full page and safe keyboard viewport.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement dynamic editor module**
+- [x] **Step 3: Implement dynamic editor module**
 
 Import Tiptap only inside `ComposeEditor.vue`. Keep recipient and draft metadata usable while editor chunk loads. Handle chunk failure with retry and preserved draft.
 
-- [ ] **Step 4: Implement autosave state machine**
+- [x] **Step 4: Implement autosave state machine**
 
 States: clean, dirty, saving, saved, conflict, failed. One save in flight; further edits schedule the next version. Before unload only show native warning when unsaved changes remain after attempted save.
 
-- [ ] **Step 5: Implement streaming attachment UX**
+- [x] **Step 5: Implement streaming attachment UX**
 
 Use `XMLHttpRequest` or supported upload progress transport without reading whole file into JS memory. Display per-file server validation errors.
 
-- [ ] **Step 6: Implement authorized server-path picker**
+- [x] **Step 6: Implement authorized server-path picker**
 
 Request logical roots/directories from the storage API, keep only root IDs and relative paths in component state, and submit the selected file through the compose import endpoint. The picker cannot accept arbitrary typed absolute paths. Import progress and errors join the same draft attachment list as browser uploads.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 npm run test:v2 -- compose
@@ -607,6 +607,8 @@ npm run build
 git add frontend/src/features/compose frontend/tests/v2/compose.test.ts
 git commit -m "📝 实现 V2 写信草稿附件与发送队列界面"
 ```
+
+**Measured verification:** cumulative V2 contracts `40/40` passed and the V2 production build passed. Identity lists load from the tenant-scoped account API, reply templates remain authoritative, autosave is expected-version single-flight with queued follow-up saves, and 409 conflicts preserve local and remote copies. Browser uploads stream through `XMLHttpRequest` with progress/cancel and CSRF, server imports keep only root IDs and relative paths, scheduled sends use absolute epoch seconds with the displayed timezone, and queued sends can be cancelled. Compose is `7.25 KB` gzip; Tiptap is isolated in a `127.32 KB` gzip editor chunk and is not part of initial load.
 
 ---
 
