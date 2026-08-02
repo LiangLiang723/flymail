@@ -33,6 +33,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 a { color: var(--v2-accent-strong); }
 
 .v2-error { color: var(--v2-danger); }
+.v2-error::before { content: '⚠ '; font-weight: 700; }
 .v2-eyebrow { color: var(--v2-accent-strong); font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 
 .v2-login, .v2-boot, .v2-state-card {
@@ -65,6 +66,24 @@ a { color: var(--v2-accent-strong); }
 .v2-placeholder-page { padding: var(--v2-space-5); }
 .v2-detail-empty { display: grid; min-height: 100%; place-items: center; color: var(--v2-text-muted); }
 
+@media (pointer: coarse), (max-width: 767px) {
+  button,
+  a,
+  input[type='checkbox'],
+  input[type='radio'],
+  [role='button'] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (forced-colors: active) {
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 1ms !important; animation-duration: 1ms !important; }
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 1ms !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
 }

@@ -842,7 +842,7 @@ git commit -m "📱 实现 V2 资料联系人通知图标与 PWA 壳"
 - Produces density: comfortable, compact.
 - Produces bundle budget checker.
 
-- [ ] **Step 1: Write accessibility and performance contract tests**
+- [x] **Step 1: Write accessibility and performance contract tests**
 
 Tests assert:
 
@@ -856,27 +856,27 @@ Tests assert:
 - no initial import path reaches Tiptap, admin, backup or sync chunks;
 - generated build manifest reports initial gzip <= 180 KB and async page chunks <= 120 KB.
 
-- [ ] **Step 2: Verify current failures**
+- [x] **Step 2: Verify current failures**
 
 Run tests and build budget command; expected failures until styles/splitting complete.
 
-- [ ] **Step 3: Implement focus and shortcut utilities**
+- [x] **Step 3: Implement focus and shortcut utilities**
 
 Provide focus return stack, roving list selection and shortcut guard. Do not create a general framework beyond current components.
 
-- [ ] **Step 4: Implement motion policy**
+- [x] **Step 4: Implement motion policy**
 
 Use CSS custom properties around 150–220 ms. All transitions respond to reduced-motion. Bulk realtime update disables per-row transitions.
 
-- [ ] **Step 5: Configure explicit chunks**
+- [x] **Step 5: Configure explicit chunks**
 
 Split Vue/vendor core, Tiptap editor, settings/admin/backup/sync features. Avoid one giant manual vendor chunk that still loads at startup.
 
-- [ ] **Step 6: Measure and reduce**
+- [x] **Step 6: Measure and reduce**
 
 Run build, inspect manifest and gzip sizes. Remove accidental imports or defer modules until budget passes. Do not mark complete from source inspection.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 npm run test:v2 -- accessibility-performance
@@ -884,6 +884,8 @@ npm run build:v2
 git add frontend/src/shared/accessibility frontend/src/shared/ui frontend/src/styles frontend/vite.config.ts frontend/tests/v2/accessibility-performance.test.ts
 git commit -m "♿ 达成 V2 无障碍主题与前端性能预算"
 ```
+
+**Measured verification:** accessibility/performance contracts `5/5`; complete V2 frontend suite `59/59`; legacy frontend suite `96/96`; both V2 and legacy production builds passed. The V2 budget checker measured initial JavaScript at `66.63 KiB gzip` against `180 KiB`; the largest async chunk is `65.64 KiB gzip` against `120 KiB`. The previous `127.32 KiB gzip` editor bundle is split into editor core, extensions and runtime chunks. Theme system/light/dark, comfortable/compact density, reduced-motion, forced-colors focus, coarse-pointer touch targets, shared shortcut guards, focus return and dialog trapping are implemented.
 
 ---
 

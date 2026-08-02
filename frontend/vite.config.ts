@@ -57,7 +57,9 @@ export default defineConfig(({ command }) => {
             manualChunks(id) {
               if (id.includes('/node_modules/vue') || id.includes('/node_modules/@vue/')) return 'vue-core';
               if (id.includes('/node_modules/axios/')) return 'http-core';
-              if (id.includes('/node_modules/@tiptap/')) return 'editor';
+              if (id.includes('/node_modules/prosemirror-') || id.includes('/node_modules/@tiptap/pm/')) return 'editor-runtime';
+              if (id.includes('/node_modules/@tiptap/core/') || id.includes('/node_modules/@tiptap/vue-3/')) return 'editor-core';
+              if (id.includes('/node_modules/@tiptap/')) return 'editor-extensions';
               return undefined;
             },
           },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onErrorCaptured, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onErrorCaptured, onMounted, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 
 import NavigationPanel from '../features/navigation/NavigationPanel.vue';
@@ -15,6 +15,8 @@ import type { BootstrapResponse, ThreadProjection } from '../shared/api/generate
 import { RealtimeClient } from '../shared/realtime/client.ts';
 import { useBootstrap } from './bootstrap.ts';
 import { createErrorBoundaryState } from './error-boundary.ts';
+import { applyAppearance } from './appearance.ts';
+import { shouldHandleShortcut } from '../shared/accessibility/focus.ts';
 import { layoutForWidth } from './router.ts';
 
 const bootstrap = useBootstrap();
@@ -42,6 +44,14 @@ let realtimeClient: RealtimeClient | undefined;
 function updateViewport() {
   viewportWidth.value = window.innerWidth;
   if (layoutMode.value !== 'mobile') mobileDrawerOpen.value = false;
+}
+
+function handleGlobalShortcut(event: KeyboardEvent) {
+  if (!shouldHandleShortcut(event)) return;
+  if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    void router.push({ name: 'search' });
+  }
 }
 
 async function saveNavigationPreference(value: { expanded_account_ids: string[] }) {
@@ -98,8 +108,15 @@ onErrorCaptured((error) => {
   return false;
 });
 
+watch(
+  () => bootstrap.state.data?.preferences,
+  (preferences) => applyAppearance(preferences),
+  { deep: true, immediate: true },
+);
+
 onMounted(async () => {
   window.addEventListener('resize', updateViewport, { passive: true });
+  window.addEventListener('keydown', handleGlobalShortcut);
   const data = await bootstrap.load();
   if (data) startRealtime(data);
   if (!data && bootstrap.state.phase === 'anonymous' && router.currentRoute.value.path !== '/login') {
@@ -109,6 +126,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateViewport);
+  window.removeEventListener('keydown', handleGlobalShortcut);
   removeAuthListener();
   realtimeClient?.destroy();
 });

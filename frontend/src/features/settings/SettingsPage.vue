@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive } from 'vue';
 
+import { applyAppearance } from '../../app/appearance.ts';
 import { apiClient } from '../../shared/api/client.ts';
 import type { SettingsResponse } from '../../shared/api/generated.ts';
 import { normalizeApiError } from '../../shared/api/errors.ts';
@@ -20,6 +21,7 @@ async function saveCard(name: string, body: Record<string, unknown>) {
   state.saved[name] = false;
   try {
     state.data = await apiClient.request<SettingsResponse>({ method: 'PUT', path: '/api/v2/settings', body });
+    if (name === 'appearance') applyAppearance(state.data.ui_preferences);
     state.saved[name] = true;
   } catch (value: unknown) { state.errors[name] = normalizeApiError(value).message; }
 }

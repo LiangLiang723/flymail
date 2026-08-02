@@ -11,7 +11,8 @@
     "generate:v2-api": "node scripts/sync-v2-api-types.mjs",
     "check:v2-api-types": "node scripts/sync-v2-api-types.mjs --check",
     "build": "vue-tsc && vite build",
-    "build:v2": "vue-tsc && FLYMAIL_V2_BUILD=1 vite build",
+    "build:v2": "vue-tsc && FLYMAIL_V2_BUILD=1 vite build && node scripts/check-v2-bundle-budget.mjs",
+    "check:v2-bundle": "node scripts/check-v2-bundle-budget.mjs",
     "preview": "vite preview"
   },
   "allowScripts": {

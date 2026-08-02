@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import type { NavigationAccount, SavedSearchNavigationItem } from '../../entities/account/types.ts';
+import { createFocusTrap } from '../../shared/accessibility/focus.ts';
 import NavigationPanel from './NavigationPanel.vue';
 
 const props = defineProps<{
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ close: [] }>();
 const dialog = ref<HTMLElement | null>(null);
+let releaseFocusTrap: (() => void) | undefined;
 
 function closeAfterNavigation(event: MouseEvent) {
   const target = event.target as HTMLElement | null;
@@ -19,13 +21,14 @@ function closeAfterNavigation(event: MouseEvent) {
 }
 
 watch(() => props.open, async (open) => {
-  if (open) {
-    await nextTick();
-    dialog.value?.focus();
-  } else {
-    props.returnFocus?.focus();
-  }
+  releaseFocusTrap?.();
+  releaseFocusTrap = undefined;
+  if (!open) return;
+  await nextTick();
+  if (dialog.value) releaseFocusTrap = createFocusTrap(dialog.value, props.returnFocus || null);
 });
+
+onBeforeUnmount(() => releaseFocusTrap?.());
 </script>
 
 <template>
