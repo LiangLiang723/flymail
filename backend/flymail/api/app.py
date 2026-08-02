@@ -34,6 +34,7 @@ from flymail.api.routes.accounts import router as accounts_router
 from flymail.api.routes.admin import router as admin_router
 from flymail.api.routes.admin_sync import router as admin_sync_router
 from flymail.api.routes.auth import router as auth_router
+from flymail.api.routes.backups import router as backups_router
 from flymail.api.routes.bootstrap import router as bootstrap_router
 from flymail.api.routes.compose import router as compose_router
 from flymail.api.routes.contacts import router as contacts_router
@@ -47,6 +48,7 @@ from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
 from flymail.application.accounts import AccountsService
 from flymail.application.auth import AuthService
+from flymail.application.backups import BackupService
 from flymail.application.bootstrap import BootstrapService
 from flymail.application.compose import ComposeService
 from flymail.application.content import ContentApiService
@@ -279,6 +281,11 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 settings.session_secret,
                 now_fn=app.state.now_fn,
             )
+            app.state.backup_service = BackupService(
+                pool,
+                settings,
+                now_fn=app.state.now_fn,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -327,6 +334,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.settings_contacts_service = None
     app.state.admin_history_sync_service = None
     app.state.notification_api_service = None
+    app.state.backup_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
@@ -361,6 +369,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(contacts_router)
     app.include_router(admin_sync_router)
     app.include_router(notifications_router)
+    app.include_router(backups_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

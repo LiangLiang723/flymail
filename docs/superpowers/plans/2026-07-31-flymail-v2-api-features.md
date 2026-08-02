@@ -884,6 +884,8 @@ git commit -m "💾 实现 V2 配置业务备份与安全恢复"
 
 ---
 
+**Task 12 execution status:** Implemented administrator-only backup creation, listing, download, strict archive inspection and isolated restore rehearsal. Archives contain a logical database dump, content-addressed objects and a password-free manifest; every member is path/type/size/SHA-256 validated. Restore rehearsals use a random temporary database and delete all temporary state, never replacing current `/data`.
+
 ### Task 13: 完成 API 安全、OpenAPI 和全功能集成验收
 
 **Files:**
