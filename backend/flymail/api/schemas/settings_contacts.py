@@ -18,6 +18,22 @@ class UiPreferences(BaseModel):
 
     theme: Literal["system", "light", "dark"] = "system"
     density: Literal["comfortable", "compact"] = "comfortable"
+    expanded_account_ids: tuple[str, ...] = Field(default=(), max_length=200)
+
+    @field_validator("expanded_account_ids")
+    @classmethod
+    def validate_expanded_account_ids(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        result: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            account_id = str(value or "").strip()
+            if not account_id or len(account_id) > 64:
+                raise ValueError("expanded account id must contain 1 to 64 characters")
+            if account_id in seen:
+                continue
+            seen.add(account_id)
+            result.append(account_id)
+        return tuple(result)
 
 
 class ComposePreferences(BaseModel):

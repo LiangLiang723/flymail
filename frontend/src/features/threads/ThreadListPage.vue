@@ -19,14 +19,33 @@ const descriptor = computed(() => ({
   key: String(route.params.key || 'inbox'),
   filters: route.query,
 }));
-const queryKey = computed(() => createThreadQueryKey(bootstrap.state.data?.user.id || 'anonymous', descriptor.value));
+const apiQuery = computed(() => {
+  const scope = descriptor.value.scope;
+  if (scope === 'account') {
+    return {
+      mailbox: typeof route.query.mailbox === 'string' ? route.query.mailbox : 'inbox',
+      account_id: descriptor.value.key,
+    };
+  }
+  if (scope === 'native') {
+    return {
+      mailbox: typeof route.query.mailbox === 'string' ? route.query.mailbox : 'all_mail',
+      account_id: descriptor.value.key,
+      native_label: typeof route.query.label === 'string' ? route.query.label : undefined,
+    };
+  }
+  return { mailbox: descriptor.value.key };
+});
+const queryKey = computed(() => createThreadQueryKey(
+  bootstrap.state.data?.user.id || 'anonymous',
+  { ...descriptor.value, api: apiQuery.value },
+));
 
 const controller = new ThreadListController(async (request, signal) => apiClient.request<ThreadListResponse>({
   method: 'GET',
   path: '/api/v2/threads',
   query: {
-    scope: descriptor.value.scope,
-    mailbox: descriptor.value.key,
+    ...apiQuery.value,
     cursor: typeof request.cursor === 'string' ? request.cursor : undefined,
   },
   signal,
@@ -65,7 +84,7 @@ async function loadMore() {
     const response = await apiClient.request<ThreadListResponse>({
       method: 'GET',
       path: '/api/v2/threads',
-      query: { scope: descriptor.value.scope, mailbox: descriptor.value.key, cursor: state.nextCursor },
+      query: { ...apiQuery.value, cursor: state.nextCursor },
     });
     const next = threadCursorMemory.set(queryKey.value, response, true);
     state.threads = next.threads;

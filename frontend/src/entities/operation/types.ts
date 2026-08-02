@@ -1,7 +1,7 @@
 import type { OperationStatus, ThreadProjection } from '../../shared/api/generated.ts';
 
 export interface OperationCommand {
-  target_type: 'thread' | 'message' | 'query';
+  target_type: 'thread' | 'remote_instance';
   target_id: string;
   operation_type: string;
   desired_state: Record<string, unknown>;

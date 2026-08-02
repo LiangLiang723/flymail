@@ -220,10 +220,14 @@ class BootstrapApiTests(MySqlIsolatedAsyncioTestCase):
                 await cursor.execute(
                     """
                     UPDATE user_settings
-                    SET ui_preferences=JSON_OBJECT('theme', 'dark', 'density', 'compact')
+                    SET ui_preferences=JSON_OBJECT(
+                        'theme', 'dark',
+                        'density', 'compact',
+                        'expanded_account_ids', JSON_ARRAY(%s)
+                    )
                     WHERE user_uid=%s
                     """,
-                    (self.user.id,),
+                    (self.active_account.id, self.user.id),
                 )
                 await cursor.execute(
                     """
@@ -403,7 +407,14 @@ class BootstrapApiTests(MySqlIsolatedAsyncioTestCase):
         )
         self.assertEqual(payload["csrf_token"], csrf_token)
         self.assertEqual(payload["realtime_cursor"], self.user_realtime_cursor)
-        self.assertEqual(payload["ui_preferences"], {"theme": "dark", "density": "compact"})
+        self.assertEqual(
+            payload["ui_preferences"],
+            {
+                "theme": "dark",
+                "density": "compact",
+                "expanded_account_ids": [self.active_account.id],
+            },
+        )
         self.assertEqual(
             payload["sync_alert_summary"],
             {

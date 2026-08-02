@@ -1,25 +1,20 @@
 import type { RealtimeEvent } from '../api/generated.ts';
 
 export const KNOWN_REALTIME_EVENTS = new Set([
-  'account.updated',
-  'sync.state',
+  'thread.created',
   'thread.updated',
   'thread.removed',
   'message.body_state',
-  'attachment.cache_state',
-  'draft.updated',
-  'send.state',
-  'operation.state',
+  'operation.updated',
+  'send.updated',
+  'account.status_changed',
+  'sync.updated',
   'conflict.created',
-  'conflict.resolved',
-  'cache.cleanup_state',
+  'settings.updated',
+  'session.revoked',
+  'version.changed',
   'notification.created',
-  'notification.read',
-  'backup.state',
-  'restore.validation_state',
-  'admin.user_state',
-  'auth.session_revoked',
-  'system.version_changed',
+  'notification.updated',
 ]);
 
 export interface RealtimeProjectionHandlers {
@@ -71,7 +66,7 @@ export function applyRealtimeEvent(
 ): void {
   handlers.onEvent?.(event);
   const payload = event.payload;
-  if (event.event_type === 'thread.updated') {
+  if (event.event_type === 'thread.created' || event.event_type === 'thread.updated') {
     const threadId = text(payload, 'thread_id') || event.aggregate_id || '';
     if (!threadId) return;
     handlers.patchThread?.(threadId, record(payload.projection));
@@ -88,30 +83,24 @@ export function applyRealtimeEvent(
     if (messageId) handlers.invalidateBody?.(messageId);
     return;
   }
-  if (event.event_type === 'auth.session_revoked') {
+  if (event.event_type === 'session.revoked') {
     handlers.authExpired?.();
     return;
   }
-  if (event.event_type === 'system.version_changed') {
+  if (event.event_type === 'version.changed') {
     const version = text(payload, 'version');
     if (version) handlers.versionChanged?.(version);
     return;
   }
   const scopeMap: Record<string, string[]> = {
-    'account.updated': ['navigation', 'accounts'],
-    'sync.state': ['sync'],
-    'attachment.cache_state': ['attachments'],
-    'draft.updated': ['drafts'],
-    'send.state': ['drafts', 'send'],
-    'operation.state': ['operations'],
+    'account.status_changed': ['navigation', 'accounts'],
+    'sync.updated': ['sync'],
+    'send.updated': ['drafts', 'send'],
+    'operation.updated': ['operations'],
     'conflict.created': ['operations', 'conflicts'],
-    'conflict.resolved': ['operations', 'conflicts'],
-    'cache.cleanup_state': ['settings'],
+    'settings.updated': ['settings', 'navigation'],
     'notification.created': ['notifications'],
-    'notification.read': ['notifications'],
-    'backup.state': ['backup'],
-    'restore.validation_state': ['backup'],
-    'admin.user_state': ['admin'],
+    'notification.updated': ['notifications'],
   };
   const scopes = scopeMap[event.event_type];
   if (scopes) handlers.invalidateScopes?.(scopes);

@@ -172,7 +172,7 @@ git add frontend/package.json frontend/package-lock.json frontend/vite.config.ts
 git commit -m "🧱 建立 V2 前端 API 类型与查询缓存"
 ```
 
-**Measured verification:** API/client/cache tests `5/5` passed; frozen contract fingerprint check passed for OpenAPI `0.0.25` SHA `1552538e3c7cd1062d1ce51b9c6f99b8829fef0b6abc9c4a9add88c33971c6ac`; V2 independent production build passed at approximately `24.52 KB` initial JavaScript gzip including Vue core; legacy production build remained green. The frozen backend fixture is a reviewed contract fingerprint summary rather than a complete OpenAPI document, so the curated generated type surface carries and verifies the frozen version/SHA instead of silently fabricating schemas from incomplete input.
+**Measured verification:** API/client/cache tests `5/5` passed; frozen contract fingerprint check passed for OpenAPI `0.0.25` SHA `522773106b0e6a072a0402ef85c6d61ee6a59e391e1e9ebddb62b39f0ebe80d7`; V2 independent production build passed at approximately `24.52 KB` initial JavaScript gzip including Vue core; legacy production build remained green. The frozen backend fixture is a reviewed contract fingerprint summary rather than a complete OpenAPI document, so the curated generated type surface carries and verifies the frozen version/SHA instead of silently fabricating schemas from incomplete input.
 
 ---
 
@@ -901,7 +901,7 @@ git commit -m "♿ 达成 V2 无障碍主题与前端性能预算"
 
 - Produces: Gate 4 evidence and final frontend entry ready for switch.
 
-- [ ] **Step 1: Add mocked API full workflows**
+- [x] **Step 1: Add mocked API full workflows**
 
 Desktop and mobile workflow tests cover:
 
@@ -925,7 +925,7 @@ Desktop and mobile workflow tests cover:
 18. PWA install shell and server-unreachable state;
 19. WebSocket disconnect and resume.
 
-- [ ] **Step 2: Run all V2 frontend tests**
+- [x] **Step 2: Run all V2 frontend tests**
 
 ```bash
 cd frontend
@@ -935,7 +935,7 @@ npm run build:v2
 
 Expected: PASS and bundle budgets pass.
 
-- [ ] **Step 3: Run legacy frontend tests and build**
+- [x] **Step 3: Run legacy frontend tests and build**
 
 ```bash
 npm test
@@ -944,15 +944,15 @@ npm run build
 
 Expected: PASS. Current production UI remains buildable.
 
-- [ ] **Step 4: Verify dynamic import boundaries**
+- [x] **Step 4: Verify dynamic import boundaries**
 
 Inspect build manifest and network dependency graph. Confirm initial entry does not include editor, admin, backup or sync feature code.
 
-- [ ] **Step 5: Update README development instructions**
+- [x] **Step 5: Update README development instructions**
 
 Document V2 URL/command, test commands, responsive breakpoints, server-only offline boundary and that production `main.ts` is not switched yet.
 
-- [ ] **Step 6: Commit and push Gate 4**
+- [x] **Step 6: Commit and push Gate 4**
 
 ```bash
 git add frontend/tests/v2/full-workflow.test.ts README.md
@@ -960,20 +960,22 @@ git commit -m "✅ 验证 V2 桌面移动端完整前端体验"
 git push origin main
 ```
 
+**Measured verification:** full mocked workflow contracts `3/3`; complete V2 frontend suite `63/63`; legacy frontend suite `96/96`; both production builds passed. V2 initial JavaScript is `66.70 KiB gzip` and the largest async chunk is `65.64 KiB gzip`. Integration review corrected Bootstrap `ui_preferences`/navigation projection mapping, exact thread-list query parameters and the frontend realtime event whitelist to the frozen 14-event backend schema. The reviewed OpenAPI fingerprint is `522773106b0e6a072a0402ef85c6d61ee6a59e391e1e9ebddb62b39f0ebe80d7`; full backend regression remained `596/596`. Production entry and `/Docker/flymail/data` remained unchanged.
+
 ## Gate 4 Completion Checklist
 
-- [ ] Bootstrap executes once and initial screen is bounded.
-- [ ] Desktop, tablet and mobile layouts preserve route/state across breakpoints.
-- [ ] Unified folders and native labels are complete.
-- [ ] Thread list uses cursor cache, cancellation and precise patches.
-- [ ] Thread detail handles every body cache state and safe HTML.
-- [ ] Realtime resumes by sequence and never reloads whole page unnecessarily.
-- [ ] Local operations, undo and conflicts provide accurate feedback.
-- [ ] Compose, draft versioning, upload, immediate and scheduled send are complete.
-- [ ] Advanced search communicates cached-body boundary.
-- [ ] Settings, sync, admin, backup and About/version are complete and appropriately lazy-loaded.
-- [ ] Profiles, contacts, signatures, account icons, notifications, image viewer, PDF export, authorized storage import and static-only PWA are complete.
-- [ ] Keyboard, screen reader, reduced motion and touch contracts pass.
-- [ ] Initial JS gzip is <= 180 KB and async page chunks <= 120 KB.
-- [ ] Legacy frontend tests/build remain green.
-- [ ] Current production entry and data remain unchanged.
+- [x] Bootstrap executes once and initial screen is bounded.
+- [x] Desktop, tablet and mobile layouts preserve route/state across breakpoints.
+- [x] Unified folders and native labels are complete.
+- [x] Thread list uses cursor cache, cancellation and precise patches.
+- [x] Thread detail handles every body cache state and safe HTML.
+- [x] Realtime resumes by sequence and never reloads whole page unnecessarily.
+- [x] Local operations, undo and conflicts provide accurate feedback.
+- [x] Compose, draft versioning, upload, immediate and scheduled send are complete.
+- [x] Advanced search communicates cached-body boundary.
+- [x] Settings, sync, admin, backup and About/version are complete and appropriately lazy-loaded.
+- [x] Profiles, contacts, signatures, account icons, notifications, image viewer, PDF export, authorized storage import and static-only PWA are complete.
+- [x] Keyboard, screen reader, reduced motion and touch contracts pass.
+- [x] Initial JS gzip is <= 180 KB and async page chunks <= 120 KB.
+- [x] Legacy frontend tests/build remain green.
+- [x] Current production entry and data remain unchanged.

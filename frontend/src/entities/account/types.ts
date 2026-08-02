@@ -1,9 +1,10 @@
-export type NavigationAccountStatus = 'active' | 'disabled' | 'auth_required' | 'pending_verification' | 'error';
+export type NavigationAccountStatus = 'active' | 'disabled' | 'auth_required' | 'pending' | 'error';
 
 export interface NavigationMailbox {
   key: string;
   name: string;
   unreadCount: number;
+  semanticKey?: string;
 }
 
 export interface NavigationAccount {

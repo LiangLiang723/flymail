@@ -76,6 +76,7 @@ class BootstrapNavigation(_ImmutableModel):
 class BootstrapUiPreferences(_ImmutableModel):
     theme: Literal["system", "light", "dark"] = "system"
     density: Literal["comfortable", "compact"] = "comfortable"
+    expanded_account_ids: tuple[str, ...] = ()
 
 
 class SyncAlertSummary(_ImmutableModel):
@@ -218,6 +219,15 @@ class BootstrapService:
             theme = "system"
         if density not in {"comfortable", "compact"}:
             density = "comfortable"
+        expanded_account_ids = tuple(
+            account_id
+            for account_id in (
+                str(value or "").strip()
+                for value in ui_preferences.get("expanded_account_ids", ())
+                if isinstance(value, str)
+            )
+            if account_id in account_ids
+        )
 
         return BootstrapResponse(
             user=BootstrapUser(
@@ -242,7 +252,11 @@ class BootstrapService:
                 ),
                 accounts=navigation_accounts,
             ),
-            ui_preferences=BootstrapUiPreferences(theme=theme, density=density),
+            ui_preferences=BootstrapUiPreferences(
+                theme=theme,
+                density=density,
+                expanded_account_ids=expanded_account_ids,
+            ),
             sync_alert_summary=SyncAlertSummary(
                 auth_required_accounts=auth_required,
                 degraded_accounts=degraded,

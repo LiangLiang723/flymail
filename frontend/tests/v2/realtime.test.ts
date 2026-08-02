@@ -26,7 +26,7 @@ test('event application patches exact scopes only', () => {
   };
   applyRealtimeEvent(event(1, 'thread.updated', { thread_id: 't1', projection: { unread_count: 0 } }), handlers);
   applyRealtimeEvent(event(2, 'message.body_state', { message_id: 'm1', state: 'ready' }), handlers);
-  applyRealtimeEvent(event(3, 'system.version_changed', { version: '0.0.26' }), handlers);
+  applyRealtimeEvent(event(3, 'version.changed', { version: '0.0.26' }), handlers);
   assert.deepEqual(actions, ['thread:t1', 'detail:t1', 'body:m1', 'version:0.0.26']);
 });
 

@@ -44,7 +44,7 @@ const emit = defineEmits<{
         </RouterLink>
       </li>
       <li v-for="label in account.nativeLabels" :key="`label-${label.key}`">
-        <RouterLink :to="navigationLocation({ kind: 'native', accountId: account.id, key: label.key })">
+        <RouterLink :to="navigationLocation({ kind: 'native', accountId: account.id, key: label.key, semanticKey: label.semanticKey })">
           <span>{{ label.name }}</span><span v-if="label.unreadCount">{{ label.unreadCount }}</span>
         </RouterLink>
       </li>

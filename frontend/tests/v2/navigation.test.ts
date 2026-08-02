@@ -7,6 +7,7 @@ import {
   createNavigationState,
   navigationLocation,
   patchNavigationBadge,
+  toNavigationAccounts,
 } from '../../src/features/navigation/navigation-state.ts';
 import type { NavigationAccount } from '../../src/entities/account/types.ts';
 
@@ -29,12 +30,31 @@ test('semantic folders are unified once while native labels remain under account
   assert.equal(model.accounts[1].action, 'reauthorize');
 });
 
-test('navigation locations are typed and encode native keys through route params', () => {
+test('bootstrap account and navigation projections map to usable navigation models', () => {
+  const mapped = toNavigationAccounts(
+    [{
+      id: 'gmail-1', provider_key: 'gmail', email: 'work@example.com', display_name: '工作邮箱',
+      remark: '', group_name: '', status: 'active', include_in_unified: true,
+      runtime_status: 'normal', idle_status: 'connected', icon_mode: 'provider', icon_value: '',
+      icon_object_sha256: null, total_count: 10, unread_count: 3,
+    }],
+    [{
+      account_id: 'gmail-1',
+      semantic_mailboxes: [{ id: 'mbx-inbox', semantic_key: 'inbox', native_key: 'INBOX', native_name: '收件箱', total_count: 10, unread_count: 3, sync_status: 'ready' }],
+      native_labels: [{ id: 'mbx-alpha', semantic_key: 'all_mail', native_key: '项目/Alpha', native_name: '项目 Alpha', total_count: 2, unread_count: 2, sync_status: 'ready' }],
+    }],
+  );
+  assert.equal(mapped[0].semanticMailboxes[0].key, 'inbox');
+  assert.equal(mapped[0].nativeLabels[0].key, 'mbx-alpha');
+  assert.equal(mapped[0].nativeLabels[0].semanticKey, 'all_mail');
+});
+
+test('navigation locations are typed and encode native mailbox ids through route state', () => {
   assert.deepEqual(navigationLocation({ kind: 'semantic', key: 'inbox' }), {
     name: 'mail', params: { scope: 'semantic', key: 'inbox' },
   });
-  assert.deepEqual(navigationLocation({ kind: 'native', accountId: 'gmail-1', key: '项目/Alpha' }), {
-    name: 'mail', params: { scope: 'native', key: 'gmail-1' }, query: { label: '项目/Alpha' },
+  assert.deepEqual(navigationLocation({ kind: 'native', accountId: 'gmail-1', key: 'mbx-alpha', semanticKey: 'all_mail' }), {
+    name: 'mail', params: { scope: 'native', key: 'gmail-1' }, query: { label: 'mbx-alpha', mailbox: 'all_mail' },
   });
 });
 

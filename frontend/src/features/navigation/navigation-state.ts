@@ -6,12 +6,12 @@ import type {
   NavigationMailbox,
   SavedSearchNavigationItem,
 } from '../../entities/account/types.ts';
-import type { AccountSummary } from '../../shared/api/generated.ts';
+import type { AccountSummary, BootstrapAccountNavigation } from '../../shared/api/generated.ts';
 
 export type NavigationTarget =
   | { kind: 'semantic'; key: string }
   | { kind: 'account'; accountId: string; key: string }
-  | { kind: 'native'; accountId: string; key: string }
+  | { kind: 'native'; accountId: string; key: string; semanticKey?: string }
   | { kind: 'saved'; id: string };
 
 export interface NavigationModel {
@@ -25,25 +25,36 @@ const SEMANTIC_NAMES: Record<string, string> = {
   inbox: '收件箱', sent: '已发送', drafts: '草稿', archive: '归档', junk: '垃圾邮件', trash: '已删除',
 };
 
-export function toNavigationAccounts(accounts: AccountSummary[]): NavigationAccount[] {
-  return accounts.map((account) => ({
-    id: account.id,
-    providerKey: account.provider_key,
-    displayName: account.display_name,
-    email: account.email,
-    status: account.status,
-    iconUrl: account.icon_url,
-    semanticMailboxes: (account.semantic_mailboxes || []).map((mailbox) => ({
-      key: mailbox.key,
-      name: mailbox.name,
-      unreadCount: Number(mailbox.unread_count || 0),
-    })),
-    nativeLabels: (account.native_labels || []).map((label) => ({
-      key: label.key,
-      name: label.name,
-      unreadCount: Number(label.unread_count || 0),
-    })),
-  }));
+export function toNavigationAccounts(
+  accounts: AccountSummary[],
+  navigation: BootstrapAccountNavigation[] = [],
+): NavigationAccount[] {
+  const navigationByAccount = new Map(navigation.map((item) => [item.account_id, item]));
+  return accounts.map((account) => {
+    const projection = navigationByAccount.get(account.id);
+    return {
+      id: account.id,
+      providerKey: account.provider_key,
+      displayName: account.display_name || account.email,
+      email: account.email,
+      status: account.status,
+      iconUrl: account.icon_mode === 'upload' && account.icon_object_sha256
+        ? `/api/v2/accounts/${encodeURIComponent(account.id)}/icon/content`
+        : null,
+      semanticMailboxes: (projection?.semantic_mailboxes || []).map((mailbox) => ({
+        key: mailbox.semantic_key,
+        name: mailbox.native_name,
+        unreadCount: Number(mailbox.unread_count || 0),
+        semanticKey: mailbox.semantic_key,
+      })),
+      nativeLabels: (projection?.native_labels || []).map((label) => ({
+        key: label.id,
+        name: label.native_name,
+        unreadCount: Number(label.unread_count || 0),
+        semanticKey: label.semantic_key,
+      })),
+    };
+  });
 }
 
 export function buildNavigationModel(
@@ -67,7 +78,7 @@ export function buildNavigationModel(
       ? 'reauthorize'
       : account.status === 'disabled'
         ? 'enable'
-        : account.status === 'pending_verification'
+        : account.status === 'pending'
           ? 'verify'
           : undefined,
   }));
@@ -82,7 +93,11 @@ export function navigationLocation(target: NavigationTarget): RouteLocationRaw {
     return { name: 'mail', params: { scope: 'account', key: target.accountId }, query: { mailbox: target.key } };
   }
   if (target.kind === 'native') {
-    return { name: 'mail', params: { scope: 'native', key: target.accountId }, query: { label: target.key } };
+    return {
+      name: 'mail',
+      params: { scope: 'native', key: target.accountId },
+      query: { label: target.key, mailbox: target.semanticKey || 'all_mail' },
+    };
   }
   return { name: 'search', query: { saved: target.id } };
 }

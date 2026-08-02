@@ -1,10 +1,10 @@
 // Curated TypeScript surface reviewed against the frozen FlyMail V2 OpenAPI contract.
 // The backend fixture is a contract fingerprint summary rather than a complete OpenAPI document.
 export const OPENAPI_VERSION = '0.0.25' as const;
-export const OPENAPI_SHA256 = '1552538e3c7cd1062d1ce51b9c6f99b8829fef0b6abc9c4a9add88c33971c6ac' as const;
+export const OPENAPI_SHA256 = '522773106b0e6a072a0402ef85c6d61ee6a59e391e1e9ebddb62b39f0ebe80d7' as const;
 
 export type UserRole = 'user' | 'admin';
-export type AccountStatus = 'active' | 'disabled' | 'auth_required' | 'pending_verification' | 'error';
+export type AccountStatus = 'active' | 'disabled' | 'auth_required' | 'pending' | 'error';
 export type BodyState = 'not_requested' | 'queued' | 'fetching' | 'ready' | 'evicted' | 'failed' | 'unavailable';
 export type OperationStatus = 'pending' | 'applying' | 'synced' | 'conflict' | 'failed' | 'cancelled' | 'review_required';
 
@@ -13,6 +13,8 @@ export interface UserSummary {
   username: string;
   role: UserRole;
   enabled: boolean;
+  nickname?: string;
+  avatar_object_sha256?: string | null;
   display_name?: string;
   avatar_url?: string | null;
 }
@@ -22,24 +24,54 @@ export interface AccountSummary {
   provider_key: string;
   email: string;
   display_name: string;
+  remark: string;
+  group_name: string;
   status: AccountStatus;
-  icon_url?: string | null;
-  unread_count?: number;
-  pending_operations?: number;
-  semantic_mailboxes?: Array<{ key: string; name: string; unread_count?: number }>;
-  native_labels?: Array<{ key: string; name: string; unread_count?: number }>;
+  include_in_unified: boolean;
+  runtime_status: string;
+  idle_status: string;
+  icon_mode: string;
+  icon_value: string;
+  icon_object_sha256: string | null;
+  total_count: number;
+  unread_count: number;
+}
+
+export interface BootstrapNavigationMailbox {
+  id: string;
+  semantic_key: string;
+  native_key: string;
+  native_name: string;
+  total_count: number;
+  unread_count: number;
+  sync_status: string;
+}
+
+export interface BootstrapAccountNavigation {
+  account_id: string;
+  semantic_mailboxes: BootstrapNavigationMailbox[];
+  native_labels: BootstrapNavigationMailbox[];
 }
 
 export interface BootstrapResponse {
   user: UserSummary;
   permissions: string[];
   accounts: AccountSummary[];
-  preferences: {
-    theme?: 'system' | 'light' | 'dark';
-    density?: 'comfortable' | 'compact';
-    [key: string]: unknown;
+  navigation: {
+    unified: { account_ids: string[]; total_count: number; unread_count: number };
+    accounts: BootstrapAccountNavigation[];
   };
-  navigation?: Record<string, unknown>;
+  ui_preferences: {
+    theme: 'system' | 'light' | 'dark';
+    density: 'comfortable' | 'compact';
+    expanded_account_ids: string[];
+  };
+  sync_alert_summary: {
+    auth_required_accounts: number;
+    degraded_accounts: number;
+    pending_accounts: number;
+    unread_notifications: number;
+  };
   csrf_token: string;
   realtime_cursor: number;
   version: string;

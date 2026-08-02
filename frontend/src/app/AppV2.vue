@@ -30,10 +30,13 @@ const boundary = createErrorBoundaryState(async () => {
 const layouts = { desktop: DesktopMailLayout, tablet: TabletMailLayout, mobile: MobileMailLayout };
 const layoutMode = computed(() => layoutForWidth(viewportWidth.value));
 const activeLayout = computed(() => layouts[layoutMode.value]);
-const navigationAccounts = computed(() => toNavigationAccounts(bootstrap.state.data?.accounts || []));
+const navigationAccounts = computed(() => toNavigationAccounts(
+  bootstrap.state.data?.accounts || [],
+  bootstrap.state.data?.navigation.accounts || [],
+));
 const selectedThreadId = computed(() => typeof route.query.thread === 'string' ? route.query.thread : '');
 const expandedAccountIds = computed(() => {
-  const value = bootstrap.state.data?.preferences.expanded_account_ids;
+  const value = bootstrap.state.data?.ui_preferences.expanded_account_ids;
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 });
 const mobileDrawerOpen = ref(false);
@@ -55,12 +58,13 @@ function handleGlobalShortcut(event: KeyboardEvent) {
 }
 
 async function saveNavigationPreference(value: { expanded_account_ids: string[] }) {
-  const current = bootstrap.state.data?.preferences || {};
+  const current = bootstrap.state.data?.ui_preferences || { theme: 'system', density: 'comfortable', expanded_account_ids: [] };
   await apiClient.request({
     method: 'PUT',
     path: '/api/v2/settings',
     body: { ui_preferences: { ...current, ...value } },
   });
+  await bootstrap.load(true);
 }
 
 function handleAccountAction(accountId: string, action: 'reauthorize' | 'enable' | 'verify') {
@@ -109,7 +113,7 @@ onErrorCaptured((error) => {
 });
 
 watch(
-  () => bootstrap.state.data?.preferences,
+  () => bootstrap.state.data?.ui_preferences,
   (preferences) => applyAppearance(preferences),
   { deep: true, immediate: true },
 );
@@ -133,7 +137,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="v2-app" :data-density="bootstrap.state.data?.preferences.density || 'comfortable'">
+  <div class="v2-app" :data-density="bootstrap.state.data?.ui_preferences.density || 'comfortable'">
     <div v-if="bootstrap.state.phase === 'checking'" class="v2-boot" role="status" aria-live="polite">
       <strong>正在安全连接 FlyMail…</strong>
     </div>
