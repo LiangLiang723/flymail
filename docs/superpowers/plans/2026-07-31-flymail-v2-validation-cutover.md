@@ -384,11 +384,11 @@ git commit -m "🔍 建立 V2 容器持久化与秘密扫描验证"
 
 - Produces deterministic failure injectors for database, object store, IMAP transport, SMTP transport and process signals.
 
-- [ ] **Step 1: Add failure injection hooks restricted to tests**
+- [x] **Step 1: Add failure injection hooks restricted to tests**
 
 Use dependency injection/fake transports, not production environment backdoors. No `FLYMAIL_CHAOS_MODE` production variable.
 
-- [ ] **Step 2: Implement required failure cases**
+- [x] **Step 2: Implement required failure cases**
 
 Automated tests cover:
 
@@ -407,7 +407,7 @@ Automated tests cover:
 13. container SIGTERM during history batch;
 14. system clock adjustment around scheduled send.
 
-- [ ] **Step 3: Assert safety invariants**
+- [x] **Step 3: Assert safety invariants**
 
 Every scenario verifies:
 
@@ -419,13 +419,15 @@ Every scenario verifies:
 - restart recovery within specified bound;
 - safe user-visible error code.
 
-- [ ] **Step 4: Run tests repeatedly**
+- [x] **Step 4: Run tests repeatedly**
 
 Run fault suite at least 20 iterations for concurrency cases. Record test count and zero invariant failures.
 
-- [ ] **Step 5: Commit result summary**
+- [x] **Step 5: Commit result summary**
 
 Commit only concise measured results, environment and command hashes, not noisy raw logs.
+
+**Measured verification:** the consolidated fault matrix executed 14 required scenarios through 17 existing production-path tests using dependency-injected transports, real MySQL transactions, Worker leases and temporary object storage. All seven required safety invariants were represented. The two-Worker `SKIP LOCKED` claim scenario passed 20 consecutive iterations. The top-level matrix passed `3/3` in 12.919 seconds on Python 3.12.3 and MySQL 8.0.46 with zero invariant failures and no production chaos environment variable.
 
 ```bash
 git add backend/tests/v2/test_fault_injection.py docs/benchmarks/flymail-v2-fault-results.md

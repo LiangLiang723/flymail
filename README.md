@@ -362,12 +362,15 @@ Gate 5 Task 3 已将单容器启动顺序固定为 MySQL 初始化与业务账�
 
 Gate 5 Task 4 已增加可复用的隔离容器持久化、过期租约恢复和秘密扫描。扫描覆盖镜像配置与历史、容器与应用日志、Compose 渲染以及 Git 未暂存/已暂存差异，并检查测试秘密、未脱敏 MySQL URL、Authorization 凭证和会话签名密钥；端口检查只允许 `8080/tcp`。候选镜像 `benxianyu/flymail:v2-rc-bb21c3d` 已通过，生产 `/Docker/flymail/data` 未触碰。
 
+Gate 5 Task 5 已建立统一故障注入矩阵，不增加生产故障开关。14 类故障通过依赖注入的假协议传输、真实 MySQL 事务、Worker 租约和临时对象存储重跑 17 个生产路径测试；双 Worker 并发领取连续 20 次通过。提交前结果为顶层 `3/3`、不变量失败 0，覆盖事务边界、远端结果不确定、数据库不可用、对象写入/缺失、IMAP/SMTP 中断、Outbox、IDLE、限流、SIGTERM 和时钟调整。真实服务商网络、宿主机断电和生产负载长时间演练仍需独立验证。
+
 ## 文档
 
 - [API 接口文档](doc/API接口文档.md)
 - [Docker 多用户重构设计](doc/2026-06-30-docker-multi-user-refactor-design.md)
 - [历史邮件同步设计记录](doc/history-sync-design-2026-06-30.md)
 - [V2 容器验证方法](docs/benchmarks/flymail-v2-methodology.md)
+- [V2 故障恢复验证结果](docs/benchmarks/flymail-v2-fault-results.md)
 
 ## 许可证
 
