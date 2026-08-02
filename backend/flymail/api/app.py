@@ -44,6 +44,7 @@ from flymail.api.routes.operations import router as operations_router
 from flymail.api.routes.realtime import router as realtime_router
 from flymail.api.routes.search import router as search_router
 from flymail.api.routes.settings import router as settings_router
+from flymail.api.routes.sync import router as sync_router
 from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
 from flymail.application.accounts import AccountsService
@@ -60,6 +61,7 @@ from flymail.application.settings_contacts import (
     AdminHistorySyncService,
     SettingsContactsService,
 )
+from flymail.application.sync_status import SyncStatusService
 from flymail.application.thread_queries import ThreadQueryService
 from flymail.config import FlyMailSettings
 from flymail.domain.errors import (
@@ -275,6 +277,11 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 app.state.realtime_service,
                 now_fn=app.state.now_fn,
             )
+            app.state.sync_status_service = SyncStatusService(
+                pool,
+                app.state.realtime_service,
+                now_fn=app.state.now_fn,
+            )
             app.state.notification_api_service = NotificationApiService(
                 pool,
                 app.state.realtime_service,
@@ -333,6 +340,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.realtime_service = None
     app.state.settings_contacts_service = None
     app.state.admin_history_sync_service = None
+    app.state.sync_status_service = None
     app.state.notification_api_service = None
     app.state.backup_service = None
     app.state.accepting_requests = False
@@ -368,6 +376,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(settings_router)
     app.include_router(contacts_router)
     app.include_router(admin_sync_router)
+    app.include_router(sync_router)
     app.include_router(notifications_router)
     app.include_router(backups_router)
 

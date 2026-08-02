@@ -699,7 +699,7 @@ git commit -m "📣 实现 V2 用户实时事件与断线续传"
 - Produces settings routes for profile, UI preferences, body quota, attachment quota, remote image policy and compose preferences.
 - Produces sync center routes for account runtime, phase progress, pending operations, retries, conflicts and maintenance state.
 
-- [ ] **Step 1: Write settings and sync tests**
+- [x] **Step 1: Write settings and sync tests**
 
 Tests cover:
 
@@ -715,23 +715,23 @@ Tests cover:
 - user sees only own account operations/conflicts;
 - admin health view is aggregate and body-free.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement settings transaction**
+- [x] **Step 3: Implement settings transaction**
 
 Update setting, audit change and enqueue cleanup/reconfigure event in one UoW. Return logical usage and task state, not guessed physical free space.
 
-- [ ] **Step 4: Implement sync status projection**
+- [x] **Step 4: Implement sync status projection**
 
 Read runtime state, jobs, cursors and operation counts through bounded query services. A refresh endpoint reads local status only; manual sync endpoint explicitly enqueues work.
 
-- [ ] **Step 5: Implement conflict actions**
+- [x] **Step 5: Implement conflict actions**
 
 Support draft version choice, uncertain-send resolution, missing-mailbox target selection and operation retry/cancel. Each resolution is audited.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_settings_sync -v
@@ -741,7 +741,7 @@ git commit -m "⚙️ 实现 V2 设置配额与同步冲突中心 API"
 
 ---
 
-**Task 10 execution status:** Implemented current-user settings, tenant-scoped contact CRUD/search, administrator-only history-sync inspection and pause/resume/retry controls. Writes are audited, publish bounded realtime invalidations and preserve Worker payloads plus `sync_cursors` checkpoints.
+**Measured verification:** Task 10 API and cache-cleanup contracts `13/13`. Settings return distinct per-user logical usage, enforce `0` as unlimited and a 100 MiB nonzero minimum, atomically audit and deduplicate `cache.cleanup` jobs when quotas shrink. The Worker evicts body and ordinary-attachment caches without removing message metadata, inline images, cross-tenant references or shared physical objects. Sync center queries local runtime/cursor/operation projections only, manual refresh deduplicates `sync.reconcile`, conflict actions are tenant-scoped and audited, and administrator diagnostics return aggregate body-free counts.
 
 ### Task 11: 实现个人资料、联系人、签名、账号图标和通知配置
 

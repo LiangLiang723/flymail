@@ -65,6 +65,21 @@ class DetachedBodyObject:
 
 
 @dataclass(frozen=True, slots=True)
+class AttachmentEvictionCandidate:
+    content_sha256: str
+    stored_size_bytes: int
+    last_accessed_at: float
+
+
+@dataclass(frozen=True, slots=True)
+class DetachedAttachmentObject:
+    content_sha256: str
+    logical_bytes: int
+    attachment_ids: tuple[str, ...]
+    removed_reference_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class EvictionResult:
     before_bytes: int
     after_bytes: int

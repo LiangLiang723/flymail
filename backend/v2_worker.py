@@ -28,6 +28,7 @@ from flymail.workers.scheduler import (
 WORKER_JOB_KINDS = (
     "account.cleanup",
     "account.verify",
+    "cache.cleanup",
     "content.attachment",
     "content.body",
     "content.inline",

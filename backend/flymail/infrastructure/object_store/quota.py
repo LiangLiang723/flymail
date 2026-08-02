@@ -31,6 +31,14 @@ class QuotaService:
                 BODY_CACHE_REFERENCE_KINDS,
             )
 
+    async def _get_attachment_usage(self, user_uid: str) -> int:
+        async with self.pool.acquire() as connection:
+            repository = ObjectRepository(connection)
+            return await repository.get_user_usage_for_reference_kinds(
+                user_uid,
+                ("message_attachment",),
+            )
+
     async def evict_body_cache(self, user_uid: str, limit_bytes: int) -> EvictionResult:
         normalized_limit = int(limit_bytes)
         if normalized_limit < 0:
@@ -73,6 +81,51 @@ class QuotaService:
             object_count=object_count,
         )
 
+    async def evict_attachment_cache(
+        self,
+        user_uid: str,
+        limit_bytes: int,
+    ) -> EvictionResult:
+        normalized_limit = int(limit_bytes)
+        if normalized_limit < 0:
+            raise ValueError("quota limit must be non-negative")
+        before = await self._get_attachment_usage(user_uid)
+        if normalized_limit == 0 or before <= normalized_limit:
+            return EvictionResult(before_bytes=before, after_bytes=before)
+        async with self.pool.acquire() as connection:
+            candidates = await ObjectRepository(connection).list_attachment_eviction_candidates(
+                user_uid
+            )
+        logical_released = 0
+        physical_released = 0
+        object_count = 0
+        attachment_ids: set[str] = set()
+        current = before
+        for candidate in candidates:
+            if current <= normalized_limit:
+                break
+            detached = await self._detach_attachment_candidate(
+                user_uid,
+                candidate.content_sha256,
+            )
+            if detached is None:
+                continue
+            logical_released += detached.logical_bytes
+            current = max(0, current - detached.logical_bytes)
+            object_count += 1
+            attachment_ids.update(detached.attachment_ids)
+            if await self._remove_unreferenced(detached.content_sha256):
+                physical_released += detached.logical_bytes
+        after = await self._get_attachment_usage(user_uid)
+        return EvictionResult(
+            before_bytes=before,
+            after_bytes=after,
+            logical_bytes_released=logical_released,
+            physical_bytes_released=physical_released,
+            message_count=len(attachment_ids),
+            object_count=object_count,
+        )
+
     async def _detach_candidate(self, user_uid: str, content_sha256: str):
         async with self.pool.acquire() as connection:
             repository = ObjectRepository(connection)
@@ -81,6 +134,32 @@ class QuotaService:
                     await connection.begin()
                     try:
                         detached = await repository.detach_body_digest_for_user(
+                            user_uid,
+                            content_sha256,
+                        )
+                        if detached is None:
+                            await connection.rollback()
+                            return None
+                        await connection.commit()
+                        return detached
+                    except Exception:
+                        await connection.rollback()
+                        raise
+            except ObjectLockUnavailable:
+                return None
+
+    async def _detach_attachment_candidate(
+        self,
+        user_uid: str,
+        content_sha256: str,
+    ):
+        async with self.pool.acquire() as connection:
+            repository = ObjectRepository(connection)
+            try:
+                async with repository.lock_object(content_sha256, timeout_seconds=0):
+                    await connection.begin()
+                    try:
+                        detached = await repository.detach_attachment_digest_for_user(
                             user_uid,
                             content_sha256,
                         )

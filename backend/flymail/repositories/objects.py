@@ -16,8 +16,10 @@ import aiomysql
 from flymail.domain.enums import ObjectKind
 from flymail.domain.ids import new_id
 from flymail.infrastructure.object_store.models import (
+    AttachmentEvictionCandidate,
     BodyEvictionCandidate,
     ContentObjectRecord,
+    DetachedAttachmentObject,
     DetachedBodyObject,
     StoredObject,
 )
@@ -531,5 +533,89 @@ class ObjectRepository:
             content_sha256=digest,
             logical_bytes=record.stored_size_bytes,
             message_ids=message_ids,
+            removed_reference_count=removed_count,
+        )
+
+    async def list_attachment_eviction_candidates(
+        self,
+        user_uid: str,
+    ) -> list[AttachmentEvictionCandidate]:
+        user_uid = _required_text(user_uid, "user_uid")
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT objects.content_sha256, objects.stored_size_bytes,
+                       MAX(refs.last_accessed_at) AS last_accessed_at
+                FROM content_objects objects
+                JOIN content_references refs
+                  ON refs.content_sha256 = objects.content_sha256
+                WHERE refs.user_uid = %s
+                  AND refs.reference_kind = 'message_attachment'
+                GROUP BY objects.content_sha256, objects.stored_size_bytes
+                HAVING SUM(refs.pinned <> 0) = 0
+                ORDER BY last_accessed_at ASC, objects.content_sha256 ASC
+                """,
+                (user_uid,),
+            )
+            rows = await cursor.fetchall()
+        return [
+            AttachmentEvictionCandidate(
+                content_sha256=str(row[0]),
+                stored_size_bytes=int(row[1] or 0),
+                last_accessed_at=float(row[2] or 0),
+            )
+            for row in rows
+        ]
+
+    async def detach_attachment_digest_for_user(
+        self,
+        user_uid: str,
+        content_sha256: str,
+    ) -> DetachedAttachmentObject | None:
+        user_uid = _required_text(user_uid, "user_uid")
+        digest = _normalize_digest(content_sha256)
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT id, reference_id, pinned
+                FROM content_references
+                WHERE user_uid = %s AND content_sha256 = %s
+                  AND reference_kind = 'message_attachment'
+                FOR UPDATE
+                """,
+                (user_uid, digest),
+            )
+            rows = await cursor.fetchall()
+            if not rows or any(bool(row[2]) for row in rows):
+                return None
+            record = await self.get_object(digest, for_update=True)
+            if record is None:
+                return None
+            attachment_ids = tuple(sorted({str(row[1]) for row in rows}))
+            await cursor.execute(
+                """
+                DELETE FROM content_references
+                WHERE user_uid = %s AND content_sha256 = %s
+                  AND reference_kind = 'message_attachment'
+                """,
+                (user_uid, digest),
+            )
+            removed_count = int(cursor.rowcount or 0)
+            if attachment_ids:
+                placeholders = ",".join("%s" for _ in attachment_ids)
+                await cursor.execute(
+                    f"""
+                    UPDATE message_attachments
+                    SET content_sha256 = NULL, cache_state = 'evicted',
+                        updated_at = %s
+                    WHERE user_uid = %s AND is_inline = 0
+                      AND id IN ({placeholders})
+                    """,
+                    (time.time(), user_uid, *attachment_ids),
+                )
+        return DetachedAttachmentObject(
+            content_sha256=digest,
+            logical_bytes=record.stored_size_bytes,
+            attachment_ids=attachment_ids,
             removed_reference_count=removed_count,
         )
