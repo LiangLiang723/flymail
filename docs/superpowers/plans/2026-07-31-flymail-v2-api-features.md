@@ -785,7 +785,7 @@ Tests cover:
 - authorized storage browsing cannot escape configured `/data` roots through `..`, symlink or encoded separators;
 - backup/export includes profiles, contacts, signatures, icons and notification configuration but not delivery secrets in plaintext.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run:
 
@@ -796,23 +796,23 @@ python -m unittest tests.v2.test_api_personal_notifications -v
 
 Expected: FAIL because the personal, contact, notification and storage APIs do not exist.
 
-- [ ] **Step 3: Implement profile and image normalization**
+- [x] **Step 3: Implement profile and image normalization**
 
 Use the existing Pillow dependency. Decode from a bounded stream, apply EXIF orientation, convert to RGBA/RGB, perform explicit square crop, resize to `256 × 256`, encode WebP, write through `ObjectStore`, and replace the user/account object reference transactionally. Releasing an old image follows true-reference cleanup.
 
-- [ ] **Step 4: Implement contacts and signatures**
+- [x] **Step 4: Implement contacts and signatures**
 
 Contact methods always require `TenantContext`. Autocomplete searches normalized display name/email with a bounded result limit and stable ordering. Signature HTML uses the same safe-content policy as compose input and remains linked to `mail_identity.id`.
 
-- [ ] **Step 5: Implement notification configuration**
+- [x] **Step 5: Implement notification configuration**
 
 Separate non-secret channel and image-publisher fields from encrypted secret values. Rules map event types to channel IDs and optionally to one publisher ID. Validate publisher endpoints through the same outbound-network policy as Webhooks. Channel test endpoint writes a `notification.deliver` job with a synthetic safe event; API never sends the HTTP or image-upload request itself.
 
-- [ ] **Step 6: Implement authorized storage roots**
+- [x] **Step 6: Implement authorized storage roots**
 
 Only administrators create root records, and every physical root must resolve under `/data`. Users can browse roots exposed to them, with pagination and hidden-file policy. API returns logical root IDs and relative paths, never unrestricted host paths.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_personal_notifications -v
@@ -822,7 +822,7 @@ git commit -m "👤 实现 V2 资料联系人图标签名与通知配置"
 
 ---
 
-**Task 11 execution status:** Implemented tenant-scoped notification-center pagination, unread state changes and safe per-user notification preferences. Channel credentials remain encrypted in the existing notification Worker path and are never returned by these APIs. Schema 15 adds notification preferences with crash-recovery migration coverage.
+**Measured verification:** Task 11 personal and notification contracts `5/5`; related account, notification-center, notification Worker, object-store, backup and application regressions `72/72` after correcting one SQL wildcard escape in the backup test. Avatar and account-icon uploads are bounded, EXIF-normalized and stored as pinned `256 × 256 WebP` content objects. Contacts support tenant-scoped quick-add and autocomplete. Identity signatures use an allowlist sanitizer. Notification channel/rule/image-publisher CRUD encrypts secrets with the existing credential cipher, rejects private endpoints and queues test delivery without outbound API-process HTTP. Storage roots are administrator-authorized under the configured data directory and browsing returns only safe relative entries. Backup inclusion and plaintext-secret exclusion are verified in Task 12.
 
 ### Task 12: 实现配置业务备份、独立密码加密和安全恢复
 

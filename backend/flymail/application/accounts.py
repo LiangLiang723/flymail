@@ -21,6 +21,7 @@ from flymail.domain.errors import (
 )
 from flymail.domain.ids import new_id
 from flymail.infrastructure.db.pool import DatabasePool
+from flymail.application.personal import sanitize_signature_html
 from flymail.infrastructure.security.credentials import CredentialCipher
 from flymail.infrastructure.security.outbound import EndpointResolver, resolve_host, validate_public_endpoint
 from flymail.infrastructure.security.sessions import (
@@ -588,7 +589,7 @@ class AccountsService:
                     from_address=command.from_address,
                     display_name=command.display_name,
                     reply_to=command.reply_to,
-                    signature_html=command.signature_html,
+                    signature_html=sanitize_signature_html(command.signature_html),
                     signature_text=command.signature_text,
                     is_default=command.is_default,
                     is_verified=True,
@@ -651,7 +652,7 @@ class AccountsService:
                     signature_html=(
                         current.signature_html
                         if command.signature_html is None
-                        else command.signature_html
+                        else sanitize_signature_html(command.signature_html)
                     ),
                     signature_text=(
                         current.signature_text

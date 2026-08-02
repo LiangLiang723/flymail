@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -83,3 +84,93 @@ class NotificationSettingsResponse(BaseModel):
     quiet_hours: QuietHours | None
     event_preferences: dict[str, bool]
     updated_at: float
+
+
+NotificationChannelKey = Literal[
+    "in_app", "bark", "telegram", "wecom", "dingtalk", "feishu", "generic_webhook"
+]
+
+
+class NotificationChannelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_key: NotificationChannelKey
+    display_name: str = Field(min_length=1, max_length=191)
+    enabled: bool = True
+    public_config: dict[str, str | int | bool] = Field(default_factory=dict)
+    secret: dict[str, str] = Field(default_factory=dict)
+    use_proxy: bool = False
+
+
+class NotificationChannelResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    channel_key: NotificationChannelKey
+    display_name: str
+    enabled: bool
+    public_config: dict[str, str | int | bool]
+    secret_configured: bool
+    use_proxy: bool
+    updated_at: float
+
+
+class NotificationChannelListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    items: tuple[NotificationChannelResponse, ...]
+
+
+class NotificationRuleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: Literal["mail.new", "send.failed", "backup.completed", "sync.failed"]
+    channel_id: str = Field(min_length=1, max_length=64)
+    image_publisher_id: str | None = Field(default=None, max_length=64)
+    enabled: bool = True
+    use_proxy: bool = False
+    dedupe_window_seconds: int = Field(default=0, ge=0, le=86400)
+
+
+class NotificationRuleResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    event_type: str
+    channel_id: str
+    image_publisher_id: str | None
+    enabled: bool
+    use_proxy: bool
+    dedupe_window_seconds: int
+    updated_at: float
+
+
+class NotificationPublisherRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    publisher_key: Literal["flymail_imgbed", "generic_https"]
+    display_name: str = Field(min_length=1, max_length=191)
+    endpoint_url: str = Field(min_length=8, max_length=2048)
+    enabled: bool = True
+    public_config: dict[str, str | int | bool] = Field(default_factory=dict)
+    secret: dict[str, str] = Field(default_factory=dict)
+
+
+class NotificationPublisherResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    publisher_key: Literal["flymail_imgbed", "generic_https"]
+    display_name: str
+    endpoint_url: str
+    enabled: bool
+    public_config: dict[str, str | int | bool]
+    secret_configured: bool
+    updated_at: float
+
+
+class NotificationTestResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: str
+    status: Literal["pending"] = "pending"

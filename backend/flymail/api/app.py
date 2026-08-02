@@ -41,9 +41,11 @@ from flymail.api.routes.contacts import router as contacts_router
 from flymail.api.routes.content import router as content_router
 from flymail.api.routes.notifications import router as notifications_router
 from flymail.api.routes.operations import router as operations_router
+from flymail.api.routes.profiles import router as profiles_router
 from flymail.api.routes.realtime import router as realtime_router
 from flymail.api.routes.search import router as search_router
 from flymail.api.routes.settings import router as settings_router
+from flymail.api.routes.storage import router as storage_router
 from flymail.api.routes.sync import router as sync_router
 from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
@@ -53,14 +55,17 @@ from flymail.application.backups import BackupService
 from flymail.application.bootstrap import BootstrapService
 from flymail.application.compose import ComposeService
 from flymail.application.content import ContentApiService
+from flymail.application.notification_config import NotificationConfigService
 from flymail.application.notifications_api import NotificationApiService
 from flymail.application.operations import MailOperationApiService
+from flymail.application.personal import PersonalService
 from flymail.application.realtime import RealtimeService
 from flymail.application.search_queries import SearchQueryService
 from flymail.application.settings_contacts import (
     AdminHistorySyncService,
     SettingsContactsService,
 )
+from flymail.application.storage_paths import StoragePathService
 from flymail.application.sync_status import SyncStatusService
 from flymail.application.thread_queries import ThreadQueryService
 from flymail.config import FlyMailSettings
@@ -84,6 +89,7 @@ from flymail.infrastructure.db.migrations.runner import (
 )
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.infrastructure.object_store.store import ObjectStore
+from flymail.infrastructure.security.credentials import CredentialCipher
 from flymail.repositories.runtime import RuntimeRepository
 from version import VERSION
 
@@ -282,10 +288,26 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 app.state.realtime_service,
                 now_fn=app.state.now_fn,
             )
+            app.state.personal_service = PersonalService(
+                pool,
+                store,
+                app.state.realtime_service,
+                now_fn=app.state.now_fn,
+            )
             app.state.notification_api_service = NotificationApiService(
                 pool,
                 app.state.realtime_service,
                 settings.session_secret,
+                now_fn=app.state.now_fn,
+            )
+            app.state.notification_config_service = NotificationConfigService(
+                pool,
+                CredentialCipher.from_master_secret(settings.session_secret),
+                now_fn=app.state.now_fn,
+            )
+            app.state.storage_path_service = StoragePathService(
+                pool,
+                settings.data_dir,
                 now_fn=app.state.now_fn,
             )
             app.state.backup_service = BackupService(
@@ -341,7 +363,10 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.settings_contacts_service = None
     app.state.admin_history_sync_service = None
     app.state.sync_status_service = None
+    app.state.personal_service = None
     app.state.notification_api_service = None
+    app.state.notification_config_service = None
+    app.state.storage_path_service = None
     app.state.backup_service = None
     app.state.accepting_requests = False
 
@@ -377,7 +402,9 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(contacts_router)
     app.include_router(admin_sync_router)
     app.include_router(sync_router)
+    app.include_router(profiles_router)
     app.include_router(notifications_router)
+    app.include_router(storage_router)
     app.include_router(backups_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)

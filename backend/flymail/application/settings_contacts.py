@@ -357,6 +357,61 @@ class SettingsContactsService:
                 raise
         return await self.get_contact(session, contact_id)
 
+    async def quick_add_from_message(
+        self,
+        session: AuthenticatedSession,
+        message_id: str,
+        *,
+        request_id: str,
+    ) -> ContactResponse:
+        tenant = TenantContext(session.user.id)
+        normalized_message = str(message_id or "").strip()
+        async with self.pool.acquire() as connection:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT from_json FROM messages WHERE id = %s AND user_uid = %s",
+                    (normalized_message, tenant.user_uid),
+                )
+                row = await cursor.fetchone()
+        if row is None:
+            raise NotFoundError("message was not found")
+        raw = row["from_json"]
+        if isinstance(raw, str):
+            try:
+                decoded = json.loads(raw)
+            except json.JSONDecodeError:
+                decoded = []
+        else:
+            decoded = raw
+        sender = decoded[0] if isinstance(decoded, list) and decoded else None
+        if not isinstance(sender, dict):
+            raise NotFoundError("message sender was not available")
+        address = str(sender.get("address") or "").strip()
+        name = str(sender.get("name") or "").strip()
+        normalized = normalize_email(address)
+        async with self.pool.acquire() as connection:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    """
+                    SELECT id, display_name, primary_email, emails_json,
+                           created_at, updated_at
+                    FROM contacts
+                    WHERE user_uid = %s AND normalized_email = %s
+                    LIMIT 1
+                    """,
+                    (tenant.user_uid, normalized),
+                )
+                existing = await cursor.fetchone()
+        if existing is not None:
+            return self._contact(dict(existing))
+        return await self.create_contact(
+            session,
+            display_name=name,
+            primary_email=address,
+            emails=(address,),
+            request_id=request_id,
+        )
+
     async def get_contact(
         self,
         session: AuthenticatedSession,

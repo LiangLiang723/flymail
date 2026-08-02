@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from flymail.api.dependencies import require_csrf, require_session
+from flymail.api.schemas.personal import QuickAddContactRequest
 from flymail.api.schemas.settings_contacts import (
     ContactCreateRequest,
     ContactListResponse,
@@ -41,6 +42,39 @@ async def create_contact(
         primary_email=payload.primary_email,
         emails=payload.emails,
         request_id=request.state.context.request_id,
+    )
+
+
+@router.post(
+    "/api/v2/contacts/quick-add",
+    response_model=ContactResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def quick_add_contact(
+    payload: QuickAddContactRequest,
+    request: Request,
+    session: AuthenticatedSession = Depends(require_csrf),
+) -> ContactResponse:
+    return await _service(request).quick_add_from_message(
+        session,
+        payload.message_id,
+        request_id=request.state.context.request_id,
+    )
+
+
+@router.get("/api/v2/contacts/autocomplete", response_model=ContactListResponse)
+async def autocomplete_contacts(
+    request: Request,
+    q: str = Query(default="", max_length=191),
+    limit: int = Query(default=20, ge=1, le=50),
+    session: AuthenticatedSession = Depends(require_session),
+) -> ContactListResponse:
+    return ContactListResponse(
+        items=await _service(request).list_contacts(
+            session,
+            query=q,
+            limit=limit,
+        )
     )
 
 
