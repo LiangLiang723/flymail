@@ -37,6 +37,7 @@ from flymail.api.routes.bootstrap import router as bootstrap_router
 from flymail.api.routes.compose import router as compose_router
 from flymail.api.routes.content import router as content_router
 from flymail.api.routes.operations import router as operations_router
+from flymail.api.routes.realtime import router as realtime_router
 from flymail.api.routes.search import router as search_router
 from flymail.api.routes.threads import router as threads_router
 from flymail.api.schemas.common import HealthResponse, VersionResponse
@@ -46,6 +47,7 @@ from flymail.application.bootstrap import BootstrapService
 from flymail.application.compose import ComposeService
 from flymail.application.content import ContentApiService
 from flymail.application.operations import MailOperationApiService
+from flymail.application.realtime import RealtimeService
 from flymail.application.search_queries import SearchQueryService
 from flymail.application.thread_queries import ThreadQueryService
 from flymail.config import FlyMailSettings
@@ -247,6 +249,11 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
                 store,
                 now_fn=app.state.now_fn,
             )
+            app.state.realtime_service = RealtimeService(
+                pool,
+                auth_service=app.state.auth_service,
+                now_fn=app.state.now_fn,
+            )
             app.state.api_process_id = new_id("api")
             async with pool.acquire() as connection:
                 await connection.begin()
@@ -291,6 +298,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.state.content_api_service = None
     app.state.search_query_service = None
     app.state.compose_service = None
+    app.state.realtime_service = None
     app.state.accepting_requests = False
 
     app.add_middleware(RequestContextMiddleware)
@@ -320,6 +328,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
     app.include_router(content_router)
     app.include_router(search_router)
     app.include_router(compose_router)
+    app.include_router(realtime_router)
 
     @app.get("/api/v2/health", response_model=HealthResponse)
     async def health(request: Request) -> JSONResponse:

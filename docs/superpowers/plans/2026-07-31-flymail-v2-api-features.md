@@ -634,10 +634,10 @@ git commit -m "✍️ 实现 V2 草稿写信附件与可靠发送 API"
 **Interfaces:**
 
 - Produces: `GET /api/v2/events?after=<sequence>`
-- Produces: `WS /api/v2/realtime`
+- Produces: `WS /api/v2/realtime`（兼容别名 `/api/v2/ws`）
 - Event fields: sequence, event_type, aggregate_id, occurred_at, minimal payload.
 
-- [ ] **Step 1: Write realtime tests**
+- [x] **Step 1: Write realtime tests**
 
 Tests prove:
 
@@ -649,34 +649,37 @@ Tests prove:
 - revoked session closes WebSocket;
 - slow client is disconnected or coalesced without blocking event publisher.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement persisted event cursor**
+- [x] **Step 3: Implement persisted event cursor**
 
 Worker/Application writes `realtime_events` from Outbox publication. API fetches by user and sequence. Keep retention by time/count; cleanup is a maintenance task.
 
-- [ ] **Step 4: Implement WebSocket handshake**
+- [x] **Step 4: Implement WebSocket handshake**
 
 Authenticate session cookie, verify Origin, accept last sequence, send backlog then live notifications. Database remains source of truth; process-local condition variable only wakes connected clients.
 
-- [ ] **Step 5: Define exact event types**
+- [x] **Step 5: Define exact event types**
 
 ```text
 thread.created, thread.updated, thread.removed,
 message.body_state, operation.updated, send.updated,
 account.status_changed, sync.updated, conflict.created,
-settings.updated, session.revoked, version.changed
+settings.updated, session.revoked, version.changed,
+notification.created
 ```
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_realtime -v
 git add backend/flymail/repositories/realtime.py backend/flymail/application/realtime.py backend/flymail/api/routes/realtime.py backend/tests/v2/test_api_realtime.py
 git commit -m "📣 实现 V2 用户实时事件与断线续传"
 ```
+
+**Measured verification:** Task 9 realtime contracts `5/5`; realtime and notification regression tests `26/26`. HTTP and WebSocket consumers resume from persisted per-user cursors, expired windows return explicit resync scopes, revoked sessions close with 4401 and slow clients with 1013. Database rows remain the source of truth; local conditions only wake waiters, and payload validation rejects sensitive or oversized data.
 
 ---
 
