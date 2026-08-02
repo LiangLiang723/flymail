@@ -10,6 +10,7 @@ from flymail.api.schemas.backups import (
     BackupArchiveListResponse,
     BackupArchiveResponse,
     BackupInspectionResponse,
+    BackupPasswordRequest,
     RestoreRehearsalResponse,
 )
 from flymail.application.auth import AuthenticatedSession
@@ -38,12 +39,14 @@ def _assert_admin(session: AuthenticatedSession) -> None:
     status_code=status.HTTP_201_CREATED,
 )
 async def create_backup(
+    payload: BackupPasswordRequest,
     request: Request,
     session: AuthenticatedSession = Depends(require_csrf),
 ) -> BackupArchiveResponse:
     _assert_admin(session)
     return await _service(request).create_archive(
         session,
+        password=payload.password,
         request_id=request.state.context.request_id,
     )
 
@@ -95,11 +98,12 @@ async def download_backup(
 )
 async def inspect_backup(
     backup_id: str,
+    payload: BackupPasswordRequest,
     request: Request,
     session: AuthenticatedSession = Depends(require_csrf),
 ) -> BackupInspectionResponse:
     _assert_admin(session)
-    return await _service(request).inspect(backup_id)
+    return await _service(request).inspect(backup_id, password=payload.password)
 
 
 @router.post(
@@ -108,6 +112,7 @@ async def inspect_backup(
 )
 async def restore_rehearsal(
     backup_id: str,
+    payload: BackupPasswordRequest,
     request: Request,
     session: AuthenticatedSession = Depends(require_csrf),
 ) -> RestoreRehearsalResponse:
@@ -115,5 +120,6 @@ async def restore_rehearsal(
     return await _service(request).restore_rehearsal(
         session,
         backup_id,
+        password=payload.password,
         request_id=request.state.context.request_id,
     )

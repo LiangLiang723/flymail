@@ -840,7 +840,7 @@ git commit -m "👤 实现 V2 资料联系人图标签名与通知配置"
 - Produces job kinds: `backup.create`, `backup.inspect`, `backup.restore_validate`, `backup.restore_apply`.
 - Backup format includes manifest, database export, business objects, checksums and encrypted credentials.
 
-- [ ] **Step 1: Write backup tests**
+- [x] **Step 1: Write backup tests**
 
 Tests cover:
 
@@ -854,27 +854,27 @@ Tests cover:
 - failed restore leaves original data intact;
 - backup password never appears in logs or job payload JSON.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement password-derived backup encryption**
+- [x] **Step 3: Implement password-derived backup encryption**
 
 Use Scrypt with random salt to derive AES-GCM backup key. Manifest records algorithm versions and parameters, never password or instance secret.
 
-- [ ] **Step 4: Implement consistent export**
+- [x] **Step 4: Implement consistent export**
 
 Use a consistent MySQL transaction/snapshot for business tables. Export local-only draft/send objects by referenced hash with checksums. Write archive to temporary path and atomically rename after final checksum.
 
-- [ ] **Step 5: Implement inspect and validation**
+- [x] **Step 5: Implement inspect and validation**
 
 Inspection parses manifest, verifies format version, validates all checksums and backup password, then returns counts and compatibility without writing target database.
 
-- [ ] **Step 6: Implement staged restore**
+- [x] **Step 6: Implement staged restore**
 
 Restore into temporary database/schema and temporary business-object root. Run migrations/compatibility checks, tenant constraints, object checks and credential re-encryption. Convert every unfinished send and remote operation from the snapshot to `review_required`, preserve its original stable identifiers, and enqueue revalidation only after the restored instance starts. `restore_apply` requires admin confirmation token and maintenance mode; the final container-level atomic switch is completed in validation plan.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 python -m unittest tests.v2.test_api_backup -v
@@ -884,7 +884,7 @@ git commit -m "💾 实现 V2 配置业务备份与安全恢复"
 
 ---
 
-**Task 12 execution status:** Implemented administrator-only backup creation, listing, download, strict archive inspection and isolated restore rehearsal. Archives contain a logical database dump, content-addressed objects and a password-free manifest; every member is path/type/size/SHA-256 validated. Restore rehearsals use a random temporary database and delete all temporary state, never replacing current `/data`.
+**Measured verification:** Task 12 secure and compatibility backup contracts `7/7`; schema 15/16 migration plus backup contracts `26/26`; related account, notification, object-store and application regression produced no additional failures. Backups use independent-password Scrypt plus streaming AES-256-GCM, a repeatable-read business snapshot allowlist, and content-hash verification for local-only business objects. Instance-encrypted mailbox/proxy/notification credentials are re-encrypted under the backup key and then under the current instance key during rehearsal. OAuth/session/job/delivery/cache/search/log state is excluded. Wrong passwords and corrupted ciphertext fail before temporary database creation. Unfinished sends and remote operations become `review_required`, stable IDs are preserved, no runnable jobs are restored, and all temporary databases/files are removed. Production `/data` is never replaced; destructive apply remains a separate Gate 5 confirmation.
 
 ### Task 13: 完成 API 安全、OpenAPI 和全功能集成验收
 

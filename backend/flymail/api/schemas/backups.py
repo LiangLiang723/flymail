@@ -1,8 +1,21 @@
-"""Administrator backup archive and restore-rehearsal schemas."""
+"""Administrator password-encrypted backup and isolated restore schemas."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class BackupPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=12, max_length=1024, repr=False)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if value.strip() != value:
+            raise ValueError("backup password cannot start or end with whitespace")
+        return value
 
 
 class BackupArchiveResponse(BaseModel):
@@ -13,6 +26,7 @@ class BackupArchiveResponse(BaseModel):
     archive_name: str
     size_bytes: int = Field(ge=0)
     archive_sha256: str | None
+    encrypted: bool
     app_version: str | None
     schema_version: int | None
     created_at: float
@@ -34,12 +48,17 @@ class BackupInspectionResponse(BaseModel):
     backup_id: str
     valid: bool
     compatible: bool
+    encrypted: bool
     format_version: int
     app_version: str
     schema_version: int
     archive_sha256: str
     file_count: int = Field(ge=0)
     total_uncompressed_bytes: int = Field(ge=0)
+    business_object_count: int = Field(ge=0)
+    encrypted_secret_count: int = Field(ge=0)
+    included_tables: tuple[str, ...]
+    excluded_tables: tuple[str, ...]
     warnings: tuple[str, ...] = ()
 
 
@@ -50,5 +69,8 @@ class RestoreRehearsalResponse(BaseModel):
     restored_schema_version: int
     restored_table_count: int = Field(ge=0)
     verified_file_count: int = Field(ge=0)
+    re_encrypted_secret_count: int = Field(ge=0)
+    review_required_operation_count: int = Field(ge=0)
+    review_required_draft_count: int = Field(ge=0)
     temporary_database_removed: bool
     temporary_files_removed: bool

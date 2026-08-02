@@ -33,9 +33,9 @@ EXPECTED_TABLES = {
     "mail_operations", "bulk_mail_operations", "outbox_events", "worker_jobs", "job_attempts",
     "process_heartbeats", "login_rate_limits", "sync_cursors", "account_runtime_state", "realtime_events",
     "notification_channels", "notification_rules", "notification_image_publishers",
-    "notification_events", "notification_deliveries",
+    "notification_events", "notification_deliveries", "notification_preferences",
     "drafts", "draft_versions", "draft_recipients", "draft_attachments", "send_attempts",
-    "saved_searches", "search_history", "backup_jobs",
+    "saved_searches", "search_history", "backup_jobs", "backup_archives",
 }
 
 
@@ -156,6 +156,8 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (12, "authentication_sessions"),
             (13, "bulk_mail_operations"),
             (14, "draft_versions"),
+            (15, "notification_preferences"),
+            (16, "backup_archives"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -489,6 +491,58 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
                 await cursor.execute("DELETE FROM schema_migrations WHERE version = 14")
                 await connection.commit()
         self.assertEqual(await run_migrations(self.pool), [14])
+
+    async def test_notification_preferences_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        self.assertEqual(
+            await self.column_names("notification_preferences"),
+            [
+                "user_uid", "in_app_enabled", "external_enabled",
+                "include_images", "quiet_hours_json", "event_preferences_json",
+                "created_at", "updated_at",
+            ],
+        )
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 15")
+                await cursor.execute("DROP TABLE notification_preferences")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [15])
+        self.assertEqual(
+            await self.scalar(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='notification_preferences'"
+            ),
+            1,
+        )
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 15")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [15])
+
+    async def test_backup_archives_upgrade_and_crash_recovery_are_idempotent(self):
+        await run_migrations(self.pool)
+        self.assertEqual(
+            await self.index_columns("backup_archives", "idx_backup_archives_status"),
+            [("status", "A"), ("updated_at", "A"), ("id", "A")],
+        )
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 16")
+                await cursor.execute("DROP TABLE backup_archives")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [16])
+        self.assertEqual(
+            await self.scalar(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='backup_archives'"
+            ),
+            1,
+        )
+        async with self.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM schema_migrations WHERE version = 16")
+                await connection.commit()
+        self.assertEqual(await run_migrations(self.pool), [16])
 
     async def test_critical_index_column_order_and_direction(self):
         await run_migrations(self.pool)
