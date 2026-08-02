@@ -304,6 +304,8 @@ npm install
 npm run dev
 ```
 
+前端使用安全修复后的 Vite 6 工具链。登录后的一级页面按需异步加载，写信编辑器等大型依赖不会进入初始 JavaScript 包；构建回归应通过真实分块解决，不得通过提高 `chunkSizeWarningLimit` 隐藏大分块提示。`package.json` 中只批准当前已审查的 `esbuild` 与 `vue-demi` 安装脚本，升级这些依赖后需要重新审核对应版本。
+
 ### V2 基础层开发隔离
 
 FlyMail V2 正在独立开发中，`backend/v2_dev.py` 和 `backend/v2_worker.py` 目前只用于基础设施与协议层开发验证，不是当前生产容器的启动入口。正式部署仍由现有 `backend/main.py` 提供服务，直到 V2 全部功能和切换验收完成。

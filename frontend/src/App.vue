@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppIcon from './components/AppIcon.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AuthGate from './components/app/AuthGate.vue';
@@ -116,19 +116,20 @@ import { useMailStore } from './stores/mail';
 import { useUIStore } from './stores/ui';
 import api from './utils/api';
 import { classifyAuthError, normalizeApiError, type AuthState } from './utils/auth-state';
-import About from './views/About.vue';
-import AccountList from './views/AccountList.vue';
-import Backup from './views/Backup.vue';
-import ComposeEmail from './views/ComposeEmail.vue';
-import ContactList from './views/ContactList.vue';
-import HistorySync from './views/HistorySync.vue';
 import LoginView from './views/LoginView.vue';
-import MailList from './views/MailList.vue';
-import NotificationSettings from './views/NotificationSettings.vue';
-import Profile from './views/Profile.vue';
-import Settings from './views/Settings.vue';
-import UnifiedInbox from './views/UnifiedInbox.vue';
-import UserManagement from './views/UserManagement.vue';
+
+const About = defineAsyncComponent(() => import('./views/About.vue'));
+const AccountList = defineAsyncComponent(() => import('./views/AccountList.vue'));
+const Backup = defineAsyncComponent(() => import('./views/Backup.vue'));
+const ComposeEmail = defineAsyncComponent(() => import('./views/ComposeEmail.vue'));
+const ContactList = defineAsyncComponent(() => import('./views/ContactList.vue'));
+const HistorySync = defineAsyncComponent(() => import('./views/HistorySync.vue'));
+const MailList = defineAsyncComponent(() => import('./views/MailList.vue'));
+const NotificationSettings = defineAsyncComponent(() => import('./views/NotificationSettings.vue'));
+const Profile = defineAsyncComponent(() => import('./views/Profile.vue'));
+const Settings = defineAsyncComponent(() => import('./views/Settings.vue'));
+const UnifiedInbox = defineAsyncComponent(() => import('./views/UnifiedInbox.vue'));
+const UserManagement = defineAsyncComponent(() => import('./views/UserManagement.vue'));
 
 interface CurrentUser {
   id: string;
