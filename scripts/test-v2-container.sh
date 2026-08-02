@@ -10,7 +10,9 @@ IMAGE="$1"
 REQUESTED_DATA_DIR="${2:-}"
 PRODUCTION_DATA_DIR="/Docker/flymail/data"
 CREATED_DATA_DIR=0
-CONTAINER_NAME="flymail-v2-smoke-$(date +%s)-$$"
+CONTAINER_NAME="${FLYMAIL_SMOKE_CONTAINER_NAME:-flymail-v2-smoke-$(date +%s)-$$}"
+KEEP_CONTAINER="${FLYMAIL_SMOKE_KEEP_CONTAINER:-0}"
+KEEP_DATA="${FLYMAIL_SMOKE_KEEP_DATA:-0}"
 REPORT_FILE=""
 
 canonical_path() {
@@ -35,13 +37,16 @@ else
   DATA_DIR="$(mktemp -d /tmp/flymail-v2-smoke-data.XXXXXX)"
   CREATED_DATA_DIR=1
 fi
-REPORT_FILE="${DATA_DIR}/smoke-report.txt"
+REPORT_FILE="${FLYMAIL_SMOKE_REPORT_FILE:-${DATA_DIR}/smoke-report.txt}"
+mkdir -p "$(dirname "${REPORT_FILE}")"
 
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
-  docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
-  if [[ "${CREATED_DATA_DIR}" == "1" ]]; then
+  if [[ "${KEEP_CONTAINER}" != "1" ]]; then
+    docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+  fi
+  if [[ "${CREATED_DATA_DIR}" == "1" && "${KEEP_DATA}" != "1" ]]; then
     rm -rf -- "${DATA_DIR}"
   fi
   exit "${status}"
@@ -53,10 +58,14 @@ if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
   exit 2
 fi
 
-SESSION_SECRET="$(openssl rand -hex 32)"
-RANDOM_SUFFIX="$(openssl rand -hex 16)"
-printf -v MYSQL_PASSWORD "Q'\\\\@:/%%%s" "${RANDOM_SUFFIX}"
-unset RANDOM_SUFFIX
+SESSION_SECRET="${FLYMAIL_SMOKE_SESSION_SECRET:-$(openssl rand -hex 32)}"
+if [[ -n "${FLYMAIL_SMOKE_MYSQL_PASSWORD:-}" ]]; then
+  MYSQL_PASSWORD="${FLYMAIL_SMOKE_MYSQL_PASSWORD}"
+else
+  RANDOM_SUFFIX="$(openssl rand -hex 16)"
+  printf -v MYSQL_PASSWORD "Q'\\\\@:/%%%s" "${RANDOM_SUFFIX}"
+  unset RANDOM_SUFFIX
+fi
 
 HOST_PORT="$(python3 - <<'PY'
 import socket
@@ -104,6 +113,81 @@ mysql_scalar() {
   local query="$1"
   docker exec "${CONTAINER_NAME}" \
     mysql --protocol=socket --socket=/run/mysqld/mysqld.sock -uroot -Nse "${query}"
+}
+
+verify_lease_recovery() {
+  docker exec -i "${CONTAINER_NAME}" python - "${MARKER}" <<'PY'
+import asyncio
+import json
+import os
+import sys
+import time
+from urllib.parse import quote
+
+from flymail.config import FlyMailSettings
+from flymail.infrastructure.db.pool import DatabasePool
+from flymail.repositories.jobs import JobRepository
+
+
+async def main() -> None:
+    marker = sys.argv[1]
+    job_id = f"job_{marker}".replace("-", "_")[:64]
+    now = time.time()
+    os.environ["DATABASE_URL"] = (
+        "mysql://{}:{}@127.0.0.1:3306/{}?charset=utf8mb4".format(
+            quote(os.environ["MYSQL_USER"], safe=""),
+            quote(os.environ["MYSQL_PASSWORD"], safe=""),
+            quote(os.environ["MYSQL_DATABASE"], safe=""),
+        )
+    )
+    pool = await DatabasePool.create(FlyMailSettings.from_env("worker"))
+    try:
+        async with pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute("DELETE FROM job_attempts WHERE job_id=%s", (job_id,))
+                await cursor.execute("DELETE FROM worker_jobs WHERE id=%s", (job_id,))
+                await cursor.execute(
+                    """
+                    INSERT INTO worker_jobs (
+                        id, queue_name, job_kind, status, priority, available_at,
+                        lease_owner, lease_token, lease_expires_at, heartbeat_at,
+                        attempt_count, max_attempts, dedupe_key, payload,
+                        created_at, updated_at
+                    ) VALUES (%s, 'maintenance', 'cache.cleanup', 'leased', 100, %s,
+                              'smoke-worker', %s, %s, %s, 1, 3, %s, %s, %s, %s)
+                    """,
+                    (
+                        job_id,
+                        now - 60,
+                        f"lease_{job_id}"[:64],
+                        now - 30,
+                        now - 40,
+                        f"smoke:{marker}",
+                        json.dumps({"marker": marker}),
+                        now - 120,
+                        now - 40,
+                    ),
+                )
+            await connection.commit()
+        async with pool.acquire() as connection:
+            await connection.begin()
+            released = await JobRepository(connection).release_expired_leases(now=now)
+            await connection.commit()
+        async with pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT status, lease_owner, lease_token, last_error_class FROM worker_jobs WHERE id=%s",
+                    (job_id,),
+                )
+                row = await cursor.fetchone()
+        if released != 1 or row != ("retry_wait", "", None, "LeaseExpired"):
+            raise SystemExit(f"unexpected lease recovery result: released={released}, row={row!r}")
+    finally:
+        await pool.close()
+
+
+asyncio.run(main())
+PY
 }
 
 assert_runtime() {
@@ -169,6 +253,7 @@ wait_for_health
 assert_runtime
 [[ "$(mysql_scalar "SELECT COUNT(*) FROM flymail.smoke_persistence WHERE marker='${MARKER}'")" == "1" ]]
 [[ "$(docker exec "${CONTAINER_NAME}" cat /data/flymail/objects/sha256/smoke/marker)" == "${MARKER}" ]]
+verify_lease_recovery
 
 echo "停止隔离容器并验证 MySQL 安全关闭"
 docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
@@ -181,12 +266,15 @@ fi
 cat >"${REPORT_FILE}" <<EOF
 image=${IMAGE}
 version=${EXPECTED_VERSION}
+container_name=${CONTAINER_NAME}
+data_dir=${DATA_DIR}
 container_health=passed
 mysql_version=8.0
 mysql_data_dir=/data/mysql/
 mysql_bind_address=127.0.0.1
 worker_heartbeat=passed
 restart_persistence=passed
+lease_recovery=passed
 mysql_shutdown=passed
 production_data_touched=no
 EOF

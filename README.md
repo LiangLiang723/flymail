@@ -360,11 +360,14 @@ Gate 5 Task 2 已完成正式源码入口切换。`backend/main.py` 只创建 V2
 
 Gate 5 Task 3 已将单容器启动顺序固定为 MySQL 初始化与业务账号配置、一次性 V2 schema 迁移、Worker 启动并等待数据库心跳、最后启动 V2 API。入口脚本同时监督 MySQL、Worker 和 API；任一关键进程退出都会按 API、Worker、MySQL 的顺序安全关闭并传播失败状态。镜像只复制 V2 运行时源码、正式前端构建、版本文件和入口脚本，不包含后端测试、旧版路由或开发入口。隔离容器已使用包含引号、反斜杠、`@`、`:`、`/` 和 `%` 的数据库密码完成首次启动、健康检查、重启持久化和 MySQL 安全关闭验证。V2 新装环境当前不会读取旧版 `FLYMAIL_ADMIN_USERNAME`/`FLYMAIL_ADMIN_PASSWORD` 自动创建管理员；首个管理员建立和现有生产用户迁移必须在部署切换方案中明确完成，不能仅凭容器健康检查认定业务已可登录。
 
+Gate 5 Task 4 已增加可复用的隔离容器持久化、过期租约恢复和秘密扫描。扫描覆盖镜像配置与历史、容器与应用日志、Compose 渲染以及 Git 未暂存/已暂存差异，并检查测试秘密、未脱敏 MySQL URL、Authorization 凭证和会话签名密钥；端口检查只允许 `8080/tcp`。候选镜像 `benxianyu/flymail:v2-rc-bb21c3d` 已通过，生产 `/Docker/flymail/data` 未触碰。
+
 ## 文档
 
 - [API 接口文档](doc/API接口文档.md)
 - [Docker 多用户重构设计](doc/2026-06-30-docker-multi-user-refactor-design.md)
 - [历史邮件同步设计记录](doc/history-sync-design-2026-06-30.md)
+- [V2 容器验证方法](docs/benchmarks/flymail-v2-methodology.md)
 
 ## 许可证
 

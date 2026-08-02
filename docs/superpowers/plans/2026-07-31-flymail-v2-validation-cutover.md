@@ -316,7 +316,7 @@ git commit -m "🐳 重构 V2 单容器双进程启动与安全关闭"
 - Produces a deterministic smoke report file under a unique temporary directory.
 - Produces secret scan exit code `0` only when no forbidden values appear.
 
-- [ ] **Step 1: Build local release-candidate image**
+- [x] **Step 1: Build local release-candidate image**
 
 Use a temporary tag based on Git SHA:
 
@@ -325,7 +325,7 @@ IMAGE="benxianyu/flymail:v2-rc-$(git rev-parse --short HEAD)"
 docker build -t "$IMAGE" .
 ```
 
-- [ ] **Step 2: Run smoke test with hostile password**
+- [x] **Step 2: Run smoke test with hostile password**
 
 The script must use a generated password containing at least quote, backslash, `@`, `:`, `/` and `%`. Validate:
 
@@ -341,7 +341,7 @@ The script must use a generated password containing at least quote, backslash, `
 - job lease recovery works;
 - MySQL shuts down cleanly.
 
-- [ ] **Step 3: Implement secret scan**
+- [x] **Step 3: Implement secret scan**
 
 Scan:
 
@@ -353,15 +353,17 @@ Scan:
 
 Forbidden exact test secrets must not occur. Also match patterns for unredacted MySQL URLs, Authorization headers and session secrets. Avoid false positives on `.env.example` placeholder names.
 
-- [ ] **Step 4: Verify no MySQL host publication**
+- [x] **Step 4: Verify no MySQL host publication**
 
 Inspect container ports and compose config. Only port 8080 may be exposed/published.
 
-- [ ] **Step 5: Record methodology, not secrets**
+- [x] **Step 5: Record methodology, not secrets**
 
 Document commands, resource limits, data scale and result schema. Do not commit generated passwords, raw logs or temp paths.
 
-- [ ] **Step 6: Commit**
+**Measured verification:** local image `benxianyu/flymail:v2-rc-bb21c3d` completed the retained-resource smoke and secret scan. Health, repository version `0.0.25`, MySQL 8.0 data directory and bind address, current Worker heartbeat, database/object persistence, expired lease recovery and clean shutdown passed. Exact generated secrets did not occur in image metadata, image history, container/application logs, Git unstaged/staged diffs or Compose rendering. Pattern scans found no unredacted MySQL URL, Authorization credential or session secret. Container and Compose inspection found only `8080/tcp`; `/Docker/flymail/data` was not used.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/check-v2-secrets.sh scripts/test-v2-container.sh docs/benchmarks/flymail-v2-methodology.md
