@@ -104,7 +104,7 @@
 - Produces: generated API response/request types from frozen OpenAPI.
 - Produces V2 dev command: `npm run dev:v2` and test command: `npm run test:v2`.
 
-- [ ] **Step 1: Add a test-tool compatibility probe**
+- [x] **Step 1: Add a test-tool compatibility probe**
 
 Run in `frontend` without modifying package files first:
 
@@ -117,7 +117,7 @@ npm view openapi-typescript engines --json
 
 Confirm compatibility with Node 20, Vue 3.4, TypeScript 5.3 and Vite 5. Add only these development dependencies, lock resolved versions in `package-lock.json`, and record the resolved versions in the commit diff.
 
-- [ ] **Step 2: Write failing API and cache tests**
+- [x] **Step 2: Write failing API and cache tests**
 
 Tests cover:
 
@@ -130,7 +130,7 @@ Tests cover:
 - logout clears all user server data;
 - error envelope maps to typed `ApiError`.
 
-- [ ] **Step 3: Run tests and verify failure**
+- [x] **Step 3: Run tests and verify failure**
 
 ```bash
 cd frontend
@@ -139,11 +139,11 @@ npm run test:v2 -- api-client
 
 Expected: FAIL because V2 client and cache do not exist.
 
-- [ ] **Step 4: Generate API types**
+- [x] **Step 4: Generate API types**
 
 Use `openapi-typescript` against `../backend/tests/v2/fixtures/openapi-v2.json` and write deterministic `src/shared/api/generated.ts`. Add a script that regenerates and a test that fails if regeneration changes committed output.
 
-- [ ] **Step 5: Implement API client**
+- [x] **Step 5: Implement API client**
 
 Use one Axios instance with:
 
@@ -155,15 +155,15 @@ Use one Axios instance with:
 - one controlled retry for idempotent GET after transient connection failure;
 - response error normalization.
 
-- [ ] **Step 6: Implement Query Cache**
+- [x] **Step 6: Implement Query Cache**
 
 Cache entries contain data, status, updatedAt, staleAt, subscribers, inFlight Promise and AbortController. Key serialization must be stable and user-scoped. Do not persist cache to localStorage or IndexedDB.
 
-- [ ] **Step 7: Create V2 independent entry**
+- [x] **Step 7: Create V2 independent entry**
 
 `v2.html` loads `src/v2-main.ts`. Current `index.html` and `src/main.ts` remain unchanged. Vite dev command serves V2 entry explicitly.
 
-- [ ] **Step 8: Run tests and commit**
+- [x] **Step 8: Run tests and commit**
 
 ```bash
 npm run test:v2 -- api-client
@@ -171,6 +171,8 @@ npm run build
 git add frontend/package.json frontend/package-lock.json frontend/vite.config.ts frontend/v2.html frontend/src/v2-main.ts frontend/src/shared/api frontend/tests/v2/api-client.test.ts
 git commit -m "🧱 建立 V2 前端 API 类型与查询缓存"
 ```
+
+**Measured verification:** API/client/cache tests `5/5` passed; frozen contract fingerprint check passed for OpenAPI `0.0.25` SHA `1552538e3c7cd1062d1ce51b9c6f99b8829fef0b6abc9c4a9add88c33971c6ac`; V2 independent production build passed at approximately `24.52 KB` initial JavaScript gzip including Vue core; legacy production build remained green. The frozen backend fixture is a reviewed contract fingerprint summary rather than a complete OpenAPI document, so the curated generated type surface carries and verifies the frozen version/SHA instead of silently fabricating schemas from incomplete input.
 
 ---
 

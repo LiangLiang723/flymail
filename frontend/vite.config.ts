@@ -30,7 +30,9 @@ const devOnlyProxy = {
   },
 };
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command }) => {
+  const v2Build = process.env.FLYMAIL_V2_BUILD === '1';
+  return ({
   plugins: [
     vue(),
     {
@@ -45,8 +47,22 @@ export default defineConfig(({ command }) => ({
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
   },
   build: {
-    outDir: '../dist/ui',
+    outDir: v2Build ? '../dist/v2-ui' : '../dist/ui',
     emptyOutDir: true,
+    manifest: v2Build,
+    rollupOptions: v2Build
+      ? {
+          input: resolve(__dirname, 'v2.html'),
+          output: {
+            manualChunks(id) {
+              if (id.includes('/node_modules/vue') || id.includes('/node_modules/@vue/')) return 'vue-core';
+              if (id.includes('/node_modules/axios/')) return 'http-core';
+              if (id.includes('/node_modules/@tiptap/')) return 'editor';
+              return undefined;
+            },
+          },
+        }
+      : undefined,
   },
   server: {
     port: 5173,
@@ -63,4 +79,5 @@ export default defineConfig(({ command }) => ({
       },
     },
   },
-}));
+  });
+});
