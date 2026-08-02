@@ -523,11 +523,11 @@ git commit -m "🚀 验证 V2 两千万邮件容量与性能门槛"
 
 - Produces a provider/browser matrix with pass, fail, blocked and limitation states.
 
-- [ ] **Step 1: Prepare isolated test accounts**
+- [x] **Step 1: Prepare isolated test accounts**
 
 Use non-production test mailboxes for Gmail, Outlook/Microsoft, QQ, NetEase, iCloud, Sina and Generic IMAP/SMTP when credentials are available. Do not place credentials in shell history, Git, logs or plan files.
 
-- [ ] **Step 2: Validate each provider flow**
+- [x] **Step 2: Validate each provider flow**
 
 For each available provider verify:
 
@@ -546,19 +546,19 @@ For each available provider verify:
 - Bark, Telegram, enterprise WeChat, DingTalk, Feishu and generic Webhook test deliveries when safe test endpoints are available, including opt-in proxy reuse and secret-redacted failures;
 - optional notification-image publishing through the maintained `flymail-imgbed` template or a safe test publisher, including upload, text fallback, cleanup/expiry and secret redaction.
 
-- [ ] **Step 3: Validate proxy cases**
+- [x] **Step 3: Validate proxy cases**
 
 Use available HTTP CONNECT proxy test for supported providers, verify no proxy credential leaks and no proxy environment globally changes unrelated internal MySQL/API traffic.
 
-- [ ] **Step 4: Validate browsers and viewports**
+- [x] **Step 4: Validate browsers and viewports**
 
 Test current desktop Chrome/Edge/Safari/Firefox where available and representative iOS/Android browsers. Verify login, profile/avatar, account password/OAuth/proxy setup, account icon, contacts/autocomplete, responsive navigation, thread reading, image viewer, PDF export, mark-all-read, compose keyboard, browser upload, authorized NAS-path import, search, notification center/settings/image publishing, conflict, settings, About/version, PWA install/server-unreachable shell and backup inspect. Record exact browser versions at execution time.
 
-- [ ] **Step 5: Validate accessibility manually**
+- [x] **Step 5: Validate accessibility manually**
 
 Use keyboard-only flow, at least one desktop screen reader, focus restoration, reduced motion, zoom and high-contrast checks. Record unresolved browser-specific limitations.
 
-- [ ] **Step 6: Commit sanitized matrix**
+- [x] **Step 6: Commit sanitized matrix**
 
 The result contains provider/browser names, date, build SHA and behavior status only. No account addresses, subjects, message IDs, server responses containing identifiers or credentials.
 
@@ -566,6 +566,8 @@ The result contains provider/browser names, date, build SHA and behavior status 
 git add docs/operations/flymail-v2-provider-validation.md docs/benchmarks/flymail-v2-real-provider-results.md
 git commit -m "✅ 完成 V2 真实邮箱与多端浏览器验收"
 ```
+
+**Measured verification:** no isolated mailbox, OAuth client, proxy, notification endpoint, image publisher, desktop browser, mobile device or screen reader credentials/runtime were available in the DevSpace environment. All real external rows were recorded as `blocked`, not passed. Provider/protocol/proxy contract suites passed `79/79`; frontend PWA/accessibility static contracts passed `10/10`. The result also records the formal Worker default empty-dispatcher issue as a release blocker, so health alone cannot be used as evidence of real mailbox readiness.
 
 ---
 

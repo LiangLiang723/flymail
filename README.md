@@ -364,6 +364,8 @@ Gate 5 Task 4 已增加可复用的隔离容器持久化、过期租约恢复和
 
 Gate 5 Task 5 已建立统一故障注入矩阵，不增加生产故障开关。14 类故障通过依赖注入的假协议传输、真实 MySQL 事务、Worker 租约和临时对象存储重跑 17 个生产路径测试；双 Worker 并发领取连续 20 次通过。提交前结果为顶层 `3/3`、不变量失败 0，覆盖事务边界、远端结果不确定、数据库不可用、对象写入/缺失、IMAP/SMTP 中断、Outbox、IDLE、限流、SIGTERM 和时钟调整。真实服务商网络、宿主机断电和生产负载长时间演练仍需独立验证。
 
+Gate 5 Task 7 已建立真实服务商、代理、通知、图床、浏览器和无障碍验收手册及脱敏结果矩阵。本次 DevSpace 没有隔离邮箱、OAuth 客户端、代理、通知端点、图床、桌面浏览器、移动设备或屏幕阅读器，因此所有真实外部行均明确标记为 `blocked`，没有用假 Provider 或静态测试冒充真实通过。Provider、协议和代理合同回归为 `79/79`，PWA 与无障碍静态合同为 `10/10`。正式 Worker 当前默认创建空 Dispatcher，空数据库时可能仅凭心跳通过健康检查但不能处理真实任务；该问题与真实 IMAP、SMTP、OAuth 网关装配均是生产切换阻断项。
+
 ## 文档
 
 - [API 接口文档](doc/API接口文档.md)
@@ -371,6 +373,8 @@ Gate 5 Task 5 已建立统一故障注入矩阵，不增加生产故障开关。
 - [历史邮件同步设计记录](doc/history-sync-design-2026-06-30.md)
 - [V2 容器验证方法](docs/benchmarks/flymail-v2-methodology.md)
 - [V2 故障恢复验证结果](docs/benchmarks/flymail-v2-fault-results.md)
+- [V2 真实服务商与浏览器验收手册](docs/operations/flymail-v2-provider-validation.md)
+- [V2 真实服务商与浏览器验收结果](docs/benchmarks/flymail-v2-real-provider-results.md)
 
 ## 许可证
 
