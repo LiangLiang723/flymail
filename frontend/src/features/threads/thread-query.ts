@@ -1,4 +1,8 @@
-import type { ThreadListResponse, ThreadProjection } from '../../shared/api/generated.ts';
+import type {
+  ThreadListItemResponse,
+  ThreadListResponse,
+  ThreadProjection,
+} from '../../shared/api/generated.ts';
 
 function stable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stable);
@@ -10,6 +14,26 @@ function stable(value: unknown): unknown {
     );
   }
   return value;
+}
+
+export interface ThreadPage {
+  threads: ThreadProjection[];
+  next_cursor?: string | null;
+}
+
+export function normalizeThreadListItem(item: ThreadListItemResponse): ThreadProjection {
+  return {
+    id: item.id,
+    subject: item.subject,
+    snippet: item.latest_snippet,
+    latest_at: item.latest_message_at,
+    unread_count: item.unread_count,
+    message_count: item.message_count,
+    is_starred: item.is_starred,
+    has_attachments: item.has_attachments,
+    account_ids: [...item.account_ids],
+    pending_state: item.pending_operation_count > 0 ? 'pending' : null,
+  };
 }
 
 export function createThreadQueryKey(userId: string, descriptor: Record<string, unknown>): string {
@@ -93,18 +117,19 @@ export class ThreadCursorMemory {
     this.maxEntries = Math.max(1, maxEntries);
   }
 
-  get(key: string): ThreadListResponse | undefined {
+  get(key: string): ThreadPage | undefined {
     const entry = this.pages.get(key);
     if (!entry) return undefined;
     entry.touchedAt = Date.now();
     return { threads: entry.threads, next_cursor: entry.nextCursor };
   }
 
-  set(key: string, response: ThreadListResponse, append = false): ThreadListResponse {
+  set(key: string, response: ThreadListResponse, append = false): ThreadPage {
     const previous = this.pages.get(key);
+    const normalized = response.items.map(normalizeThreadListItem);
     const threads = append && previous
-      ? appendThreadPage(previous.threads, response.threads)
-      : response.threads;
+      ? appendThreadPage(previous.threads, normalized)
+      : normalized;
     this.pages.set(key, {
       threads,
       nextCursor: response.next_cursor || null,

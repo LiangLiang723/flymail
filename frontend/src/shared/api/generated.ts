@@ -104,8 +104,25 @@ export interface CursorPage<T> {
   next_cursor?: string | null;
 }
 
+export interface ThreadListItemResponse {
+  id: string;
+  latest_message_id: string;
+  latest_message_at: number;
+  subject: string;
+  participants_summary: string;
+  latest_snippet: string;
+  message_count: number;
+  unread_count: number;
+  is_starred: boolean;
+  has_attachments: boolean;
+  account_count: number;
+  account_ids: string[];
+  pending_operation_count: number;
+  projection_version: number;
+}
+
 export interface ThreadListResponse {
-  threads: ThreadProjection[];
+  items: ThreadListItemResponse[];
   next_cursor?: string | null;
 }
 

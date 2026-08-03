@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import { createBootstrapController } from '../../src/app/bootstrap.ts';
-import type { BootstrapResponse, ThreadProjection } from '../../src/shared/api/generated.ts';
+import type {
+  BootstrapResponse,
+  ThreadListItemResponse,
+  ThreadProjection,
+} from '../../src/shared/api/generated.ts';
 import {
   buildNavigationModel,
   createNavigationState,
@@ -82,6 +86,25 @@ function thread(id: string, latestAt: number, unread = 0): ThreadProjection {
   };
 }
 
+function rawThread(id: string, latestAt: number, unread = 0): ThreadListItemResponse {
+  return {
+    id,
+    latest_message_id: `message-${id}`,
+    latest_message_at: latestAt,
+    subject: `Subject ${id}`,
+    participants_summary: 'Sender <sender@example.com>',
+    latest_snippet: 'cached snippet',
+    message_count: 1,
+    unread_count: unread,
+    is_starred: false,
+    has_attachments: false,
+    account_count: 1,
+    account_ids: ['acc-work'],
+    pending_operation_count: 0,
+    projection_version: 1,
+  };
+}
+
 function draft(version = 1) {
   return {
     id: 'draft-1', account_id: 'acc-work', identity_id: 'ident-work', thread_id: null,
@@ -125,8 +148,8 @@ test('desktop and mobile bootstrap navigation pagination and recovery stay contr
 
   const memory = new ThreadCursorMemory(4);
   const key = createThreadQueryKey(first!.user.id, { mailbox: 'inbox' });
-  memory.set(key, { threads: [thread('t3', 3, 1), thread('t2', 2)], next_cursor: 'cursor-2' });
-  const appended = memory.set(key, { threads: [thread('t2', 2), thread('t1', 1)], next_cursor: null }, true);
+  memory.set(key, { items: [rawThread('t3', 3, 1), rawThread('t2', 2)], next_cursor: 'cursor-2' });
+  const appended = memory.set(key, { items: [rawThread('t2', 2), rawThread('t1', 1)], next_cursor: null }, true);
   assert.deepEqual(appended.threads.map((item) => item.id), ['t3', 't2', 't1']);
 });
 

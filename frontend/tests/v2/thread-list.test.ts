@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import type { ThreadProjection } from '../../src/shared/api/generated.ts';
+import type { ThreadListItemResponse, ThreadProjection } from '../../src/shared/api/generated.ts';
 import {
+  ThreadCursorMemory,
   ThreadListController,
   appendThreadPage,
   createThreadQueryKey,
@@ -15,6 +16,25 @@ function thread(id: string, unread = false): ThreadProjection {
   return {
     id, subject: `Subject ${id}`, latest_at: 1, unread_count: unread ? 1 : 0,
     message_count: 1, is_starred: false, has_attachments: false, account_ids: ['a1'],
+  };
+}
+
+function rawThread(id: string, latestMessageAt = 1): ThreadListItemResponse {
+  return {
+    id,
+    latest_message_id: `message-${id}`,
+    latest_message_at: latestMessageAt,
+    subject: `Subject ${id}`,
+    participants_summary: 'Sender <sender@example.com>',
+    latest_snippet: 'preview',
+    message_count: 1,
+    unread_count: 0,
+    is_starred: false,
+    has_attachments: false,
+    account_count: 1,
+    account_ids: ['a1'],
+    pending_operation_count: 0,
+    projection_version: 1,
   };
 }
 
@@ -35,20 +55,42 @@ test('next cursor appends without duplicates and precise patch preserves other r
   assert.equal(patched[2], merged[2]);
 });
 
+test('backend items response is normalized before empty or populated pages are cached', () => {
+  const memory = new ThreadCursorMemory();
+  const empty = memory.set('empty', { items: [], next_cursor: null });
+  assert.deepEqual(empty.threads, []);
+
+  const populated = memory.set('inbox', {
+    items: [{
+      ...rawThread('t1', 123),
+      message_count: 2,
+      unread_count: 1,
+      is_starred: true,
+      pending_operation_count: 1,
+      projection_version: 3,
+    }],
+    next_cursor: 'next',
+  });
+  assert.equal(populated.threads[0].latest_at, 123);
+  assert.equal(populated.threads[0].snippet, 'preview');
+  assert.equal(populated.threads[0].pending_state, 'pending');
+  assert.equal(populated.next_cursor, 'next');
+});
+
 test('switching mailbox aborts old request and stale response cannot replace new data', async () => {
   const events: string[] = [];
   const controller = new ThreadListController(async (request, signal) => {
     events.push(`start:${request.key}`);
     return new Promise((resolve, reject) => {
       signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
-      setTimeout(() => resolve({ threads: [thread(request.key)], next_cursor: null }), request.key === 'old' ? 20 : 1);
+      setTimeout(() => resolve({ items: [rawThread(request.key)], next_cursor: null }), request.key === 'old' ? 20 : 1);
     });
   });
   const oldRequest = assert.rejects(controller.load({ key: 'old' }), { name: 'AbortError' });
   const next = await controller.load({ key: 'new' });
   await oldRequest;
-  assert.equal(next.threads[0].id, 'new');
-  assert.equal(controller.current?.threads[0].id, 'new');
+  assert.equal(next.items[0].id, 'new');
+  assert.equal(controller.current?.items[0].id, 'new');
   assert.deepEqual(events, ['start:old', 'start:new']);
 });
 
