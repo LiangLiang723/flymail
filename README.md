@@ -24,6 +24,7 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 - 每个邮箱账号可使用服务商默认图标、FlyMail 内置图标或用户上传图片；上传时提供一致的正方形裁剪界面，最终由前后端共同规范化为 `256 × 256 WebP`，并在账号管理、邮件管理、移动侧栏、备份和聚合收件箱中统一显示
 - 邮件导出 PDF、PWA 安装壳和移动端适配
 - 统一语义化设计系统覆盖浅色和深色主题，按钮、输入框、卡片、徽标、分段控件、弹窗、状态提示与页面层级复用同一套组件和视觉规范；危险操作、附件操作、编辑器弹层、禁用态和移动端图标按钮均经过双主题全页面审计
+- V2 API、Worker、路由、线程、搜索、同步、通知和发送能力保持不变，正式前端恢复 V1 的完整视觉层：登录页、248/72px 全局侧栏、邮件工作台、表单、列表、卡片、弹窗、移动抽屉和全部一级页面统一使用 V1 紫色语义设计系统；非邮件路由不再被强制塞入邮件三栏
 - 登录后的全部一级页面使用明确的页面模板和宽度模式：邮件管理、聚合收件箱、联系人、账号管理、同步管理、用户管理、写信和邮件备份采用流体工作台，充分利用 1440px、1920px 和超宽屏可用空间；设置、个人资料和第三方通知采用左对齐的 1120px 表单列，关于页采用 960px 阅读列；所有页面共享统一页边距、圆角面板、加载态和空状态，移动工作区保持边到边适配
 - 深色模式可在设置中选择跟随浏览器、浅色或深色，默认跟随浏览器，并对低动态、低透明和高对比偏好提供适配
 - 登录后的全局导航采用 248px 展开、72px 折叠的无顶栏侧栏；折叠态顶部只使用一个品牌交互槽位，默认显示居中的 FlyMail Logo，鼠标悬停或键盘聚焦时在同一位置切换为展开图标，不设置独立常驻展开按钮；其余图标继续严格居中，用户头像菜单集中个人资料、用户管理、第三方通知、设置、关于、修改密码和退出登录，移动端使用包含主导航、账号和文件夹的统一抽屉
@@ -82,7 +83,7 @@ openssl rand -hex 32
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.1.3` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.1.4` 单容器镜像
 - 在镜像内部独立运行 MySQL 8.0、持久化 Worker 和 FastAPI/Vue 服务
 - 通过 Docker Compose 变量替换读取根目录 `.env` 中列出的部署变量，不会把整个 `.env` 无差别注入容器
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -125,7 +126,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.1.3 .
+docker build -t benxianyu/flymail:0.1.4 .
 ```
 
 默认只使用本地镜像，不执行 `docker login` 或 `docker push`。只有在明确要求上传 Docker Hub，并完成最终版本、镜像 digest、秘密扫描和发布审批后才可推送。
@@ -291,7 +292,7 @@ npm run dev
 
 前端使用安全修复后的 Vite 6 工具链。登录后的一级页面按需异步加载，写信编辑器等大型依赖不会进入初始 JavaScript 包；构建回归应通过真实分块解决，不得通过提高 `chunkSizeWarningLimit` 隐藏大分块提示。`package.json` 中只批准当前已审查的 `esbuild` 与 `vue-demi` 安装脚本，升级这些依赖后需要重新审核对应版本。
 
-V2 前端已成为正式 `src/main.ts` 入口。源码验收可执行：
+V2 前端已成为正式 `src/main.ts` 入口，并继续使用 V2 Bootstrap、路由、状态模型、实时事件和 `/api/v2` 接口。`0.1.4` 起正式入口加载 V1 全量设计系统，由 V2 专用应用侧栏和兼容样式恢复 V1 外观；这不是切回旧 `App.vue` 或旧 API。源码验收可执行：
 
 ```bash
 cd frontend
@@ -341,9 +342,9 @@ V2 API Task 12 已增加管理员业务备份创建、列表、下载、完整�
 
 V2 API Task 13 已完成 Gate 3 安全、契约和纵向集成验收。所有 V2 HTTP 接口统一使用 `/api/v2` 前缀；本地认证采用服务端会话、签名 Cookie 与同源 CSRF 校验，修改密码后旧 V2 会话不可重放。远端收取、正文/附件获取、邮件操作、可靠发送、通知投递、配额清理和备份均通过持久化异步任务执行，HTTP API 只返回本地状态或任务标识；搜索始终限制在当前用户的本地投影与索引，不连接远端邮箱。业务备份只覆盖明确列出的配置和业务关系，并仅提供随机临时数据库与对象目录中的恢复演练，不提供覆盖生产 `/data` 的直接恢复接口。OpenAPI 已冻结为版本 `0.1.3`，包含 90 个路径、114 个操作和 138 个 schema，规范化 SHA-256 为 `3add2d91006ebc27db08f16e4add2ae2bffa5b41ebf036a72dabe1ba110131c7`；跨租户资源猜测、伪造游标/删除令牌、CSRF/Origin、SQL 式搜索值、超大或活动图片、旧会话重放、空线程列表和无长度用户密码均有回归覆盖。最终隔离 MySQL 完整后端回归为 `659/659` 通过且无跳过。仓库正式 API/Worker 入口和生产容器均已切换到 V2 `0.1.3`。
 
-Gate 4 已完成独立 V2 Vue 前端验收。V2 使用一次 Bootstrap 获取用户、权限、账号、统一文件夹、原生标签、界面偏好、同步告警和实时游标；会话列表使用签名游标、本地缓存、取消和精确投影更新，正文、附件和原始邮件缓存缺失时显示异步任务状态。桌面、平板和移动端覆盖本地操作与撤销、写信与版本冲突、浏览器上传和授权路径导入、立即/定时发送、结构化搜索、设置/同步/管理员/备份、资料/联系人/签名/图标/通知、图片查看、PDF 导出和静态 PWA 壳。前端实时事件名称与冻结的 14 种后端事件完全一致，断线按数据库序列补发。V2 前端测试为 `65/65`，兼容前端回归为 `96/96`，默认生产构建通过；V2 初始 JavaScript 为 `66.83 KiB gzip`，最大异步 chunk 为 `65.64 KiB gzip`。线程列表在 API 边界把后端 `items` 响应转换为内部视图模型，空邮箱不会再触发 `undefined.map`。仓库 `src/main.ts` 和生产容器入口均已切换到 V2；新生产数据位于 `/Docker/flymail/data`。
+Gate 4 已完成独立 V2 Vue 前端验收。V2 使用一次 Bootstrap 获取用户、权限、账号、统一文件夹、原生标签、界面偏好、同步告警和实时游标；会话列表使用签名游标、本地缓存、取消和精确投影更新，正文、附件和原始邮件缓存缺失时显示异步任务状态。桌面、平板和移动端覆盖本地操作与撤销、写信与版本冲突、浏览器上传和授权路径导入、立即/定时发送、结构化搜索、设置/同步/管理员/备份、资料/联系人/签名/图标/通知、图片查看、PDF 导出和静态 PWA 壳。前端实时事件名称与冻结的 14 种后端事件完全一致，断线按数据库序列补发。`0.1.4` 在不改变上述 V2 行为的前提下恢复 V1 全量 UI，新增源码契约与 Playwright 视口烟测；当前 V2 前端测试为 `70/70`，默认生产构建通过，初始 JavaScript 为 `74.85 KiB gzip`，最大异步 chunk 为 `65.64 KiB gzip`。线程列表在 API 边界把后端 `items` 响应转换为内部视图模型，空邮箱不会再触发 `undefined.map`。仓库 `src/main.ts` 和生产容器入口均保持 V2；生产数据位于 `/Docker/flymail/data`。
 
-Gate 5 Task 1 已增加集中式安全 JSON 日志、请求分段计时和 Worker 任务指标。日志只接受请求/任务 ID、脱敏账号标识、服务商、操作、错误类别、耗时、队列等待、字节数、结果数和缓存状态等已审核低基数字段；数据库连接、密码、邮箱授权码、OAuth/会话令牌、Cookie、正文和附件文件名会被丢弃。HTTP 响应的 `Server-Timing` 包含 `total`、`db`、`object` 和 `serialize`，Worker 记录排队、执行、重试、输入/输出字节和结果数。正式健康入口为 `/api/health`，并保留 `/api/v2/health`；两者共享数据库、schema、Worker 心跳和对象存储判定。管理员诊断仍只返回安全聚合数据。当前 OpenAPI 为 90 个路径、114 个操作和 138 个 schema，版本为 `0.1.3`，SHA-256 为 `3add2d91006ebc27db08f16e4add2ae2bffa5b41ebf036a72dabe1ba110131c7`。
+Gate 5 Task 1 已增加集中式安全 JSON 日志、请求分段计时和 Worker 任务指标。日志只接受请求/任务 ID、脱敏账号标识、服务商、操作、错误类别、耗时、队列等待、字节数、结果数和缓存状态等已审核低基数字段；数据库连接、密码、邮箱授权码、OAuth/会话令牌、Cookie、正文和附件文件名会被丢弃。HTTP 响应的 `Server-Timing` 包含 `total`、`db`、`object` 和 `serialize`，Worker 记录排队、执行、重试、输入/输出字节和结果数。正式健康入口为 `/api/health`，并保留 `/api/v2/health`；两者共享数据库、schema、Worker 心跳和对象存储判定。管理员诊断仍只返回安全聚合数据。当前 OpenAPI 为 90 个路径、114 个操作和 138 个 schema，版本为 `0.1.4`，SHA-256 为 `bcdcff8e5b4e4a90621d832b41e75b3930044b95f854e22e1732e6278afaf813`。
 
 Gate 5 Task 2 已完成正式源码入口切换。`backend/main.py` 只创建 V2 API，`backend/worker.py` 启动包内持久化 Worker，`frontend/src/main.ts` 是默认 V2 前端入口；`backend/v2_dev.py`、`backend/v2_worker.py`、`frontend/src/v2-main.ts` 和 `frontend/v2.html` 已移除。API 与 Worker 保持独立数据库连接池，Worker 在关闭时停止领取新任务、等待短任务、取消超时任务并释放租约。隔离 MySQL 完整后端回归为 `604/604`，兼容前端回归为 `96/96`，V2 前端回归为 `64/64`，默认生产构建通过。生产容器和新 `/Docker/flymail/data` 已完成切换，但这仍不代表真实 IMAP、SMTP、OAuth 服务商网关已经通过生产账号验收。
 
@@ -361,7 +362,9 @@ Gate 5 Task 8 已统一 V2 环境变量、单容器部署、业务备份、隔�
 
 Gate 5 Task 9 的历史发布证据保持不变。`0.1.3` 修复前端线程列表读取错误响应字段导致的登录后崩溃，并将所有用户输入的登录密码、管理员密码、邮箱密码或授权码、代理密码和业务备份密码统一为只要求非空、不限制长度且不自动去除首尾空格；`FLYMAIL_SESSION_SECRET` 等内部密钥仍保留安全最小长度。完整后端回归 `659/659`、兼容前端 `96/96`、V2 前端 `65/65`、生产构建、镜像级根页面、单字符管理员/普通用户登录、单字符备份密码、空线程列表、容器烟测和秘密扫描均通过。本地镜像为 `benxianyu/flymail:0.1.3`，镜像 ID 为 `sha256:62c0018193765510fb118309701574ff91f2eb84d8f76ddf50117837d6dc99c1`；Docker Hub 未上传，生产容器已使用该镜像运行。
 
-Gate 5 Task 10 已于 2026-08-03 完成 V2 生产切换和 `0.1.3` 补丁部署。旧 `0.0.25` MySQL 安全关闭后，原数据被原子保留到 `/Docker/flymail/data-pre-v2-20260803T032435Z`，新的 `/Docker/flymail/data` 运行 schema 17。`flymail` 当前使用 `benxianyu/flymail:0.1.3`；根页面、静态资源、现有管理员登录、Bootstrap、线程 `items` 响应、重启持久化、Worker 心跳、MySQL 回环监听和日志秘密检查均通过。部署过程曾因只读统计 SQL 使用错误表名触发一次自动回滚，确认旧 `0.1.2` 恢复健康后修正为 `mail_accounts` 并重新完成切换；生产数据未删除或迁移。新库尚未添加真实邮箱账号，外部服务商、发送收取和通知仍需使用真实账号后验收。
+Gate 5 Task 10 已于 2026-08-03 完成 V2 生产切换和 `0.1.3` 补丁部署。旧 `0.0.25` MySQL 安全关闭后，原数据被原子保留到 `/Docker/flymail/data-pre-v2-20260803T032435Z`，新的 `/Docker/flymail/data` 运行 schema 17。`flymail` 使用 `benxianyu/flymail:0.1.3` 完成根页面、静态资源、现有管理员登录、Bootstrap、线程 `items` 响应、重启持久化、Worker 心跳、MySQL 回环监听和日志秘密检查。部署过程曾因只读统计 SQL 使用错误表名触发一次自动回滚，确认旧 `0.1.2` 恢复健康后修正为 `mail_accounts` 并重新完成切换；生产数据未删除或迁移。新库尚未添加真实邮箱账号，外部服务商、发送收取和通知仍需使用真实账号后验收。
+
+Gate 5 Task 11 已于 2026-08-03 在保留 V2 功能内核的前提下恢复 V1 全量 UI，并发布 `0.1.4`。V2 前端 `70/70`、兼容前端 `96/96`、隔离 MySQL 完整后端 `659/659`、TypeScript、生产构建、Playwright 桌面/移动视口烟测、Shell、Compose、镜像、复杂数据库密码容器持久化、秘密扫描和正式容器重启均通过。本地镜像为 `benxianyu/flymail:0.1.4`，镜像 ID 为 `sha256:5fdefe8f608de6a691cbaf9a94b00a3dfc8d5a0a0007975eb7b7dc81eec80c1f`；Docker Hub 未上传。正式 `flymail` 容器运行 healthy，使用 `/Docker/flymail/data:/data`、MySQL 8.0.46、schema 17，用户/邮箱账号/schema 计数在替换和重启后保持 `1:0:17`。部署期间旧容器不属于当前 Compose 项目导致一次同名冲突；保护回滚命令随后暴露了空会话密钥传递缺陷，入口脚本在 MySQL 启动前拒绝运行。原数据未删除或迁移，最终使用保留的数据库凭据和新的随机会话签名密钥启动 `0.1.4`；已有浏览器会话需要重新登录，但用户和邮件数据不受影响。
 
 ## 文档
 
@@ -376,6 +379,7 @@ Gate 5 Task 10 已于 2026-08-03 完成 V2 生产切换和 `0.1.3` 补丁部署�
 - [FlyMail 0.1.1 根页面修复验证](docs/benchmarks/flymail-0.1.1-root-ui-fix.md)
 - [FlyMail 0.1.2 局域网 HTTP 会话修复验证](docs/benchmarks/flymail-0.1.2-lan-http-session-fix.md)
 - [FlyMail 0.1.3 密码与线程列表修复验证](docs/benchmarks/flymail-0.1.3-password-thread-fixes.md)
+- [FlyMail 0.1.4 V1 全量 UI 恢复验证](docs/benchmarks/flymail-0.1.4-v1-ui-restoration.md)
 - [FlyMail V2 生产切换前只读盘点](docs/benchmarks/flymail-v2-production-precutover.md)
 - [FlyMail 0.1.0 生产切换结果与管理命令](docs/benchmarks/flymail-v2-production-cutover-result.md)
 - [V2 真实服务商与浏览器验收手册](docs/operations/flymail-v2-provider-validation.md)

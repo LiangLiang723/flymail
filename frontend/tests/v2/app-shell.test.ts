@@ -47,7 +47,8 @@ test('error boundary preserves navigation state and retries', async () => {
 test('app source mounts one selected layout and keeps heavy pages lazy', async () => {
   const app = await readFile(new URL('../../src/app/AppV2.vue', import.meta.url), 'utf8');
   const router = await readFile(new URL('../../src/app/router.ts', import.meta.url), 'utf8');
-  assert.match(app, /<component\s+:is="activeLayout"/);
+  assert.match(app, /<component\s+v-if="isMailRoute"\s+:is="activeLayout"/);
+  assert.match(app, /<RouterView v-else/);
   assert.doesNotMatch(app, /<DesktopMailLayout|<TabletMailLayout|<MobileMailLayout/);
   for (const route of ['compose', 'search', 'settings', 'sync', 'admin', 'backup']) {
     assert.match(router, new RegExp(`path: '/${route}`));

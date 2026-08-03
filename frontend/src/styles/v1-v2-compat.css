@@ -1,0 +1,882 @@
+/* V2 behavior, V1 presentation. This layer intentionally targets V2 feature markup
+   with the established FlyMail V1 semantic design system. */
+
+.v2-app .content {
+  position: relative;
+  background: var(--ui-canvas);
+}
+
+.v2-app .content:not(.content-mail) {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.v2-version-banner {
+  position: fixed;
+  z-index: 9000;
+  top: var(--ui-space-3);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 28%, transparent);
+  border-radius: var(--ui-radius-round);
+  background: var(--ui-surface-floating);
+  color: var(--ui-text-1);
+  box-shadow: var(--ui-shadow-md);
+  transform: translateX(-50%);
+  backdrop-filter: blur(18px);
+}
+
+.v2-version-banner button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--ui-space-3);
+  border: 0;
+  border-radius: var(--ui-radius-round);
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
+  cursor: pointer;
+}
+
+/* Shared page frame */
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-compose-page,
+  .v2-contacts-page,
+  .v2-notification-center,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-search-page,
+  .v2-settings-page,
+  .v2-sync-page,
+  .v2-oauth-callback
+) {
+  width: calc(100% - (2 * var(--page-gutter)));
+  min-height: calc(100% - (2 * var(--page-gutter)));
+  display: grid;
+  align-content: start;
+  gap: var(--page-section-gap);
+  margin: var(--page-gutter);
+  padding: 0;
+  color: var(--ui-text-1);
+  background: transparent;
+}
+
+.v2-app :is(.v2-settings-page, .v2-profile-page, .v2-notification-settings) {
+  max-width: var(--page-form-max);
+}
+
+.v2-app .v2-about-page {
+  max-width: var(--page-reading-max);
+}
+
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-compose-page,
+  .v2-contacts-page,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-search-page,
+  .v2-settings-page,
+  .v2-sync-page
+) > header,
+.v2-app .v2-notification-center > header {
+  min-height: 58px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  padding: 0 2px var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border);
+  background: transparent;
+}
+
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-compose-page,
+  .v2-contacts-page,
+  .v2-notification-center,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-search-page,
+  .v2-settings-page,
+  .v2-sync-page
+) h1 {
+  margin: 0;
+  color: var(--ui-text-1);
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-compose-page,
+  .v2-contacts-page,
+  .v2-notification-center,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-search-page,
+  .v2-settings-page,
+  .v2-sync-page
+) h2 {
+  margin: 0;
+  color: var(--ui-text-1);
+  font-size: var(--ui-text-lg);
+  letter-spacing: -0.015em;
+}
+
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-compose-page,
+  .v2-contacts-page,
+  .v2-notification-center,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-search-page,
+  .v2-settings-page,
+  .v2-sync-page
+) :is(p, small, label) {
+  color: var(--ui-text-2);
+}
+
+/* Raw V2 controls adopt V1 component geometry. */
+.v2-app .content:not(.content-mail) :is(input:not([type='checkbox']):not([type='radio']), select, textarea),
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-1);
+  color: var(--ui-text-1);
+  box-shadow: inset 0 1px 0 var(--ui-glass-edge);
+  transition: border-color var(--ui-motion-fast), box-shadow var(--ui-motion-fast), background var(--ui-motion-fast);
+}
+
+.v2-app .content:not(.content-mail) textarea,
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.v2-app .content:not(.content-mail) :is(input, select, textarea):focus,
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) :is(input, select, textarea):focus {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
+}
+
+.v2-app .content:not(.content-mail) label,
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) label {
+  display: grid;
+  gap: var(--ui-space-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-text-sm);
+  font-weight: 550;
+}
+
+.v2-app .content:not(.content-mail) button:not(.ui-button),
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) button {
+  min-height: var(--control-height-md);
+  padding: 0 var(--ui-space-4);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-1);
+  color: var(--ui-text-1);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast), color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+
+.v2-app .content:not(.content-mail) button:not(.ui-button):hover:not(:disabled),
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ui-accent) 36%, var(--ui-border-strong));
+  background: var(--ui-fill-hover);
+}
+
+.v2-app .content:not(.content-mail) button:not(.ui-button):active:not(:disabled),
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.v2-app .content:not(.content-mail) button:not(.ui-button):disabled,
+.v2-app :is(.v2-account-wizard, .v2-account-proxy, .v2-quick-contact, .v2-avatar-crop, .v2-advanced-filters, .v2-schedule-dialog, .v2-server-path-picker, .v2-notification-detail, .v2-draft-conflict) button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.v2-app .content:not(.content-mail) :is(header, form) > button:first-of-type,
+.v2-app .content:not(.content-mail) button[type='submit'],
+.v2-app .v2-compose-page__actions button:first-of-type,
+.v2-app .v2-account-wizard button[type='submit'],
+.v2-app .v2-schedule-dialog button[type='submit'] {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
+}
+
+.v2-app .content:not(.content-mail) :is(.danger, .v2-danger-button),
+.v2-app .v2-delete-confirmation button:last-of-type {
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, transparent);
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+}
+
+/* Shared V1 card surface for V2 sections. */
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-contacts-page,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-search-page,
+  .v2-settings-page,
+  .v2-sync-page
+) > section,
+.v2-app .v2-account-proxy,
+.v2-app .v2-search-boundary,
+.v2-app .v2-notification-center > article,
+.v2-app .v2-search-results > article {
+  padding: var(--ui-space-5);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-1);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.v2-app :is(
+  .v2-about-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-settings-page,
+  .v2-sync-page
+) > section {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+.v2-app :is(
+  .v2-about-page,
+  .v2-accounts-page,
+  .v2-admin-page,
+  .v2-backup-page,
+  .v2-notification-settings,
+  .v2-profile-page,
+  .v2-settings-page,
+  .v2-sync-page
+) form {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+/* Settings navigation and document pages */
+.v2-app .v2-settings-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+
+.v2-app .v2-settings-links a {
+  min-height: var(--control-height-md);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-2);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.v2-app .v2-settings-links a:hover,
+.v2-app .v2-settings-links a.router-link-active {
+  background: var(--ui-surface-1);
+  color: var(--ui-accent);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.v2-app .v2-profile-page img,
+.v2-app .v2-avatar-crop img {
+  max-width: 100%;
+  border-radius: var(--ui-radius-lg);
+}
+
+/* Account management */
+.v2-app .v2-accounts-page > section:first-of-type {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--ui-space-3);
+  background: transparent;
+  box-shadow: none;
+}
+
+.v2-app .v2-accounts-page > section:first-of-type > h2,
+.v2-app .v2-accounts-page > section:first-of-type > p {
+  grid-column: 1 / -1;
+}
+
+.v2-app .v2-accounts-page article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-1);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.v2-app .v2-accounts-page article.selected {
+  border-color: color-mix(in srgb, var(--ui-accent) 42%, var(--ui-border));
+  background: var(--ui-fill-selected);
+}
+
+.v2-app .v2-accounts-page .account-summary {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.v2-app .v2-accounts-page .account-summary strong,
+.v2-app .v2-accounts-page .account-summary span,
+.v2-app .v2-accounts-page .account-summary small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-app .v2-accounts-page .account-summary small {
+  color: var(--ui-text-3);
+}
+
+.v2-app .v2-account-actions,
+.v2-app .v2-accounts-page .action-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.v2-app .v2-accounts-page .account-detail {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.v2-app .v2-account-icon-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+/* Contacts */
+.v2-app .v2-contacts-page > form {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) minmax(220px, 1fr) auto auto;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-1);
+}
+
+.v2-app .v2-contacts-page > ul {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v2-app .v2-contacts-page > ul > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-1);
+}
+
+.v2-app .v2-contacts-page > ul > li > div:first-child {
+  min-width: 0;
+  display: grid;
+}
+
+.v2-app .v2-contacts-page > ul > li > div:last-child {
+  display: flex;
+  gap: var(--ui-space-2);
+}
+
+/* Compose workspace */
+.v2-app .v2-compose-page {
+  min-height: calc(100% - (2 * var(--page-gutter)));
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xl);
+  background: var(--ui-surface-1);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.v2-app .v2-compose-page__header {
+  position: sticky;
+  z-index: 8;
+  top: 0;
+  align-items: center;
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface-floating);
+  backdrop-filter: blur(18px);
+}
+
+.v2-app .v2-compose-page__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.v2-app .v2-compose-page__actions span {
+  color: var(--ui-text-3);
+  font-size: var(--ui-text-xs);
+}
+
+.v2-app .v2-compose-form {
+  display: grid;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-5);
+}
+
+.v2-app :is(.v2-identity-selector, .v2-recipient-fields, .v2-compose-subject, .v2-draft-attachments, .v2-compose-editor) {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.v2-app .v2-compose-editor {
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-1);
+}
+
+.v2-app .v2-editor-fallback {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  color: var(--ui-text-3);
+  background: var(--ui-surface-2);
+}
+
+.v2-app .v2-draft-attachments {
+  padding: var(--ui-space-4);
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+
+.v2-app .v2-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Search */
+.v2-app .v2-search-bar,
+.v2-app .v2-search-save {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.v2-app .v2-search-bar input {
+  flex: 1;
+}
+
+.v2-app .v2-search-boundary {
+  color: var(--ui-text-2);
+  background: var(--ui-surface-2);
+}
+
+.v2-app .v2-search-results {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.v2-app .v2-search-results > article {
+  display: grid;
+  gap: var(--ui-space-2);
+  cursor: pointer;
+  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast);
+}
+
+.v2-app .v2-search-results > article:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-fill-hover);
+}
+
+/* Notifications */
+.v2-app .v2-notification-center {
+  max-width: var(--page-form-max);
+}
+
+.v2-app .v2-notification-center > article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-3);
+}
+
+.v2-app .v2-notification-center > article.unread {
+  border-color: color-mix(in srgb, var(--ui-accent) 36%, var(--ui-border));
+  background: var(--ui-fill-selected);
+}
+
+.v2-app .v2-notification-settings section,
+.v2-app .v2-admin-page section,
+.v2-app .v2-backup-page section,
+.v2-app .v2-sync-page section {
+  min-width: 0;
+}
+
+.v2-app .v2-notification-settings article,
+.v2-app .v2-admin-page article,
+.v2-app .v2-backup-page article,
+.v2-app .v2-sync-page article {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-2);
+}
+
+/* Admin, sync and backup consoles */
+.v2-app :is(.v2-admin-page, .v2-backup-page, .v2-sync-page) {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.v2-app :is(.v2-admin-page, .v2-backup-page, .v2-sync-page) > :is(header, .v2-error, [role='status']) {
+  grid-column: 1 / -1;
+}
+
+.v2-app :is(.v2-admin-page, .v2-backup-page, .v2-sync-page) > section {
+  grid-column: span 6;
+}
+
+.v2-app :is(.v2-admin-page, .v2-backup-page, .v2-sync-page) > section:only-of-type,
+.v2-app :is(.v2-admin-page, .v2-backup-page, .v2-sync-page) > section:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* V2 operation states */
+.v2-app :is(.v2-conflict-center, .v2-pending-state) {
+  display: grid;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+
+.v2-app .v2-thread-actions__toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.v2-app .v2-undo-toast {
+  position: fixed;
+  z-index: 9400;
+  right: var(--page-gutter-compact);
+  bottom: var(--page-gutter-compact);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-floating);
+  color: var(--ui-text-1);
+  box-shadow: var(--ui-shadow-md);
+}
+
+/* Modal and sheet family */
+.v2-app :is(
+  .v2-account-wizard,
+  .v2-draft-conflict,
+  .v2-schedule-dialog,
+  .v2-server-path-picker,
+  .v2-notification-detail,
+  .v2-avatar-crop,
+  .v2-advanced-filters,
+  .v2-quick-contact,
+  .v2-delete-confirmation
+) {
+  position: fixed;
+  z-index: 9500;
+  inset: 50% auto auto 50%;
+  width: min(620px, calc(100vw - (2 * var(--page-gutter-compact))));
+  max-height: min(82dvh, 820px);
+  display: grid;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-5);
+  overflow: auto;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-xl);
+  background: var(--ui-surface-floating);
+  color: var(--ui-text-1);
+  box-shadow: 0 0 0 100vmax var(--ui-scrim), var(--ui-shadow-lg);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(18px);
+}
+
+.v2-app :is(
+  .v2-account-wizard,
+  .v2-draft-conflict,
+  .v2-schedule-dialog,
+  .v2-server-path-picker,
+  .v2-notification-detail,
+  .v2-avatar-crop,
+  .v2-advanced-filters,
+  .v2-quick-contact,
+  .v2-delete-confirmation
+) h2 {
+  margin: 0;
+  font-size: var(--ui-text-xl);
+}
+
+.v2-app .v2-draft-conflict__versions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-3);
+}
+
+.v2-app .v2-draft-conflict__versions > * {
+  min-width: 0;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-2);
+}
+
+.v2-app .v2-server-path-picker {
+  width: min(760px, calc(100vw - (2 * var(--page-gutter-compact))));
+}
+
+.v2-app .v2-oauth-callback {
+  max-width: 520px;
+  justify-items: center;
+  align-content: center;
+  padding: var(--ui-space-8);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xl);
+  background: var(--ui-surface-1);
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .v2-app .v2-contacts-page > form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v2-app .v2-contacts-page > form button {
+    width: fit-content;
+  }
+
+  .v2-app :is(.v2-admin-page, .v2-backup-page, .v2-sync-page) > section {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 960px) {
+  .v2-app :is(
+    .v2-about-page,
+    .v2-accounts-page,
+    .v2-admin-page,
+    .v2-backup-page,
+    .v2-compose-page,
+    .v2-contacts-page,
+    .v2-notification-center,
+    .v2-notification-settings,
+    .v2-profile-page,
+    .v2-search-page,
+    .v2-settings-page,
+    .v2-sync-page,
+    .v2-oauth-callback
+  ) {
+    width: calc(100% - (2 * var(--page-gutter-compact)));
+    min-height: calc(100% - (2 * var(--page-gutter-compact)));
+    margin: var(--page-gutter-compact);
+  }
+
+  .v2-app :is(
+    .v2-about-page,
+    .v2-accounts-page,
+    .v2-admin-page,
+    .v2-backup-page,
+    .v2-compose-page,
+    .v2-contacts-page,
+    .v2-notification-center,
+    .v2-notification-settings,
+    .v2-profile-page,
+    .v2-search-page,
+    .v2-settings-page,
+    .v2-sync-page
+  ) > header,
+  .v2-app .v2-notification-center > header {
+    padding-left: 52px;
+  }
+}
+
+@media (max-width: 680px) {
+  .v2-app :is(
+    .v2-about-page,
+    .v2-accounts-page,
+    .v2-admin-page,
+    .v2-backup-page,
+    .v2-compose-page,
+    .v2-contacts-page,
+    .v2-notification-center,
+    .v2-notification-settings,
+    .v2-profile-page,
+    .v2-search-page,
+    .v2-settings-page,
+    .v2-sync-page,
+    .v2-oauth-callback
+  ) {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: var(--page-gutter-compact);
+  }
+
+  .v2-app .v2-compose-page {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .v2-app :is(
+    .v2-about-page,
+    .v2-accounts-page,
+    .v2-admin-page,
+    .v2-backup-page,
+    .v2-compose-page,
+    .v2-contacts-page,
+    .v2-notification-center,
+    .v2-notification-settings,
+    .v2-profile-page,
+    .v2-search-page,
+    .v2-settings-page,
+    .v2-sync-page
+  ) > header,
+  .v2-app .v2-notification-center > header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-left: 52px;
+  }
+
+  .v2-app .v2-compose-page__header {
+    padding-top: max(var(--ui-space-4), env(safe-area-inset-top));
+  }
+
+  .v2-app .v2-contacts-page > form {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-app .v2-contacts-page > ul > li,
+  .v2-app .v2-notification-center > article {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .v2-app .v2-accounts-page > section:first-of-type {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-app .v2-accounts-page article {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-app .v2-search-bar,
+  .v2-app .v2-search-save,
+  .v2-app .v2-compose-page__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .v2-app .v2-draft-conflict__versions {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-app :is(
+    .v2-account-wizard,
+    .v2-draft-conflict,
+    .v2-schedule-dialog,
+    .v2-server-path-picker,
+    .v2-notification-detail,
+    .v2-avatar-crop,
+    .v2-advanced-filters,
+    .v2-quick-contact,
+    .v2-delete-confirmation
+  ) {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: var(--ui-radius-xl) var(--ui-radius-xl) 0 0;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .v2-version-banner,
+  .v2-app .v2-compose-page__header,
+  .v2-app :is(
+    .v2-account-wizard,
+    .v2-draft-conflict,
+    .v2-schedule-dialog,
+    .v2-server-path-picker,
+    .v2-notification-detail,
+    .v2-avatar-crop,
+    .v2-advanced-filters,
+    .v2-quick-contact,
+    .v2-delete-confirmation
+  ) {
+    background: var(--ui-surface-1);
+    backdrop-filter: none;
+  }
+}

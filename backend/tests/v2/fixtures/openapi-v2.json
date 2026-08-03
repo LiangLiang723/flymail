@@ -18,7 +18,7 @@
   "operation_count": 114,
   "path_count": 90,
   "schema_count": 138,
-  "sha256": "3add2d91006ebc27db08f16e4add2ae2bffa5b41ebf036a72dabe1ba110131c7",
+  "sha256": "bcdcff8e5b4e4a90621d832b41e75b3930044b95f854e22e1732e6278afaf813",
   "title": "FlyMail V2",
-  "version": "0.1.3"
+  "version": "0.1.4"
 }

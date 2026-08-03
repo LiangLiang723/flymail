@@ -185,12 +185,16 @@ test('product primitives cover fields badges segmented controls and card density
   assert.match(card, /'none' \| 'sm' \| 'md' \| 'lg'/);
 });
 
-test('formal main stylesheet order establishes V2 tokens before base and layout', async () => {
+test('formal main stylesheet order restores V1 design before V2 compatibility layers', async () => {
   const source = await readSource('src/main.ts');
-  const tokens = source.indexOf("./styles/v2-tokens.css");
-  const base = source.indexOf("./styles/v2-base.css");
-  const layout = source.indexOf("./styles/v2-layout.css");
+  const v1Tokens = source.indexOf("./styles/tokens.css");
+  const components = source.indexOf("./styles/components.css");
+  const pageSystem = source.indexOf("./styles/page-system.css");
+  const v2Tokens = source.indexOf("./styles/v2-tokens.css");
+  const v2Base = source.indexOf("./styles/v2-base.css");
+  const v2Layout = source.indexOf("./styles/v2-layout.css");
+  const compatibility = source.indexOf("./styles/v1-v2-compat.css");
 
-  assert.ok(tokens >= 0 && base > tokens && layout > base);
-  assert.doesNotMatch(source, /\.\/styles\/(?:macos|components|layout-system|page-system)\.css/);
+  assert.ok(v1Tokens >= 0 && components > v1Tokens && pageSystem > components);
+  assert.ok(v2Tokens > pageSystem && v2Base > v2Tokens && v2Layout > v2Base && compatibility > v2Layout);
 });

@@ -2,7 +2,7 @@ services:
   flymail-app:
     build:
       context: .
-    image: benxianyu/flymail:0.1.3
+    image: benxianyu/flymail:0.1.4
     container_name: flymail
     restart: always
     ports:
