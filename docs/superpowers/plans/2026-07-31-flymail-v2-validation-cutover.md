@@ -701,7 +701,7 @@ Include actual counts/results for backend, frontend, build sizes, MySQL integrat
 
 **Measured verification:** the user explicitly confirmed version `0.1.0`. `VERSION`, both package manifests, the frontend lock root, Compose and README image references match. The isolated MySQL backend rerun passed `653/653` in `355.912` seconds with no skips; frontend compatibility and V2 suites passed `96/96` and `64/64`; production build passed with `66.70 KiB` initial gzip and `65.64 KiB` largest async gzip. Final local image `benxianyu/flymail:0.1.0` is `sha256:7300483a42d837894795acf6978e7353bb626a15e6406f70c0031114f12346fb`. Container health, schema 17, MySQL 8.0 `/data/mysql/`, loopback bind, Worker heartbeat, special-character database password, initial admin, persistence, lease recovery, safe shutdown and secret scans passed. Real providers, external notification endpoints, browsers, devices and production IDLE remain explicitly blocked. Production data was not touched and Docker Hub was not used.
 
-- [ ] **Step 6: Commit and push release candidate**
+- [x] **Step 6: Commit and push release candidate**
 
 ```bash
 git add VERSION package.json frontend/package.json docker-compose.yml README.md docs/benchmarks/flymail-v2-release-evidence.md
@@ -796,7 +796,7 @@ Keep old snapshot until the user explicitly approves cleanup after stable observ
 - [x] Real provider and desktop/mobile browser matrix is complete or blocked items are clearly documented.
 - [x] README, `.env.example`, backup/restore and cutover docs match tested behavior.
 - [x] Final version is explicitly confirmed and synchronized.
-- [ ] Release candidate commit is pushed to `origin/main`.
+- [x] Release candidate commit is pushed to `origin/main`.
 - [x] Docker Hub is not uploaded.
 - [x] Production data is not replaced before separate explicit confirmation.
 - [ ] Rollback snapshot is verified before cutover.
