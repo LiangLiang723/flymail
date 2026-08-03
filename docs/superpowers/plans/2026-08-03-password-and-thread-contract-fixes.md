@@ -14,7 +14,7 @@
 - [x] Task 2: thread-list API/view-model boundary completed in `2a4a671`.
 - [x] Task 3: frontend password gates and deployment documentation completed in `838c90d`.
 - [x] Task 4 Steps 1-4: version `0.1.3`, complete verification, final image and release evidence completed.
-- [ ] Task 4 Steps 5-6: production image replacement and final production evidence pending.
+- [x] Task 4 Steps 5-6: production image replacement and final production evidence completed.
 
 ## Global Constraints
 

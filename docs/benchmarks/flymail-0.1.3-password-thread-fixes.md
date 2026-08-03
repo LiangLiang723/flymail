@@ -118,4 +118,29 @@ production_data_touched=no
 
 本次验证没有真实 Gmail、Outlook、QQ、网易、iCloud、新浪或通用 IMAP/SMTP 账号，也没有真实 OAuth 客户端、代理、通知端点和移动浏览器。密码规则和本地页面契约已通过自动化与真实容器验证，但第三方服务商仍可能对密码或授权码施加自身限制。
 
-本文写入时生产容器仍运行 `0.1.2`；生产替换完成后将补充实际运行结果。
+## 生产部署结果
+
+生产容器已使用现有 `/Docker/flymail/data` 从 `0.1.2` 替换为 `0.1.3`，未删除、重建或迁移数据库。首次替换的新容器已通过核心功能检查，但最后的只读统计 SQL 误用了不存在的 `accounts` 表，自动回滚逻辑随即恢复旧 `0.1.2` 容器并确认健康。修正统计表为 `mail_accounts` 后重新执行完整替换，结果如下：
+
+```text
+image=benxianyu/flymail:0.1.3
+image_id=sha256:62c0018193765510fb118309701574ff91f2eb84d8f76ddf50117837d6dc99c1
+health=healthy
+root=html
+asset=passed
+existing_admin_login=passed
+bootstrap=passed
+thread_items_contract=passed
+restart_persistence=passed
+logs_secret_scan=passed
+mysql_version=8.0.46
+mysql_datadir=/data/mysql/
+mysql_bind=127.0.0.1
+schema=17
+enabled_users=1
+mail_accounts=0
+data_dir=/Docker/flymail/data
+rollback_container=removed
+```
+
+MySQL 3306 未发布到宿主机，生产端口仍为 `36080 → 8080`。Docker Hub 未上传。
