@@ -369,6 +369,7 @@ Gate 5 Task 9 已确认最终版本 `0.1.0`，完整后端回归 `653/653`、兼
 - [V2 两千万邮件容量验证方法](docs/benchmarks/flymail-v2-capacity-methodology.md)
 - [V2 两千万邮件容量验证结果](docs/benchmarks/flymail-v2-capacity-results.md)
 - [FlyMail 0.1.0 发布候选验证证据](docs/benchmarks/flymail-v2-release-evidence.md)
+- [FlyMail V2 生产切换前只读盘点](docs/benchmarks/flymail-v2-production-precutover.md)
 - [V2 真实服务商与浏览器验收手册](docs/operations/flymail-v2-provider-validation.md)
 - [V2 真实服务商与浏览器验收结果](docs/benchmarks/flymail-v2-real-provider-results.md)
 - [V2 业务备份与恢复演练](docs/operations/flymail-v2-backup-restore.md)

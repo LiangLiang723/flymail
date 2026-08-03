@@ -725,7 +725,7 @@ Do not upload Docker Hub.
 - Consumes release evidence and explicit destructive approval.
 - Produces final production V2 container or restores the exact old snapshot.
 
-- [ ] **Step 1: Capture current production read-only statistics**
+- [x] **Step 1: Capture current production read-only statistics**
 
 Without exposing secrets, record:
 
@@ -735,6 +735,8 @@ Without exposing secrets, record:
 - MySQL version/data directory/bind address;
 - current Git HEAD and release candidate image digest;
 - current active users/accounts/message counts where a safe admin query exists.
+
+**Measured verification:** production remained `running/healthy` on `benxianyu/flymail:0.0.25` with `/api/health` version `0.0.25`. `/Docker/flymail/data` is `752 MiB` (`711 MiB` MySQL and `42 MiB` FlyMail files). MySQL is `8.0.46`, data directory `/data/mysql/`, bind `127.0.0.1`, with no host MySQL port. Safe aggregate counts are 2 active administrator users, 4 connected accounts, 6,718 cached messages, 9,449 attachment metadata rows, 12 history sync jobs and 2 notifications. Target image `benxianyu/flymail:0.1.0` is local digest `sha256:7300483a42d837894795acf6978e7353bb626a15e6406f70c0031114f12346fb`. No production write, stop, restart or data-path modification occurred. Full details are recorded in `docs/benchmarks/flymail-v2-production-precutover.md`.
 
 - [ ] **Step 2: Create and verify rollback snapshot**
 
