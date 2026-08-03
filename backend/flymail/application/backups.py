@@ -820,8 +820,8 @@ class BackupService:
         password: str,
         request_id: str,
     ) -> BackupArchiveResponse:
-        if len(password) < 12:
-            raise ApiContractError("backup_password_too_short", "备份密码至少 12 个字符", status_code=422)
+        if password == "":
+            raise ApiContractError("backup_password_required", "备份密码不能为空", status_code=422)
         timestamp = float(self.now_fn())
         backup_id = new_id("backup")
         archive_name = f"flymail-{VERSION}-{backup_id}.flymailbak"

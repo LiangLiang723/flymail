@@ -66,11 +66,11 @@ async def get_users(request: Request):
 async def add_user(request: Request, body: CreateUserRequest):
     await require_admin(request)
     username = body.username.strip()
-    password = body.password.strip()
+    password = body.password
     if len(username) < 3:
         raise AppError(400, "用户名至少 3 位")
-    if len(password) < 6:
-        raise AppError(400, "密码至少 6 位")
+    if password == "":
+        raise AppError(400, "密码不能为空")
     if await get_user_by_username(username):
         raise AppError(400, "用户名已存在")
     now = time.time()
@@ -143,9 +143,9 @@ async def reset_password(request: Request, user_id: str, body: ResetPasswordRequ
         raise AppError(404, "用户不存在")
     if target.id == admin.id:
         raise AppError(400, "请使用修改密码功能更新自己的密码")
-    if len(body.new_password.strip()) < 6:
-        raise AppError(400, "密码至少 6 位")
-    await update_user_password(target.id, hash_password(body.new_password.strip()))
+    if body.new_password == "":
+        raise AppError(400, "密码不能为空")
+    await update_user_password(target.id, hash_password(body.new_password))
     return {"success": True}
 
 

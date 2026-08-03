@@ -2,20 +2,13 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BackupPasswordRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    password: str = Field(min_length=12, max_length=1024, repr=False)
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        if value.strip() != value:
-            raise ValueError("backup password cannot start or end with whitespace")
-        return value
+    password: str = Field(min_length=1, repr=False)
 
 
 class BackupArchiveResponse(BaseModel):

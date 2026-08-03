@@ -488,6 +488,89 @@ class AuthAdminApiTests(MySqlIsolatedAsyncioTestCase):
             3,
         )
 
+    async def test_create_change_and_reset_accept_one_character_or_space_passwords(self):
+        async with self.running_app() as app:
+            async with self.client(app, "203.0.113.22") as admin_client, self.client(
+                app, "203.0.113.23"
+            ) as user_client, self.client(app, "203.0.113.24") as login_client:
+                admin_login = await self.login(
+                    admin_client,
+                    "admin-user",
+                    "AdminPassword!123",
+                )
+                admin_headers = self.csrf_headers(admin_login.json()["csrf_token"])
+
+                empty_create = await admin_client.post(
+                    "/api/v2/admin/users",
+                    headers=admin_headers,
+                    json={
+                        "username": "empty-password-user",
+                        "password": "",
+                        "role": "user",
+                        "enabled": True,
+                    },
+                )
+                self.assertEqual(empty_create.status_code, 422)
+
+                created = await admin_client.post(
+                    "/api/v2/admin/users",
+                    headers=admin_headers,
+                    json={
+                        "username": "short-password-user",
+                        "password": "a",
+                        "role": "user",
+                        "enabled": True,
+                    },
+                )
+                self.assertEqual(created.status_code, 201, created.text)
+                user_id = str(created.json()["id"])
+
+                user_login = await self.login(user_client, "short-password-user", "a")
+                self.assertEqual(user_login.status_code, 200)
+                empty_change = await user_client.post(
+                    "/api/v2/auth/password",
+                    headers=self.csrf_headers(user_login.json()["csrf_token"]),
+                    json={
+                        "current_password": "a",
+                        "new_password": "",
+                        "revoke_other_sessions": True,
+                    },
+                )
+                self.assertEqual(empty_change.status_code, 422)
+
+                changed = await user_client.post(
+                    "/api/v2/auth/password",
+                    headers=self.csrf_headers(user_login.json()["csrf_token"]),
+                    json={
+                        "current_password": "a",
+                        "new_password": " ",
+                        "revoke_other_sessions": True,
+                    },
+                )
+                self.assertEqual(changed.status_code, 200, changed.text)
+                self.assertEqual(
+                    (await self.login(login_client, "short-password-user", " ")).status_code,
+                    200,
+                )
+
+                empty_reset = await admin_client.post(
+                    f"/api/v2/admin/users/{user_id}/reset-password",
+                    headers=admin_headers,
+                    json={"new_password": ""},
+                )
+                self.assertEqual(empty_reset.status_code, 422)
+                reset = await admin_client.post(
+                    f"/api/v2/admin/users/{user_id}/reset-password",
+                    headers=admin_headers,
+                    json={"new_password": "b"},
+                )
+                self.assertEqual(reset.status_code, 200, reset.text)
+                login_client.cookies.clear()
+                self.assertEqual(
+                    (await self.login(login_client, "short-password-user", "b")).status_code,
+                    200,
+                )
+
     async def test_admin_reset_disable_enable_and_session_revoke_are_enforced(self):
         async with self.running_app() as app:
             async with self.client(app, "203.0.113.30") as admin_client, self.client(

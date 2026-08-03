@@ -33,7 +33,7 @@ class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     username: str = Field(min_length=1, max_length=191)
-    password: str = Field(min_length=1, max_length=4096)
+    password: str = Field(min_length=1, repr=False)
 
 
 class AuthResponse(BaseModel):
@@ -46,8 +46,8 @@ class AuthResponse(BaseModel):
 class PasswordChangeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    current_password: str = Field(min_length=1, max_length=4096)
-    new_password: str = Field(min_length=12, max_length=4096)
+    current_password: str = Field(min_length=1, repr=False)
+    new_password: str = Field(min_length=1, repr=False)
     revoke_other_sessions: bool = True
 
 
@@ -61,7 +61,7 @@ class CreateUserRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     username: str = Field(min_length=1, max_length=191)
-    password: str = Field(min_length=12, max_length=4096)
+    password: str = Field(min_length=1, repr=False)
     role: Literal["admin", "user"] = "user"
     enabled: bool = True
 
@@ -69,7 +69,7 @@ class CreateUserRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    new_password: str = Field(min_length=12, max_length=4096)
+    new_password: str = Field(min_length=1, repr=False)
 
 
 class UserListResponse(BaseModel):

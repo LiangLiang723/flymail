@@ -332,6 +332,31 @@ class SecureBackupApiTests(MySqlIsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
+    async def test_one_character_backup_password_is_valid_and_empty_password_is_rejected(self):
+        async with self.running_app() as app:
+            async with self.client(app, "203.0.113.149") as client:
+                csrf = await self.login(client)
+                empty = await client.post(
+                    "/api/v2/admin/backups",
+                    headers=self.csrf_headers(csrf),
+                    json={"password": ""},
+                )
+                self.assertEqual(empty.status_code, 422)
+
+                created = await client.post(
+                    "/api/v2/admin/backups",
+                    headers=self.csrf_headers(csrf),
+                    json={"password": "x"},
+                )
+                self.assertEqual(created.status_code, 201, created.text)
+                inspection = await client.post(
+                    f"/api/v2/admin/backups/{created.json()['id']}/inspect",
+                    headers=self.csrf_headers(csrf),
+                    json={"password": "x"},
+                )
+                self.assertEqual(inspection.status_code, 200, inspection.text)
+                self.assertTrue(inspection.json()["valid"])
+
     async def test_archive_is_password_encrypted_and_scope_is_explicit(self):
         async with self.running_app() as app:
             async with self.client(app, "203.0.113.150") as client:

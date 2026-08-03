@@ -49,9 +49,9 @@ async def bootstrap_initial_admin(
                 raise ConfigurationError(
                     "FLYMAIL_ADMIN_USERNAME must not exceed 191 characters"
                 )
-            if len(normalized_password) < 12:
+            if normalized_password == "":
                 raise ConfigurationError(
-                    "FLYMAIL_ADMIN_PASSWORD must be at least 12 characters for an empty database"
+                    "FLYMAIL_ADMIN_PASSWORD is required for an empty database"
                 )
             await UserRepository(connection).create_user_for_admin(
                 AdminContext("usr_initial_bootstrap"),

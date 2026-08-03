@@ -40,7 +40,6 @@ _SESSION_TTL_SECONDS: Final = 7 * 24 * 3600
 _RATE_WINDOW_SECONDS: Final = 5 * 60
 _RATE_BLOCK_SECONDS: Final = 5 * 60
 _RATE_MAX_FAILURES: Final = 5
-_MIN_PASSWORD_LENGTH: Final = 12
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,8 +123,8 @@ class AuthService:
     @staticmethod
     def _validate_new_password(password: str) -> str:
         value = str(password or "")
-        if len(value) < _MIN_PASSWORD_LENGTH:
-            raise ConflictError("new password does not meet policy")
+        if value == "":
+            raise ConflictError("new password cannot be empty")
         return value
 
     def _opaque_hash(self, label: str, value: str) -> str:

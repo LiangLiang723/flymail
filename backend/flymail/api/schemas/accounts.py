@@ -43,7 +43,7 @@ class CreateAccountRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     display_name: str = Field(default="", max_length=191)
     credential_type: Literal["password", "authorization_code"]
-    credential: str = Field(min_length=1, max_length=8192)
+    credential: str = Field(min_length=1, repr=False)
     endpoint_config: EndpointConfigRequest | None = None
     poll_interval_seconds: int = Field(default=300, ge=5, le=3600)
 
@@ -214,7 +214,7 @@ class UpdateCredentialRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     credential_type: Literal["password", "authorization_code"]
-    credential: str = Field(min_length=1, max_length=8192)
+    credential: str = Field(min_length=1, repr=False)
 
 
 class DeleteAccountRequest(BaseModel):
@@ -242,7 +242,7 @@ class SaveProxyRequest(BaseModel):
     host: str = Field(min_length=1, max_length=255)
     port: int = Field(ge=1, le=65535)
     username: str = Field(default="", max_length=255)
-    password: str = Field(default="", max_length=4096)
+    password: str = Field(default="", repr=False)
 
     @model_validator(mode="after")
     def validate_credentials(self) -> "SaveProxyRequest":

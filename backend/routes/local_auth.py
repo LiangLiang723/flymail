@@ -133,7 +133,7 @@ async def change_password(request: Request, body: ChangePasswordRequest):
     user = await get_current_user(request)
     if not verify_password(body.current_password, user.password_hash):
         raise AppError(400, "当前密码不正确")
-    if len(body.new_password.strip()) < 6:
-        raise AppError(400, "新密码至少 6 位")
-    await update_user_password(user.id, hash_password(body.new_password.strip()))
+    if body.new_password == "":
+        raise AppError(400, "新密码不能为空")
+    await update_user_password(user.id, hash_password(body.new_password))
     return {"success": True, "updated_at": time.time()}

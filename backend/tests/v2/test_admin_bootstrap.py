@@ -78,15 +78,26 @@ class InitialAdminBootstrapTests(MySqlIsolatedAsyncioTestCase):
         self.assertIsNone(replacement)
         self.assertEqual(len(users), 1)
 
-    async def test_empty_database_rejects_missing_or_weak_bootstrap_values(self):
+    async def test_empty_database_requires_non_empty_values_and_accepts_one_character_password(self):
         with self.assertRaises(ConfigurationError):
             await bootstrap_initial_admin(self.api_pool, username="", password="")
         with self.assertRaises(ConfigurationError):
             await bootstrap_initial_admin(
                 self.api_pool,
                 username="initial-admin",
-                password="short",
+                password="",
             )
+
+        created = await bootstrap_initial_admin(
+            self.api_pool,
+            username="initial-admin",
+            password="x",
+        )
+        self.assertTrue(created)
+        async with self.api_pool.acquire() as connection:
+            record = await UserRepository(connection).find_for_authentication("initial-admin")
+        assert record is not None
+        self.assertTrue(verify_password("x", record.password_hash))
 
     async def test_existing_database_allows_bootstrap_values_to_be_absent(self):
         await bootstrap_initial_admin(
