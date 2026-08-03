@@ -66,4 +66,25 @@ version=0.1.2
 
 ## 生产状态
 
-提交前，生产容器仍运行 `benxianyu/flymail:0.1.1`，使用现有 `/Docker/flymail/data`。部署 `0.1.2` 时只替换容器镜像，不重建、移动或清空数据库和对象数据。生产部署后的实际 LAN 登录与重启结果将在本文件更新。
+生产容器已使用现有 `/Docker/flymail/data` 从 `0.1.1` 替换为 `benxianyu/flymail:0.1.2`，数据目录没有重建、移动或清空。生产验证结果：
+
+```text
+version=0.1.2
+health=healthy
+root=html
+asset=passed
+unknown_api=json_404
+login=200
+me=200
+logout=200
+post_logout=401
+login_after_restart=200
+me_after_restart=200
+schema=17
+mysql=8.0.46 /data/mysql/ 127.0.0.1
+admins=1
+accounts=0
+worker_heartbeat_age_seconds=4
+```
+
+MySQL 3306 未发布到宿主机，旧 V2 容器只在新容器全部检查通过后删除；旧 `0.0.25` 数据保留目录不变。
