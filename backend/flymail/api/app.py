@@ -8,6 +8,7 @@ import os
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -97,6 +98,21 @@ from version import VERSION
 
 _WORKER_STALE_MULTIPLIER = 3
 _STARTUP_GRACE_MULTIPLIER = 6
+
+
+def _configure_frontend(app: FastAPI) -> None:
+    configured = os.environ.get("FLYMAIL_UI_DIR", "").strip()
+    app.state.frontend_ui_dir = None
+    app.state.frontend_index_path = None
+    if not configured:
+        return
+
+    ui_dir = Path(configured).expanduser().resolve()
+    index_path = ui_dir / "index.html"
+    if not index_path.is_file():
+        raise RuntimeError("FLYMAIL_UI_DIR must contain index.html")
+    app.state.frontend_ui_dir = ui_dir
+    app.state.frontend_index_path = index_path
 
 
 def _probe_object_store(settings: FlyMailSettings) -> None:
@@ -429,4 +445,5 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
             schema_version=LATEST_SCHEMA_VERSION,
         )
 
+    _configure_frontend(app)
     return app

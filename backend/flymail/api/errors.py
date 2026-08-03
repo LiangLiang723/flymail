@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from flymail.api.dependencies import RequestContext
@@ -210,12 +211,49 @@ async def validation_error_handler(
     )
 
 
+def _resolve_frontend_file(ui_dir: Path, request_path: str) -> Path | None:
+    relative = str(request_path).strip().replace("\\", "/").lstrip("/")
+    if not relative or "\x00" in relative:
+        return None
+    candidate = Path(relative)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        return None
+    resolved = (ui_dir / candidate).resolve()
+    if not resolved.is_relative_to(ui_dir) or not resolved.is_file():
+        return None
+    return resolved
+
+
+def _frontend_not_found_response(request: Request) -> FileResponse | None:
+    if request.method not in {"GET", "HEAD"}:
+        return None
+
+    ui_dir = getattr(request.app.state, "frontend_ui_dir", None)
+    index_path = getattr(request.app.state, "frontend_index_path", None)
+    if not isinstance(ui_dir, Path) or not isinstance(index_path, Path):
+        return None
+
+    normalized = request.url.path.strip().replace("\\", "/").lstrip("/")
+    if normalized == "api" or normalized.startswith("api/"):
+        return None
+
+    asset_path = _resolve_frontend_file(ui_dir, normalized)
+    if asset_path is not None:
+        return FileResponse(asset_path)
+    if normalized.startswith("assets/") or Path(normalized).suffix:
+        return None
+    return FileResponse(index_path)
+
+
 async def http_error_handler(
     request: Request,
     exc: StarletteHTTPException,
-) -> JSONResponse:
+) -> Response:
     status_code = int(exc.status_code)
     if status_code == 404:
+        frontend_response = _frontend_not_found_response(request)
+        if frontend_response is not None:
+            return frontend_response
         code, message = "not_found", "请求的资源不存在"
     elif status_code == 405:
         code, message = "method_not_allowed", "请求方法不受支持"

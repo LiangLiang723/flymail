@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from contextlib import asynccontextmanager
@@ -113,6 +114,42 @@ class ApiApplicationTests(MySqlIsolatedAsyncioTestCase):
         self.assertNotIn(self.settings.database_url, response.text)
         self.assertNotIn(self.settings.session_secret, response.text)
         self.assertNotIn(str(self.settings.data_dir), response.text)
+
+    async def test_frontend_root_assets_and_history_routes_are_served_without_masking_api_404(self):
+        ui_dir = Path(self.temp_dir.name) / "ui"
+        asset_dir = ui_dir / "assets"
+        asset_dir.mkdir(parents=True)
+        (ui_dir / "index.html").write_text(
+            "<!doctype html><html><body>FlyMail UI</body></html>",
+            encoding="utf-8",
+        )
+        (asset_dir / "app.js").write_text(
+            "window.flymailLoaded = true;",
+            encoding="utf-8",
+        )
+
+        with patch.dict(os.environ, {"FLYMAIL_UI_DIR": str(ui_dir)}):
+            app = create_app(self.settings)
+
+        async with self.app_client(app) as client:
+            root_response = await client.get("/")
+            asset_response = await client.get("/assets/app.js")
+            history_response = await client.get("/settings/accounts")
+            unknown_api_response = await client.get("/api/v2/does-not-exist")
+            missing_asset_response = await client.get("/assets/missing.js")
+
+        self.assertEqual(root_response.status_code, 200)
+        self.assertIn("text/html", root_response.headers["content-type"])
+        self.assertIn("FlyMail UI", root_response.text)
+        self.assertEqual(asset_response.status_code, 200)
+        self.assertIn("javascript", asset_response.headers["content-type"])
+        self.assertIn("flymailLoaded", asset_response.text)
+        self.assertEqual(history_response.status_code, 200)
+        self.assertIn("FlyMail UI", history_response.text)
+        self.assertEqual(unknown_api_response.status_code, 404)
+        self.assertEqual(unknown_api_response.json()["error"]["code"], "not_found")
+        self.assertEqual(missing_asset_response.status_code, 404)
+        self.assertEqual(missing_asset_response.json()["error"]["code"], "not_found")
 
     async def test_stale_worker_is_degraded_during_startup_then_unhealthy(self):
         await self.touch_worker(800.0)
