@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 from flymail.config import FlyMailSettings
-from flymail.infrastructure.db.migrations.runner import run_migrations
+from flymail.infrastructure.db.migrations.runner import LATEST_SCHEMA_VERSION, run_migrations
 from flymail.infrastructure.security.passwords import hash_password
 from flymail.repositories.base import AdminContext
 from flymail.repositories.users import UserRepository
@@ -273,7 +273,7 @@ class BackupApiTests(MySqlIsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
         self.assertGreater(payload["restored_table_count"], 0)
-        self.assertEqual(payload["restored_schema_version"], 16)
+        self.assertEqual(payload["restored_schema_version"], LATEST_SCHEMA_VERSION)
         self.assertTrue(payload["temporary_database_removed"])
         self.assertTrue(payload["temporary_files_removed"])
         self.assertEqual(

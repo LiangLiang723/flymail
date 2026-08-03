@@ -158,6 +158,7 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
             (14, "draft_versions"),
             (15, "notification_preferences"),
             (16, "backup_archives"),
+            (17, "hybrid_fulltext_search"),
         ])
 
     async def test_required_tables_and_ascii_identifier_collation_exist(self):
@@ -636,6 +637,14 @@ class MigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [column for column, _direction in fulltext_columns],
             ["subject_text", "participants_text", "body_text"],
+        )
+        standard_columns = await self.index_columns(
+            "body_search_documents",
+            "ft_body_search_standard",
+        )
+        self.assertEqual(
+            [column for column, _direction in standard_columns],
+            ["body_text", "subject_text", "participants_text"],
         )
 
         raw_metadata = await self.scalar(

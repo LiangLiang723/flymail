@@ -169,6 +169,7 @@ class MessageIngestionTests(MySqlIsolatedAsyncioTestCase):
         provider_message_id: str = "",
         provider_thread_id: str = "",
         remote_version: str = "",
+        provider_labels: tuple[str, ...] = (),
     ) -> RemoteSummary:
         return RemoteSummary(
             remote_uid=uid,
@@ -189,6 +190,7 @@ class MessageIngestionTests(MySqlIsolatedAsyncioTestCase):
             provider_message_id=provider_message_id,
             provider_thread_id=provider_thread_id,
             remote_version=remote_version,
+            provider_labels=provider_labels,
         )
 
     async def rows(self, sql: str, params: tuple = ()) -> list[tuple]:
@@ -196,6 +198,58 @@ class MessageIngestionTests(MySqlIsolatedAsyncioTestCase):
             async with connection.cursor() as cursor:
                 await cursor.execute(sql, params)
                 return list(await cursor.fetchall())
+
+    async def test_gmail_provider_labels_create_memberships_on_same_remote_instance(self):
+        account, inbox = await self._create_account_and_mailbox(
+            self.tenant_a,
+            email="labels@gmail.example.com",
+            provider="gmail",
+        )
+        async with self.pool.acquire() as connection:
+            await connection.begin()
+            label = await MailboxRepository(connection).upsert_mailbox(
+                self.tenant_a,
+                account_id=account.id,
+                native_key="Benchmark",
+                native_name="Benchmark",
+                semantic_key="custom",
+                mailbox_type="label",
+                uidvalidity=10,
+            )
+            await connection.commit()
+
+        await self.service.ingest_batch(
+            account,
+            inbox,
+            (
+                self.summary(
+                    uid=101,
+                    message_id="<gmail-label@example.test>",
+                    provider_message_id="12345",
+                    provider_labels=("INBOX", "Benchmark", "Unknown"),
+                ),
+            ),
+        )
+        rows = await self.rows(
+            """
+            SELECT membership.remote_instance_id, membership.mailbox_id,
+                   membership.membership_kind, membership.provider_label
+            FROM message_memberships membership
+            JOIN message_remote_instances remote
+              ON remote.id=membership.remote_instance_id
+            WHERE remote.account_id=%s
+            ORDER BY membership.mailbox_id
+            """,
+            (account.id,),
+        )
+        self.assertEqual(len({row[0] for row in rows}), 1)
+        self.assertEqual(
+            {(row[1], row[2], row[3]) for row in rows},
+            {
+                (inbox.id, "folder", ""),
+                (label.id, "label", "Benchmark"),
+            },
+        )
 
     async def test_remote_instance_repository_rejects_mixed_batch_scope(self):
         first = RemoteInstanceUpsert(

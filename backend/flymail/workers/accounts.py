@@ -294,7 +294,16 @@ class AccountCleanupHandler:
                 accounts = AccountRepository(connection)
                 current = await accounts.get_account(tenant, account.id)
                 if current is None:
-                    await connection.rollback()
+                    await OutboxRepository(
+                        connection,
+                        tenant,
+                        trace_id=context.job_id,
+                    ).append(
+                        "account.cleanup_completed",
+                        account.id,
+                        {"account_id": account.id},
+                    )
+                    await connection.commit()
                     return JobOutcome.success()
                 if current.status != "deleting":
                     await connection.rollback()

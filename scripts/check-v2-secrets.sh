@@ -14,6 +14,8 @@ SMOKE_REPORT="${ROOT}/smoke-report.txt"
 SCAN_REPORT="${ROOT}/secret-scan-report.txt"
 SESSION_SECRET="scan-session-$(openssl rand -hex 32)"
 ADMIN_PASSWORD="ScanAdmin-$(openssl rand -hex 24)"
+GMAIL_CLIENT_SECRET="ScanGmail-$(openssl rand -hex 24)"
+OUTLOOK_CLIENT_SECRET="ScanOutlook-$(openssl rand -hex 24)"
 PASSWORD_SUFFIX="$(openssl rand -hex 16)"
 printf -v MYSQL_PASSWORD "Scan'\\\\@:/%%%s" "${PASSWORD_SUFFIX}"
 unset PASSWORD_SUFFIX
@@ -32,6 +34,8 @@ mkdir -p "${DATA_DIR}"
 FLYMAIL_SMOKE_CONTAINER_NAME="${CONTAINER_NAME}" \
 FLYMAIL_SMOKE_SESSION_SECRET="${SESSION_SECRET}" \
 FLYMAIL_SMOKE_ADMIN_PASSWORD="${ADMIN_PASSWORD}" \
+FLYMAIL_SMOKE_GMAIL_CLIENT_SECRET="${GMAIL_CLIENT_SECRET}" \
+FLYMAIL_SMOKE_OUTLOOK_CLIENT_SECRET="${OUTLOOK_CLIENT_SECRET}" \
 FLYMAIL_SMOKE_MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
 FLYMAIL_SMOKE_KEEP_CONTAINER=1 \
 FLYMAIL_SMOKE_KEEP_DATA=1 \
@@ -80,6 +84,8 @@ RUNTIME_SCAN_FILES=(
 
 scan_exact "${SESSION_SECRET}" "${ALL_SCAN_FILES[@]}"
 scan_exact "${ADMIN_PASSWORD}" "${ALL_SCAN_FILES[@]}"
+scan_exact "${GMAIL_CLIENT_SECRET}" "${ALL_SCAN_FILES[@]}"
+scan_exact "${OUTLOOK_CLIENT_SECRET}" "${ALL_SCAN_FILES[@]}"
 scan_exact "${MYSQL_PASSWORD}" "${ALL_SCAN_FILES[@]}"
 
 if grep -Eiq 'mysql([+][A-Za-z0-9_]+)?://[^[:space:]@]+:[^*[:space:]@][^[:space:]@]*@' "${RUNTIME_SCAN_FILES[@]}"; then

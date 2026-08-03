@@ -34,6 +34,20 @@ class SearchCompiler:
     def _in_clause(values: tuple[str, ...]) -> str:
         return ",".join("%s" for _ in values)
 
+    @staticmethod
+    def _fulltext_index(value: str) -> str:
+        for character in str(value or ""):
+            codepoint = ord(character)
+            if (
+                0x3040 <= codepoint <= 0x30FF
+                or 0x3400 <= codepoint <= 0x4DBF
+                or 0x4E00 <= codepoint <= 0x9FFF
+                or 0xAC00 <= codepoint <= 0xD7AF
+                or 0xF900 <= codepoint <= 0xFAFF
+            ):
+                return "ft_body_search"
+        return "ft_body_search_standard"
+
     def compile(
         self,
         tenant: TenantContext,
@@ -47,10 +61,21 @@ class SearchCompiler:
         select_params: list[object] = []
         keyword = str(filters.keyword or "").strip()
         matched_field = "'metadata'"
+        document_join = ""
 
         if keyword:
             normalized_keyword = keyword.casefold()
             if len(normalized_keyword) >= 4:
+                fulltext_index = self._fulltext_index(keyword)
+                fulltext_columns = (
+                    "doc.body_text, doc.subject_text, doc.participants_text"
+                    if fulltext_index == "ft_body_search_standard"
+                    else "doc.subject_text, doc.participants_text, doc.body_text"
+                )
+                document_join = f"""
+                    JOIN body_search_documents doc FORCE INDEX ({fulltext_index})
+                      ON doc.message_id = m.id AND doc.user_uid = m.user_uid
+                """
                 matched_field = """
                     CASE
                         WHEN LOCATE(%s, LOWER(COALESCE(doc.body_text, ''))) > 0 THEN 'body'
@@ -60,8 +85,7 @@ class SearchCompiler:
                 """
                 select_params.extend((normalized_keyword, normalized_keyword))
                 conditions.append(
-                    "MATCH(doc.subject_text, doc.participants_text, doc.body_text) "
-                    "AGAINST (%s IN BOOLEAN MODE)"
+                    f"MATCH({fulltext_columns}) AGAINST (%s IN BOOLEAN MODE)"
                 )
                 where_params.append(self._boolean_phrase(keyword))
             else:
@@ -118,6 +142,7 @@ class SearchCompiler:
                 EXISTS (
                     SELECT 1
                     FROM message_remote_instances account_instance
+                         FORCE INDEX (idx_remote_instances_message)
                     WHERE account_instance.user_uid = m.user_uid
                       AND account_instance.message_id = m.id
                       AND account_instance.remote_deleted = 0
@@ -132,6 +157,7 @@ class SearchCompiler:
                 EXISTS (
                     SELECT 1
                     FROM message_remote_instances mailbox_instance
+                         FORCE INDEX (idx_remote_instances_message)
                     JOIN message_memberships mailbox_membership
                       ON mailbox_membership.remote_instance_id = mailbox_instance.id
                      AND mailbox_membership.user_uid = mailbox_instance.user_uid
@@ -153,6 +179,7 @@ class SearchCompiler:
                 EXISTS (
                     SELECT 1
                     FROM message_remote_instances label_instance
+                         FORCE INDEX (idx_remote_instances_message)
                     JOIN message_memberships label_membership
                       ON label_membership.remote_instance_id = label_instance.id
                      AND label_membership.user_uid = label_instance.user_uid
@@ -174,6 +201,7 @@ class SearchCompiler:
                 EXISTS (
                     SELECT 1
                     FROM message_remote_instances read_instance
+                         FORCE INDEX (idx_remote_instances_message)
                     WHERE read_instance.user_uid = m.user_uid
                       AND read_instance.message_id = m.id
                       AND read_instance.remote_deleted = 0
@@ -188,6 +216,7 @@ class SearchCompiler:
                 EXISTS (
                     SELECT 1
                     FROM message_remote_instances starred_instance
+                         FORCE INDEX (idx_remote_instances_message)
                     WHERE starred_instance.user_uid = m.user_uid
                       AND starred_instance.message_id = m.id
                       AND starred_instance.remote_deleted = 0
@@ -219,40 +248,12 @@ class SearchCompiler:
                            ORDER BY m.received_at DESC, m.id DESC
                        ) AS thread_rank
                 FROM messages m
-                LEFT JOIN body_search_documents doc
-                  ON doc.message_id = m.id AND doc.user_uid = m.user_uid
+                {document_join}
                 WHERE {' AND '.join(conditions)}
             )
             SELECT matched.thread_id, matched.matched_message_id,
                    matched.matched_field, matched.subject, matched.snippet,
-                   matched.received_at, matched.has_attachments,
-                   COALESCE((
-                       SELECT GROUP_CONCAT(
-                           DISTINCT source_instance.account_id
-                           ORDER BY source_instance.account_id SEPARATOR ','
-                       )
-                       FROM thread_messages source_thread
-                       JOIN message_remote_instances source_instance
-                         ON source_instance.message_id = source_thread.message_id
-                        AND source_instance.user_uid = source_thread.user_uid
-                        AND source_instance.remote_deleted = 0
-                       WHERE source_thread.user_uid = matched.user_uid
-                         AND source_thread.thread_id = matched.thread_id
-                   ), '') AS account_ids,
-                   EXISTS (
-                       SELECT 1 FROM message_remote_instances unread_instance
-                       WHERE unread_instance.user_uid = matched.user_uid
-                         AND unread_instance.message_id = matched.matched_message_id
-                         AND unread_instance.remote_deleted = 0
-                         AND unread_instance.is_read = 0
-                   ) AS unread,
-                   EXISTS (
-                       SELECT 1 FROM message_remote_instances result_starred
-                       WHERE result_starred.user_uid = matched.user_uid
-                         AND result_starred.message_id = matched.matched_message_id
-                         AND result_starred.remote_deleted = 0
-                         AND result_starred.is_starred = 1
-                   ) AS starred
+                   matched.received_at, matched.has_attachments
             FROM matched
             WHERE {' AND '.join(outer_conditions)}
             ORDER BY received_at DESC, matched_message_id DESC
@@ -331,6 +332,7 @@ class SearchQueryService:
                 repository = SearchRepository(connection)
                 parser = await repository.fulltext_parser()
                 rows = await repository.execute_search(compiled)
+                rows = await repository.enrich_results(tenant, rows)
                 await repository.append_history(
                     tenant,
                     filters.model_dump(mode="json"),

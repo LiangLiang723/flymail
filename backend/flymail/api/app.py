@@ -89,6 +89,7 @@ from flymail.infrastructure.db.migrations.runner import (
 )
 from flymail.infrastructure.db.pool import DatabasePool
 from flymail.infrastructure.object_store.store import ObjectStore
+from flymail.providers.oauth import ProductionOAuthGateway
 from flymail.infrastructure.security.credentials import CredentialCipher
 from flymail.repositories.runtime import RuntimeRepository
 from version import VERSION
@@ -244,6 +245,7 @@ def create_app(settings: FlyMailSettings) -> FastAPI:
             app.state.accounts_service = AccountsService(
                 pool,
                 settings.session_secret,
+                oauth_gateway=ProductionOAuthGateway(),
             )
             app.state.bootstrap_service = BootstrapService(pool)
             app.state.thread_query_service = ThreadQueryService(

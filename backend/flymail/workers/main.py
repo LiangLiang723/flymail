@@ -17,6 +17,7 @@ from flymail.providers.registry import ProviderRegistry
 from flymail.repositories.jobs import JobCandidate, JobRepository, LeasedJob
 from flymail.workers.dispatcher import JobHandler, JobOutcome, WorkerDispatcher
 from flymail.workers.lease import WorkerHeartbeatService
+from flymail.workers.periodic import periodic_sync_loop
 from flymail.workers.scheduler import QUEUE_ORDER, ClaimRequest, FairScheduler, ReadyJob
 
 
@@ -61,6 +62,19 @@ def build_worker_dispatcher(handlers: Mapping[str, JobHandler]) -> WorkerDispatc
     for kind in WORKER_JOB_KINDS:
         dispatcher.register(kind, normalized[kind])
     return dispatcher
+
+
+def build_production_worker_dispatcher(
+    pool: DatabasePool,
+    settings: FlyMailSettings,
+) -> WorkerDispatcher:
+    """Load the formal production handler graph without introducing import cycles."""
+
+    from flymail.workers.runtime import (
+        build_production_worker_dispatcher as build_runtime_dispatcher,
+    )
+
+    return build_runtime_dispatcher(pool, settings)
 
 
 async def validate_worker_job_registry(
@@ -343,7 +357,7 @@ async def run_worker(
     pool = await DatabasePool.create(settings)
     worker_id = new_id("wrk")
     stop = stop_event or asyncio.Event()
-    runtime_dispatcher = dispatcher or WorkerDispatcher()
+    runtime_dispatcher = dispatcher or build_production_worker_dispatcher(pool, settings)
     runtime_scheduler = scheduler or _default_scheduler()
     installed_signals: list[signal.Signals] = []
     loop = asyncio.get_running_loop()
@@ -400,6 +414,13 @@ async def run_worker(
             )
             group.create_task(
                 _lease_reaper_loop(pool, stop, now_fn, reaper_interval)
+            )
+            group.create_task(
+                periodic_sync_loop(
+                    pool,
+                    stop,
+                    now_fn=now_fn,
+                )
             )
             group.create_task(
                 _claim_loop(
@@ -470,6 +491,7 @@ def main() -> int:
 
 __all__ = [
     "WORKER_JOB_KINDS",
+    "build_production_worker_dispatcher",
     "build_worker_dispatcher",
     "main",
     "run_worker",

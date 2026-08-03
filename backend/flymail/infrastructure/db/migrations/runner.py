@@ -25,10 +25,11 @@ from flymail.infrastructure.db.migrations.v0013_bulk_mail_operations import MIGR
 from flymail.infrastructure.db.migrations.v0014_draft_versions import MIGRATION as DRAFT_VERSIONS_MIGRATION
 from flymail.infrastructure.db.migrations.v0015_notification_preferences import MIGRATION as NOTIFICATION_PREFERENCES_MIGRATION
 from flymail.infrastructure.db.migrations.v0016_backup_archives import MIGRATION as BACKUP_ARCHIVES_MIGRATION
+from flymail.infrastructure.db.migrations.v0017_hybrid_fulltext_search import build_migration as build_hybrid_fulltext_migration
 from flymail.infrastructure.db.pool import DatabasePool
 
 
-LATEST_SCHEMA_VERSION = BACKUP_ARCHIVES_MIGRATION.version
+LATEST_SCHEMA_VERSION = 17
 
 _MIGRATION_LOCK_NAME = "flymail_v2_schema_migration"
 _CREATE_TABLE_PATTERN = re.compile(
@@ -130,7 +131,9 @@ async def _ngram_available(connection: aiomysql.Connection) -> bool:
 
 
 async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
-    content_migration = build_content_migration(use_ngram=await _ngram_available(connection))
+    use_ngram = await _ngram_available(connection)
+    content_migration = build_content_migration(use_ngram=use_ngram)
+    hybrid_fulltext_migration = build_hybrid_fulltext_migration(use_ngram=use_ngram)
     return (
         IDENTITY_MIGRATION,
         MAIL_MIGRATION,
@@ -148,6 +151,7 @@ async def _migrations(connection: aiomysql.Connection) -> tuple[Migration, ...]:
         DRAFT_VERSIONS_MIGRATION,
         NOTIFICATION_PREFERENCES_MIGRATION,
         BACKUP_ARCHIVES_MIGRATION,
+        hybrid_fulltext_migration,
     )
 
 

@@ -9,10 +9,12 @@ from unittest.mock import patch
 import aiomysql
 import httpx
 
+from flymail.api.schemas.search import SearchFilter
+from flymail.application.search_queries import SearchCompiler
 from flymail.config import FlyMailSettings
 from flymail.infrastructure.db.migrations.runner import run_migrations
 from flymail.infrastructure.security.passwords import hash_password
-from flymail.repositories.base import AdminContext
+from flymail.repositories.base import AdminContext, TenantContext
 from flymail.repositories.users import UserRepository
 from tests.v2.mysql_test_case import MySqlIsolatedAsyncioTestCase
 from flymail.api.app import create_app
@@ -251,6 +253,30 @@ class SearchApiTests(MySqlIsolatedAsyncioTestCase):
     def csrf_headers(token: str) -> dict[str, str]:
         return {"Origin": ORIGIN, "X-CSRF-Token": token}
 
+    async def test_ascii_keyword_uses_standard_fulltext_index(self):
+        compiled = SearchCompiler().compile(
+            TenantContext(self.user.id),
+            SearchFilter(keyword="capacitybucket0000"),
+            position=None,
+            limit=20,
+        )
+        self.assertIn(
+            "JOIN body_search_documents doc FORCE INDEX (ft_body_search_standard)",
+            " ".join(compiled.sql.split()),
+        )
+
+    async def test_cjk_keyword_uses_ngram_fulltext_index(self):
+        compiled = SearchCompiler().compile(
+            TenantContext(self.user.id),
+            SearchFilter(keyword="中文测试"),
+            position=None,
+            limit=20,
+        )
+        self.assertIn(
+            "JOIN body_search_documents doc FORCE INDEX (ft_body_search)",
+            " ".join(compiled.sql.split()),
+        )
+
     async def test_structural_search_is_parameterized_tenant_scoped_and_local_only(self):
         captured: list[tuple[str, object]] = []
         original = aiomysql.cursors.Cursor.execute
@@ -306,7 +332,7 @@ class SearchApiTests(MySqlIsolatedAsyncioTestCase):
         self.assertEqual(first.json()["items"][0]["thread_id"], "thr_search_1")
         self.assertEqual(first.json()["items"][0]["matched_message_id"], "msg_search_1b")
         self.assertEqual(first.json()["items"][0]["matched_field"], "body")
-        self.assertIn(first.json()["fulltext_parser"], {"standard", "ngram"})
+        self.assertIn(first.json()["fulltext_parser"], {"standard", "ngram", "hybrid"})
         self.assertEqual(second.status_code, 200)
         self.assertEqual(second.json()["items"], [])
         self.assertEqual(await self.scalar("SELECT COUNT(*) FROM worker_jobs"), 0)

@@ -450,11 +450,11 @@ git commit -m "🧪 验证 V2 故障恢复与重复发送防护"
 - Produces deterministic synthetic dataset seed and scale arguments.
 - Produces machine-readable benchmark JSON plus concise committed summary.
 
-- [ ] **Step 1: Write generator tests at small scale**
+- [x] **Step 1: Write generator tests at small scale**
 
 Verify deterministic counts, user isolation, cross-account threads, Gmail labels, hot/cold accounts, body-cache ratios and search terms. Generated content must be synthetic and not resemble real email addresses beyond reserved example domains.
 
-- [ ] **Step 2: Implement streaming/batched generator**
+- [x] **Step 2: Implement streaming/batched generator**
 
 Arguments:
 
@@ -469,11 +469,11 @@ Arguments:
 
 Use bounded memory and bulk SQL. Refuse production database names or host data paths.
 
-- [ ] **Step 3: Define resource profile**
+- [x] **Step 3: Define resource profile**
 
 Run benchmarks in a documented container CPU/memory/disk profile. Record MySQL buffer pool and connection limits. A result without resource profile is invalid.
 
-- [ ] **Step 4: Measure API query targets**
+- [x] **Step 4: Measure API query targets**
 
 Measure at least 30 warmed samples and report P50/P95/P99:
 
@@ -486,7 +486,7 @@ Measure at least 30 warmed samples and report P50/P95/P99:
 - local operation commit <= 200 ms P95;
 - API DB connection wait <= 50 ms P95.
 
-- [ ] **Step 5: Measure Worker targets**
+- [x] **Step 5: Measure Worker targets**
 
 Using deterministic fake providers:
 
@@ -497,13 +497,15 @@ Using deterministic fake providers:
 - slow account does not block another account;
 - normal attachment prefetch bytes = 0.
 
-- [ ] **Step 6: Require EXPLAIN ANALYZE evidence**
+- [x] **Step 6: Require EXPLAIN ANALYZE evidence**
 
 Store normalized plans for thread list, search, job claim, remote instance lookup and quota LRU. Reject filesort/full scan where the design promises an index path. Change indexes only through a new migration and re-run all tests.
 
 - [ ] **Step 7: Commit concise results**
 
 Raw 2,000 万 data and full logs remain ignored. Commit generator, tests, methodology and summary with exact Git SHA/image/resource profile.
+
+**Measured verification:** the isolated dataset contains 50 users, 300 accounts, 20,000,000 message summaries, 5,000,000 threads and 1,000,000 cached-body search documents. Generation used deterministic seed `20260731`, four bounded write connections and deferred index rebuild, completed in `10225.43` seconds and did not touch production data. On MySQL `8.0.46`, four visible CPUs, about 31 GiB visible memory and a 4 GiB Buffer Pool, all 13 warmed 30-sample API/Worker metrics passed. Structured search was the slowest API path at `27.460 ms` P95; hybrid cached-body FULLTEXT was `14.901 ms` P95. All five normalized plans used their promised indexes and had no full table scan. The first FULLTEXT run exposed ngram ASCII result-cache expansion and an InnoDB dictionary-latch crash in the isolated database; schema 17 added separate standard and CJK indexes, after which the formal run completed without error. Real provider/network/IDLE behavior remains outside this local capacity result.
 
 ```bash
 git add scripts/generate-v2-benchmark-data.py backend/tests/v2/test_capacity_queries.py docs/benchmarks/flymail-v2-capacity-results.md .gitignore
@@ -567,7 +569,7 @@ git add docs/operations/flymail-v2-provider-validation.md docs/benchmarks/flymai
 git commit -m "✅ 完成 V2 真实邮箱与多端浏览器验收"
 ```
 
-**Measured verification:** no isolated mailbox, OAuth client, proxy, notification endpoint, image publisher, desktop browser, mobile device or screen reader credentials/runtime were available in the DevSpace environment. All real external rows were recorded as `blocked`, not passed. Provider/protocol/proxy contract suites passed `79/79`; frontend PWA/accessibility static contracts passed `10/10`. The result also records the formal Worker default empty-dispatcher issue as a release blocker, so health alone cannot be used as evidence of real mailbox readiness.
+**Measured verification:** no isolated mailbox, OAuth client, proxy, notification endpoint, image publisher, desktop browser, mobile device or screen reader credentials/runtime were available in the DevSpace environment. All real external rows were recorded as `blocked`, not passed. Provider/protocol/proxy contract suites passed `79/79`; later formal Worker/OAuth/network/sync/polling combined regression reached `100/100`; frontend PWA/accessibility static contracts passed `10/10`. The formal Worker now builds the exact 17-handler production graph and no longer uses an empty dispatcher. Real provider credentials, service-specific network behavior and production IDLE remain blocked external evidence, so health alone is still not proof of real mailbox readiness.
 
 ---
 
@@ -788,7 +790,7 @@ Keep old snapshot until the user explicitly approves cleanup after stable observ
 - [ ] Database password special-character validation passes.
 - [ ] Logs and image metadata contain no secrets.
 - [ ] Required fault injection invariants pass.
-- [ ] 2,000 万摘要 capacity and P95 targets pass on recorded resource profile.
+- [x] 2,000 万摘要 capacity and P95 targets pass on recorded resource profile.
 - [ ] Real provider and desktop/mobile browser matrix is complete or blocked items are clearly documented.
 - [ ] README, `.env.example`, backup/restore and cutover docs match tested behavior.
 - [ ] Final version is explicitly confirmed and synchronized.

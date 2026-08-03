@@ -210,15 +210,7 @@ class ThreadQueryService:
                    p.subject, p.participants_summary, p.latest_snippet,
                    p.message_count, p.unread_count, p.is_starred,
                    p.has_attachments, p.account_count,
-                   p.pending_operation_count, p.projection_version,
-                   COALESCE((
-                       SELECT GROUP_CONCAT(DISTINCT ra.account_id ORDER BY ra.account_id SEPARATOR ',')
-                       FROM thread_messages ta
-                       JOIN message_remote_instances ra
-                         ON ra.message_id = ta.message_id AND ra.user_uid = ta.user_uid
-                        AND ra.remote_deleted = 0
-                       WHERE ta.user_uid = p.user_uid AND ta.thread_id = p.thread_id
-                   ), '') AS account_ids
+                   p.pending_operation_count, p.projection_version
             FROM thread_projections p FORCE INDEX (idx_thread_projection_cursor)
             WHERE {' AND '.join(conditions)}
             ORDER BY p.latest_message_at DESC, p.thread_id DESC
@@ -228,8 +220,39 @@ class ThreadQueryService:
             async with connection.cursor(aiomysql.DictCursor) as db_cursor:
                 await db_cursor.execute(sql, tuple(params))
                 rows = [dict(row) for row in await db_cursor.fetchall()]
+                visible_rows = rows[:page_size]
+                account_ids_by_thread: dict[str, str] = {}
+                if visible_rows:
+                    thread_ids = tuple(str(row["thread_id"]) for row in visible_rows)
+                    placeholders = ",".join("%s" for _ in thread_ids)
+                    await db_cursor.execute(
+                        f"""
+                        SELECT tm.thread_id,
+                               GROUP_CONCAT(
+                                   DISTINCT ri.account_id
+                                   ORDER BY ri.account_id SEPARATOR ','
+                               ) AS account_ids
+                        FROM thread_messages tm
+                        JOIN message_remote_instances ri
+                          FORCE INDEX (idx_remote_instances_message)
+                          ON ri.message_id = tm.message_id
+                         AND ri.user_uid = tm.user_uid
+                         AND ri.remote_deleted = 0
+                        WHERE tm.user_uid = %s
+                          AND tm.thread_id IN ({placeholders})
+                        GROUP BY tm.thread_id
+                        """,
+                        (session.user.id, *thread_ids),
+                    )
+                    account_ids_by_thread = {
+                        str(row["thread_id"]): str(row["account_ids"] or "")
+                        for row in await db_cursor.fetchall()
+                    }
         has_more = len(rows) > page_size
-        visible = rows[:page_size]
+        visible = [
+            {**row, "account_ids": account_ids_by_thread.get(str(row["thread_id"]), "")}
+            for row in rows[:page_size]
+        ]
         items = tuple(
             ThreadListItem(
                 id=str(row["thread_id"]),

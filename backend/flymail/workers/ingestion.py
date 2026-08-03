@@ -57,6 +57,7 @@ class RemoteSummary:
     provider_message_id: str = ""
     provider_thread_id: str = ""
     remote_version: str = ""
+    provider_labels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if isinstance(self.remote_uid, bool) or int(self.remote_uid) < 1:
@@ -120,6 +121,17 @@ class RemoteSummary:
             str(self.provider_thread_id or "").strip(),
         )
         object.__setattr__(self, "remote_version", str(self.remote_version or "").strip()[:191])
+        object.__setattr__(
+            self,
+            "provider_labels",
+            tuple(
+                dict.fromkeys(
+                    str(value or "").strip()
+                    for value in self.provider_labels
+                    if str(value or "").strip()
+                )
+            ),
+        )
 
     @property
     def is_read(self) -> bool:
@@ -418,7 +430,39 @@ class MessageIngestionService:
                 message_ids,
                 now=timestamp,
             )
+            label_names = tuple(
+                dict.fromkeys(
+                    label
+                    for item in prepared
+                    for label in item.summary.provider_labels
+                    if label != active_mailbox.native_key
+                )
+            )
+            label_mailboxes: dict[str, Mailbox] = {}
+            if label_names:
+                placeholders = ",".join("%s" for _ in label_names)
+                async with uow.connection.cursor() as cursor:
+                    await cursor.execute(
+                        f"""
+                        SELECT id
+                        FROM mailboxes
+                        WHERE user_uid=%s AND account_id=%s
+                          AND mailbox_type='label'
+                          AND native_key IN ({placeholders})
+                        """,
+                        (tenant.user_uid, active_account.id, *label_names),
+                    )
+                    label_rows = await cursor.fetchall()
+                for row in label_rows:
+                    label_mailbox = await mailbox_repository.get_mailbox(
+                        tenant,
+                        str(row[0]),
+                    )
+                    if label_mailbox is not None:
+                        label_mailboxes[label_mailbox.native_key] = label_mailbox
+
             membership_records = []
+            touched_label_ids: set[str] = set()
             for item in prepared:
                 identity = (
                     active_account.id,
@@ -426,9 +470,10 @@ class MessageIngestionService:
                     item.summary.uidvalidity,
                     item.summary.remote_uid,
                 )
+                remote_instance_id = remote_ids[identity]
                 membership_records.append(
                     MembershipUpsert(
-                        remote_instance_id=remote_ids[identity],
+                        remote_instance_id=remote_instance_id,
                         mailbox_id=active_mailbox.id,
                         membership_kind=active_mailbox.mailbox_type,
                         provider_label=(
@@ -439,6 +484,20 @@ class MessageIngestionService:
                         updated_at=timestamp,
                     )
                 )
+                for provider_label in item.summary.provider_labels:
+                    label_mailbox = label_mailboxes.get(provider_label)
+                    if label_mailbox is None:
+                        continue
+                    membership_records.append(
+                        MembershipUpsert(
+                            remote_instance_id=remote_instance_id,
+                            mailbox_id=label_mailbox.id,
+                            membership_kind="label",
+                            provider_label=provider_label,
+                            updated_at=timestamp,
+                        )
+                    )
+                    touched_label_ids.add(label_mailbox.id)
             memberships_touched = await message_repository.upsert_memberships(
                 tenant,
                 membership_records,
@@ -448,6 +507,12 @@ class MessageIngestionService:
                 active_mailbox.id,
                 now=timestamp,
             )
+            for label_mailbox_id in sorted(touched_label_ids):
+                await mailbox_repository.update_counts(
+                    tenant,
+                    label_mailbox_id,
+                    now=timestamp,
+                )
             new_thread_ids = {
                 thread_records[item.decision.canonical_thread_key].id
                 for item in prepared

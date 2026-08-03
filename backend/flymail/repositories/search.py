@@ -28,7 +28,13 @@ class SearchRepository:
     async def fulltext_parser(self) -> str:
         async with self.connection.cursor() as cursor:
             await cursor.execute(
-                "SELECT metadata_json FROM schema_migrations WHERE version = 4"
+                """
+                SELECT metadata_json
+                FROM schema_migrations
+                WHERE version IN (17, 4)
+                ORDER BY version DESC
+                LIMIT 1
+                """
             )
             row = await cursor.fetchone()
         if not row:
@@ -45,6 +51,82 @@ class SearchRepository:
         async with self.connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute(compiled.sql, compiled.params)
             return [dict(row) for row in await cursor.fetchall()]
+
+    async def enrich_results(
+        self,
+        tenant: TenantContext,
+        rows: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Load account/read/star metadata for one bounded result page.
+
+        The search query previously used three dependent subqueries per row.
+        MySQL could choose a full remote-instance table scan for the boolean
+        subqueries, which made a 20-row result proportional to total mailbox
+        size. Two bounded aggregate queries keep the work proportional to the
+        visible page and force the tenant/message index for remote state.
+        """
+        if not rows:
+            return rows
+        thread_ids = tuple(dict.fromkeys(str(row["thread_id"]) for row in rows))
+        message_ids = tuple(
+            dict.fromkeys(str(row["matched_message_id"]) for row in rows)
+        )
+        thread_placeholders = ",".join("%s" for _ in thread_ids)
+        message_placeholders = ",".join("%s" for _ in message_ids)
+
+        async with self.connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                f"""
+                SELECT tm.thread_id,
+                       GROUP_CONCAT(
+                           DISTINCT ri.account_id
+                           ORDER BY ri.account_id SEPARATOR ','
+                       ) AS account_ids
+                FROM thread_messages tm
+                JOIN message_remote_instances ri
+                  FORCE INDEX (idx_remote_instances_message)
+                  ON ri.message_id = tm.message_id
+                 AND ri.user_uid = tm.user_uid
+                 AND ri.remote_deleted = 0
+                WHERE tm.user_uid = %s
+                  AND tm.thread_id IN ({thread_placeholders})
+                GROUP BY tm.thread_id
+                """,
+                (tenant.user_uid, *thread_ids),
+            )
+            accounts = {
+                str(row["thread_id"]): str(row["account_ids"] or "")
+                for row in await cursor.fetchall()
+            }
+            await cursor.execute(
+                f"""
+                SELECT ri.message_id,
+                       MAX(CASE WHEN ri.is_read = 0 THEN 1 ELSE 0 END) AS unread,
+                       MAX(CASE WHEN ri.is_starred = 1 THEN 1 ELSE 0 END) AS starred
+                FROM message_remote_instances ri
+                     FORCE INDEX (idx_remote_instances_message)
+                WHERE ri.user_uid = %s
+                  AND ri.message_id IN ({message_placeholders})
+                  AND ri.remote_deleted = 0
+                GROUP BY ri.message_id
+                """,
+                (tenant.user_uid, *message_ids),
+            )
+            states = {
+                str(row["message_id"]): (
+                    bool(row["unread"]),
+                    bool(row["starred"]),
+                )
+                for row in await cursor.fetchall()
+            }
+
+        for row in rows:
+            message_id = str(row["matched_message_id"])
+            unread, starred = states.get(message_id, (False, False))
+            row["account_ids"] = accounts.get(str(row["thread_id"]), "")
+            row["unread"] = unread
+            row["starred"] = starred
+        return rows
 
     async def append_history(
         self,

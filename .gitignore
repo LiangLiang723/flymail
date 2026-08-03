@@ -52,6 +52,7 @@ Thumbs.db
 .mypy_cache/
 .ruff_cache/
 .cache/
+.benchmarks/
 
 # Packaging artifacts
 *.fpk
