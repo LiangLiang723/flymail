@@ -1,7 +1,7 @@
 // Curated TypeScript surface reviewed against the frozen FlyMail V2 OpenAPI contract.
 // The backend fixture is a contract fingerprint summary rather than a complete OpenAPI document.
-export const OPENAPI_VERSION = '0.0.25' as const;
-export const OPENAPI_SHA256 = 'e156e46739ef5c19e1f22077e4958990854ea3ec4a6ce80c01e936474b84ba79' as const;
+export const OPENAPI_VERSION = '0.1.3' as const;
+export const OPENAPI_SHA256 = '3add2d91006ebc27db08f16e4add2ae2bffa5b41ebf036a72dabe1ba110131c7' as const;
 
 export type UserRole = 'user' | 'admin';
 export type AccountStatus = 'active' | 'disabled' | 'auth_required' | 'pending' | 'error';

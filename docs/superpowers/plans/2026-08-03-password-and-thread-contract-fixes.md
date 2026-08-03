@@ -8,6 +8,14 @@
 
 **Tech Stack:** FastAPI, Pydantic 2, Python asyncio/MySQL integration tests, Vue 3, TypeScript, Node test runner, Docker.
 
+## Execution Status
+
+- [x] Task 1: backend user-password policy and integration tests completed in `dac87ce`.
+- [x] Task 2: thread-list API/view-model boundary completed in `2a4a671`.
+- [x] Task 3: frontend password gates and deployment documentation completed in `838c90d`.
+- [x] Task 4 Steps 1-4: version `0.1.3`, complete verification, final image and release evidence completed.
+- [ ] Task 4 Steps 5-6: production image replacement and final production evidence pending.
+
 ## Global Constraints
 
 - User-entered passwords, authorization codes, mailbox credentials, proxy passwords, and backup passwords must be non-empty with no FlyMail minimum or maximum length.
