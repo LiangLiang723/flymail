@@ -50,24 +50,37 @@
       <div class="storage-card-body">
         <div class="preference-toggle-row">
           <div class="preference-toggle-copy">
-            <h3 class="storage-title">聚合收件箱</h3>
-            <p class="storage-desc">开启后在侧栏显示聚合收件箱入口；默认关闭，不影响各邮箱独立收信。</p>
+            <h3 id="unified-inbox-title" class="storage-title">聚合收件箱</h3>
+            <p id="unified-inbox-description" class="storage-desc">开启后在侧栏显示聚合收件箱入口；默认关闭，不影响各邮箱独立收信。</p>
           </div>
-          <button
-            class="settings-toggle-switch"
-            :class="{ active: unifiedInboxEnabled }"
-            type="button"
-            role="switch"
-            aria-label="启用聚合收件箱"
-            :aria-checked="unifiedInboxEnabled"
-            :aria-pressed="unifiedInboxEnabled"
-            :disabled="unifiedInboxSaving"
-            @click="toggleUnifiedInbox"
+          <label
+            class="settings-toggle-control"
+            :class="{ 'is-saving': unifiedInboxSaving }"
           >
-            <span class="settings-toggle-knob"></span>
-          </button>
+            <input
+              class="settings-toggle-input"
+              type="checkbox"
+              role="switch"
+              :checked="unifiedInboxEnabled"
+              :disabled="unifiedInboxSaving"
+              aria-labelledby="unified-inbox-title"
+              aria-describedby="unified-inbox-description unified-inbox-feedback"
+              :aria-busy="unifiedInboxSaving"
+              @change="toggleUnifiedInbox"
+            />
+            <span class="settings-toggle-switch" aria-hidden="true">
+              <span class="settings-toggle-knob"></span>
+            </span>
+          </label>
         </div>
-        <span v-if="unifiedInboxError" class="status-msg error">{{ unifiedInboxError }}</span>
+        <p
+          id="unified-inbox-feedback"
+          class="preference-toggle-feedback"
+          :class="{ error: unifiedInboxError }"
+          aria-live="polite"
+        >
+          {{ unifiedInboxSaving ? '正在保存…' : unifiedInboxError }}
+        </p>
       </div>
     </UiCard>
 
@@ -893,21 +906,23 @@ onMounted(() => {
   loadUnifiedInboxSetting();
 });
 
-async function toggleUnifiedInbox() {
+async function toggleUnifiedInbox(event: Event) {
   if (unifiedInboxSaving.value) return;
 
+  const input = event.currentTarget as HTMLInputElement;
   const previous = unifiedInboxEnabled.value;
-  unifiedInboxEnabled.value = !previous;
+  const nextEnabled = input.checked;
+  unifiedInboxEnabled.value = nextEnabled;
   unifiedInboxSaving.value = true;
   unifiedInboxError.value = '';
   try {
-    await api.put('/settings/unified', { enabled: unifiedInboxEnabled.value });
+    await api.put('/settings/unified', { enabled: nextEnabled });
     window.dispatchEvent(new CustomEvent('flymail-unified-inbox-setting-changed', {
-      detail: unifiedInboxEnabled.value,
+      detail: nextEnabled,
     }));
   } catch (error: any) {
     unifiedInboxEnabled.value = previous;
-    unifiedInboxError.value = error?.message || '聚合收件箱设置保存失败';
+    unifiedInboxError.value = error?.message || '聚合收件箱设置保存失败，请稍后重试';
   } finally {
     unifiedInboxSaving.value = false;
   }
@@ -1230,31 +1245,57 @@ async function saveSettings() {
   min-width: 0;
 }
 
+.settings-toggle-control {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  min-height: var(--touch-target);
+  flex: 0 0 48px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-toggle-control.is-saving {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.settings-toggle-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
 .settings-toggle-switch {
   position: relative;
   width: 48px;
   height: 28px;
-  flex: 0 0 48px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
+  border-radius: var(--ui-radius-round);
   background: var(--border-color-strong);
-  cursor: pointer;
-  transition: background var(--transition-fast), opacity var(--transition-fast);
+  pointer-events: none;
+  transition:
+    background var(--transition-fast),
+    box-shadow var(--transition-fast),
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
 }
 
-.settings-toggle-switch.active {
+.settings-toggle-input:checked + .settings-toggle-switch {
   background: var(--color-accent);
 }
 
-.settings-toggle-switch:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
+.settings-toggle-input:focus-visible + .settings-toggle-switch {
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
 }
 
-.settings-toggle-switch:disabled {
-  cursor: wait;
-  opacity: 0.65;
+.settings-toggle-input:active + .settings-toggle-switch {
+  transform: scale(0.97);
 }
 
 .settings-toggle-knob {
@@ -1269,8 +1310,30 @@ async function saveSettings() {
   transition: transform var(--transition-fast);
 }
 
-.settings-toggle-switch.active .settings-toggle-knob {
+.settings-toggle-input:checked + .settings-toggle-switch .settings-toggle-knob {
   transform: translateX(20px);
+}
+
+.preference-toggle-feedback {
+  min-height: 18px;
+  margin: var(--space-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.preference-toggle-feedback.error {
+  color: var(--color-danger);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .settings-toggle-control:hover .settings-toggle-switch {
+    background: var(--ui-fill-pressed);
+  }
+
+  .settings-toggle-control:hover .settings-toggle-input:checked + .settings-toggle-switch {
+    background: var(--color-accent-hover);
+  }
 }
 
 .appearance-options {
