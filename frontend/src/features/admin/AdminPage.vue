@@ -43,7 +43,7 @@ async function enable(user: AdminUser) {
   await load();
 }
 async function reset(user: AdminUser) {
-  if (!exactConfirmation(user.username, typed.value) || resetPassword.value.length < 12) return;
+  if (!exactConfirmation(user.username, typed.value) || !resetPassword.value) return;
   await apiClient.request({ method: 'POST', path: `/api/v2/admin/users/${encodeURIComponent(user.id)}/reset-password`, body: { new_password: resetPassword.value } });
   typed.value = ''; resetPassword.value = ''; actionUser.value = undefined; await load();
 }
@@ -54,10 +54,10 @@ onMounted(() => { void load(); });
   <main v-if="canAccessAdminRoute(bootstrap.state.data?.user.role || '')" class="v2-admin-page">
     <header><p class="v2-eyebrow">管理员</p><h1>用户与运行诊断</h1></header>
     <p v-if="state.error" class="v2-error">{{ state.error }}</p>
-    <section><h2>创建用户</h2><form @submit.prevent="createUser"><input v-model="createForm.username" placeholder="用户名" required /><input v-model="createForm.password" type="password" minlength="12" placeholder="初始密码" required /><select v-model="createForm.role"><option value="user">普通用户</option><option value="admin">管理员</option></select><button type="submit">创建</button></form></section>
+    <section><h2>创建用户</h2><form @submit.prevent="createUser"><input v-model="createForm.username" placeholder="用户名" required /><input v-model="createForm.password" type="password" placeholder="初始密码" required /><select v-model="createForm.role"><option value="user">普通用户</option><option value="admin">管理员</option></select><button type="submit">创建</button></form></section>
     <section><h2>用户</h2><article v-for="user in state.users" :key="user.id"><strong>{{ user.username }}</strong><span>{{ user.role }} · {{ user.enabled ? '启用' : '禁用' }}</span><button v-if="user.enabled" type="button" @click="actionUser = user">禁用或重置</button><button v-else type="button" @click="enable(user)">启用</button></article></section>
     <section><h2>安全诊断</h2><dl><template v-for="(value, key) in state.diagnostics" :key="key"><dt>{{ key }}</dt><dd>{{ value }}</dd></template></dl></section>
-    <form v-if="actionUser" role="dialog" aria-modal="true" @submit.prevent><h2>高风险操作：{{ actionUser.username }}</h2><p>请输入精确用户名确认。</p><input v-model="typed" /><input v-model="resetPassword" type="password" placeholder="新密码（至少 12 位）" /><button type="button" :disabled="!exactConfirmation(actionUser.username, typed)" @click="disable(actionUser)">确认 disable 禁用</button><button type="button" :disabled="!exactConfirmation(actionUser.username, typed) || resetPassword.length < 12" @click="reset(actionUser)">确认 reset-password</button><button type="button" @click="actionUser = undefined; typed = ''; resetPassword = ''">取消</button></form>
+    <form v-if="actionUser" role="dialog" aria-modal="true" @submit.prevent><h2>高风险操作：{{ actionUser.username }}</h2><p>请输入精确用户名确认。</p><input v-model="typed" /><input v-model="resetPassword" type="password" placeholder="新密码（不能为空）" /><button type="button" :disabled="!exactConfirmation(actionUser.username, typed)" @click="disable(actionUser)">确认 disable 禁用</button><button type="button" :disabled="!exactConfirmation(actionUser.username, typed) || !resetPassword" @click="reset(actionUser)">确认 reset-password</button><button type="button" @click="actionUser = undefined; typed = ''; resetPassword = ''">取消</button></form>
   </main>
 </template>
 

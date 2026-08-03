@@ -51,9 +51,13 @@ test('settings sync admin backup and about pages expose bounded safe behavior', 
   assert.match(sync, /accounts.*refresh|refresh.*accounts/s);
   assert.match(admin, /reset-password/);
   assert.match(admin, /disable/);
+  assert.doesNotMatch(admin, /minlength=["']12["']|length\s*<\s*12|至少\s*12/);
+  assert.match(admin, /!resetPassword/);
   assert.match(backup, /不包含远端缓存|remote cache/i);
   assert.match(backup, /restore-rehearsal/);
   assert.match(backup, /review_required/);
+  assert.doesNotMatch(backup, /minlength=["']12["']|length\s*<\s*12|至少\s*12/);
+  assert.match(backup, /:disabled="!password"/);
   assert.doesNotMatch(backup, /localStorage|sessionStorage/);
   assert.match(about, /api\/v2\/version/);
   assert.match(about, /许可证|license/i);

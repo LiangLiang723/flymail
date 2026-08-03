@@ -50,7 +50,7 @@ FlyMail 是一个面向 Docker 部署的多用户邮件客户端，支持多邮�
 | `FLYMAIL_DATA_PATH` | 默认 `./data` | 否 | 指向另一套完整实例数据；生产固定为 `/Docker/flymail/data` |
 | `FLYMAIL_SESSION_SECRET` | 必填，至少 16 字符；推荐 `openssl rand -hex 32` | 是 | 签名会话并派生邮箱、代理、通知凭据的实例加密密钥；已有数据时不得直接更换 |
 | `FLYMAIL_ADMIN_USERNAME` | 空数据库必填，最长 191 字符 | 否 | 只在 `users` 表为空时创建首个管理员；已有用户后忽略 |
-| `FLYMAIL_ADMIN_PASSWORD` | 空数据库必填，至少 12 字符 | 是 | 只用于首次管理员创建；已有用户后不会重置密码 |
+| `FLYMAIL_ADMIN_PASSWORD` | 空数据库必填，不能为空；FlyMail 不限制长度 | 是 | 只用于首次管理员创建；已有用户后不会重置密码 |
 | `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` | Gmail OAuth 可选成对配置 | 是 | 未配置时 Gmail 仍可使用授权码/应用密码方式，OAuth 入口返回未配置 |
 | `OUTLOOK_CLIENT_ID` / `OUTLOOK_CLIENT_SECRET` | Microsoft OAuth 可选成对配置 | 是 | 未配置时 Outlook OAuth 入口返回未配置 |
 | `MYSQL_DATABASE` | 默认 `flymail` | 否 | 改为另一数据库；不要在已有实例上随意修改 |
@@ -69,6 +69,8 @@ openssl rand -hex 32
 
 注意：
 
+- 用户登录密码、管理员创建或重置密码、邮箱密码或授权码、代理密码和业务备份密码只要求非空；FlyMail 不设置最短或最大长度，也不会自动去除首尾空格。第三方服务商和 MySQL 自身仍可能有协议或产品限制。
+- `FLYMAIL_SESSION_SECRET`、游标签名密钥和凭据加密主密钥属于内部安全密钥，不适用上述用户密码规则，仍保持各自的最小长度要求。
 - MySQL 仅监听容器内 `127.0.0.1:3306`，不会映射到宿主机。
 - `FLYMAIL_SESSION_SECRET` 同时保护业务凭据；直接更换会让已有加密邮箱、代理和通知秘密无法解密，不只是让用户重新登录。
 - 更新代理、OAuth 客户端、数据库密码或端口后使用 `docker compose up -d --build --force-recreate`。
