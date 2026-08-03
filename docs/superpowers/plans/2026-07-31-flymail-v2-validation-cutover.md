@@ -648,11 +648,11 @@ git commit -m "📝 完成 FlyMail V2 部署备份与切换文档"
 - Produces release candidate image and immutable evidence report.
 - Does not yet modify production data.
 
-- [ ] **Step 1: Present version choice before editing**
+- [x] **Step 1: Present version choice before editing**
 
 Show current `VERSION`, incompatibility level and proposed release number. Obtain user confirmation for the final version number. Do not assume architecture name “V2” automatically means a specific SemVer value.
 
-- [ ] **Step 2: Synchronize confirmed version**
+- [x] **Step 2: Synchronize confirmed version**
 
 Write confirmed value to `VERSION`, then run:
 
@@ -665,7 +665,7 @@ node -e "console.log(require('./frontend/package.json').version)"
 
 All three must match. Check compose and README image tag.
 
-- [ ] **Step 3: Run complete verification from clean state**
+- [x] **Step 3: Run complete verification from clean state**
 
 ```bash
 cd backend
@@ -686,7 +686,7 @@ git status --short
 git diff
 ```
 
-- [ ] **Step 4: Build and smoke final local image**
+- [x] **Step 4: Build and smoke final local image**
 
 ```bash
 IMAGE="benxianyu/flymail:$(cat VERSION)"
@@ -695,9 +695,11 @@ scripts/test-v2-container.sh "$IMAGE"
 scripts/check-v2-secrets.sh "$IMAGE"
 ```
 
-- [ ] **Step 5: Write release evidence**
+- [x] **Step 5: Write release evidence**
 
 Include actual counts/results for backend, frontend, build sizes, MySQL integration, provider contracts, security, fault, capacity, real providers/browsers, container, persistence, shutdown, secret scan, docs and known limitations.
+
+**Measured verification:** the user explicitly confirmed version `0.1.0`. `VERSION`, both package manifests, the frontend lock root, Compose and README image references match. The isolated MySQL backend rerun passed `653/653` in `355.912` seconds with no skips; frontend compatibility and V2 suites passed `96/96` and `64/64`; production build passed with `66.70 KiB` initial gzip and `65.64 KiB` largest async gzip. Final local image `benxianyu/flymail:0.1.0` is `sha256:7300483a42d837894795acf6978e7353bb626a15e6406f70c0031114f12346fb`. Container health, schema 17, MySQL 8.0 `/data/mysql/`, loopback bind, Worker heartbeat, special-character database password, initial admin, persistence, lease recovery, safe shutdown and secret scans passed. Real providers, external notification endpoints, browsers, devices and production IDLE remain explicitly blocked. Production data was not touched and Docker Hub was not used.
 
 - [ ] **Step 6: Commit and push release candidate**
 
@@ -782,20 +784,20 @@ Keep old snapshot until the user explicitly approves cleanup after stable observ
 
 ## Gate 5 Completion Checklist
 
-- [ ] Safe logs, metrics, Server-Timing and health semantics pass.
-- [ ] Normal backend and frontend entries run V2 only.
-- [ ] Single container supervises MySQL, API and Worker correctly.
-- [ ] Temporary container is healthy, persistent and cleanly stoppable.
-- [ ] MySQL is 8.0, data directory `/data/mysql/`, bind `127.0.0.1`.
-- [ ] Database password special-character validation passes.
-- [ ] Logs and image metadata contain no secrets.
-- [ ] Required fault injection invariants pass.
+- [x] Safe logs, metrics, Server-Timing and health semantics pass.
+- [x] Normal backend and frontend entries run V2 only.
+- [x] Single container supervises MySQL, API and Worker correctly.
+- [x] Temporary container is healthy, persistent and cleanly stoppable.
+- [x] MySQL is 8.0, data directory `/data/mysql/`, bind `127.0.0.1`.
+- [x] Database password special-character validation passes.
+- [x] Logs and image metadata contain no secrets.
+- [x] Required fault injection invariants pass.
 - [x] 2,000 万摘要 capacity and P95 targets pass on recorded resource profile.
-- [ ] Real provider and desktop/mobile browser matrix is complete or blocked items are clearly documented.
-- [ ] README, `.env.example`, backup/restore and cutover docs match tested behavior.
-- [ ] Final version is explicitly confirmed and synchronized.
+- [x] Real provider and desktop/mobile browser matrix is complete or blocked items are clearly documented.
+- [x] README, `.env.example`, backup/restore and cutover docs match tested behavior.
+- [x] Final version is explicitly confirmed and synchronized.
 - [ ] Release candidate commit is pushed to `origin/main`.
-- [ ] Docker Hub is not uploaded.
-- [ ] Production data is not replaced before separate explicit confirmation.
+- [x] Docker Hub is not uploaded.
+- [x] Production data is not replaced before separate explicit confirmation.
 - [ ] Rollback snapshot is verified before cutover.
 - [ ] Final production container passes feature and restart acceptance.
