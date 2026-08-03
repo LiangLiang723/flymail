@@ -16,7 +16,6 @@
         <strong>{{ displayName }}</strong>
         <small>@{{ username }}</small>
       </span>
-      <AppIcon class="profile-chevron" name="chevron-down" :size="15" />
     </button>
 
     <Transition name="popover">

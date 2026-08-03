@@ -46,6 +46,31 @@
       </div>
     </UiCard>
 
+    <UiCard class="provider-card unified-inbox-card" padding="none">
+      <div class="storage-card-body">
+        <div class="preference-toggle-row">
+          <div class="preference-toggle-copy">
+            <h3 class="storage-title">聚合收件箱</h3>
+            <p class="storage-desc">开启后在侧栏显示聚合收件箱入口；默认关闭，不影响各邮箱独立收信。</p>
+          </div>
+          <button
+            class="settings-toggle-switch"
+            :class="{ active: unifiedInboxEnabled }"
+            type="button"
+            role="switch"
+            aria-label="启用聚合收件箱"
+            :aria-checked="unifiedInboxEnabled"
+            :aria-pressed="unifiedInboxEnabled"
+            :disabled="unifiedInboxSaving"
+            @click="toggleUnifiedInbox"
+          >
+            <span class="settings-toggle-knob"></span>
+          </button>
+        </div>
+        <span v-if="unifiedInboxError" class="status-msg error">{{ unifiedInboxError }}</span>
+      </div>
+    </UiCard>
+
     <div class="provider-card">
       <div class="storage-card-body">
         <div class="storage-heading">
@@ -634,6 +659,9 @@ const guideOpen = ref(false);
 const gmailOpen = ref(false);
 const outlookOpen = ref(false);
 const showAbout = ref(false);
+const unifiedInboxEnabled = ref(false);
+const unifiedInboxSaving = ref(false);
+const unifiedInboxError = ref('');
 
 // 图片基础路径：Vite 构建时 base 为 /app/flymail/，需要拼接前缀才能正确访问
 const guideBase = import.meta.env.BASE_URL + 'guide/';
@@ -825,6 +853,16 @@ const attachmentCacheUsageBytes = ref(0);
 const attachmentCacheSharedPhysicalBytes = ref(0);
 const attachmentCacheCleanupMessage = ref('');
 
+async function loadUnifiedInboxSetting() {
+  try {
+    const data = await api.get('/settings/unified') as any;
+    unifiedInboxEnabled.value = Boolean(data?.enabled);
+  } catch (error) {
+    console.error('加载聚合收件箱设置失败:', error);
+    unifiedInboxEnabled.value = false;
+  }
+}
+
 async function loadSettingsData() {
   try {
     const data = await api.get('/settings') as any;
@@ -852,7 +890,28 @@ async function loadSettingsData() {
 
 onMounted(() => {
   loadSettingsData();
+  loadUnifiedInboxSetting();
 });
+
+async function toggleUnifiedInbox() {
+  if (unifiedInboxSaving.value) return;
+
+  const previous = unifiedInboxEnabled.value;
+  unifiedInboxEnabled.value = !previous;
+  unifiedInboxSaving.value = true;
+  unifiedInboxError.value = '';
+  try {
+    await api.put('/settings/unified', { enabled: unifiedInboxEnabled.value });
+    window.dispatchEvent(new CustomEvent('flymail-unified-inbox-setting-changed', {
+      detail: unifiedInboxEnabled.value,
+    }));
+  } catch (error: any) {
+    unifiedInboxEnabled.value = previous;
+    unifiedInboxError.value = error?.message || '聚合收件箱设置保存失败';
+  } finally {
+    unifiedInboxSaving.value = false;
+  }
+}
 
 async function testProxy() {
   if (!form.value.gmail_proxy_url || proxyTesting.value) return;
@@ -916,10 +975,6 @@ async function saveSettings() {
   }
 }
 
-// 页面加载
-onMounted(() => {
-  // 设置页面初始化
-});
 </script>
 
 <style scoped>
@@ -1162,6 +1217,60 @@ onMounted(() => {
   font-size: var(--text-sm);
   color: var(--text-tertiary);
   line-height: 1.5;
+}
+
+.preference-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.preference-toggle-copy {
+  min-width: 0;
+}
+
+.settings-toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex: 0 0 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-color-strong);
+  cursor: pointer;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.settings-toggle-switch.active {
+  background: var(--color-accent);
+}
+
+.settings-toggle-switch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.settings-toggle-switch:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.settings-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ui-text-inverse);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+
+.settings-toggle-switch.active .settings-toggle-knob {
+  transform: translateX(20px);
 }
 
 .appearance-options {

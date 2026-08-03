@@ -690,7 +690,12 @@ async def list_unified_messages(
     accounts = await get_accounts(user_uid)
     if not accounts:
         return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size, "no_accounts": True}
-    settings = await get_user_settings(user_uid, ["unified_account_ids"])
+    settings = await get_user_settings(
+        user_uid,
+        ["unified_inbox_enabled", "unified_account_ids"],
+    )
+    if not bool(settings.get("unified_inbox_enabled", False)):
+        return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size, "no_accounts": True}
     configured_ids = settings.get("unified_account_ids", [])
     valid_ids = {account.id for account in accounts}
     account_ids = [account_id for account_id in configured_ids if account_id in valid_ids]

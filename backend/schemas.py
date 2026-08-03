@@ -406,7 +406,8 @@ class SignatureListResponse(BaseModel):
 
 
 class UnifiedSettingsRequest(BaseModel):
-    account_ids: List[str] = Field(default=[], max_length=100, description="参与聚合的账号ID")
+    account_ids: Optional[List[str]] = Field(default=None, max_length=100, description="参与聚合的账号ID")
+    enabled: Optional[bool] = Field(default=None, description="是否启用聚合收件箱")
 
 
 class UnifiedSettingsAccount(BaseModel):
@@ -420,6 +421,7 @@ class UnifiedSettingsAccount(BaseModel):
 
 
 class UnifiedSettingsResponse(BaseModel):
+    enabled: bool = False
     account_ids: List[str]
     accounts: List[UnifiedSettingsAccount]
 

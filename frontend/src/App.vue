@@ -154,6 +154,7 @@ const showNotifications = ref(false);
 const isMobileLayout = ref(window.innerWidth <= 960);
 const sidebarCollapsed = ref(localStorage.getItem('flymail_sidebar_collapsed') === '1');
 const mobileSidebarOpen = ref(false);
+const unifiedInboxEnabled = ref(false);
 const appVersion = import.meta.env.VITE_APP_VERSION || '0.0.0';
 const savedView = sessionStorage.getItem('flymail_view') || 'mail';
 const currentView = ref(savedView === 'compose' ? 'mail' : savedView);
@@ -201,7 +202,7 @@ const { connect: connectGlobalWs, disconnect: disconnectGlobalWs } = useWebSocke
 
 const isAdmin = computed(() => currentUser.value?.role === 'admin');
 const navItems = computed(() => [
-  { key: 'unified', label: '聚合收件箱', icon: 'inbox' },
+  ...(unifiedInboxEnabled.value ? [{ key: 'unified', label: '聚合收件箱', icon: 'inbox' }] : []),
   { key: 'mail', label: '邮件管理', icon: 'mail' },
   { key: 'contacts', label: '联系人', icon: 'contacts' },
   { key: 'history-sync', label: '同步管理', icon: 'sync' },
@@ -246,10 +247,32 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   showNotifications.value = false;
 }
 
+function applyUnifiedInboxPreference(enabled: boolean) {
+  unifiedInboxEnabled.value = enabled;
+  if (!enabled && currentView.value === 'unified') {
+    currentView.value = 'mail';
+  }
+}
+
+async function loadUnifiedInboxPreference() {
+  try {
+    const settings = await api.get('/settings/unified') as any;
+    applyUnifiedInboxPreference(Boolean(settings?.enabled));
+  } catch (error) {
+    console.error('加载聚合收件箱设置失败:', error);
+    applyUnifiedInboxPreference(false);
+  }
+}
+
+function handleUnifiedInboxSettingChanged(event: Event) {
+  applyUnifiedInboxPreference(Boolean((event as CustomEvent<boolean>).detail));
+}
+
 async function loadAuthenticatedSession() {
   currentUser.value = await api.get('/auth/me');
   await mailStore.fetchUser();
   await mailStore.loadAccounts();
+  await loadUnifiedInboxPreference();
   await mailStore.loadNotifications();
   connectGlobalWs();
 }
@@ -289,6 +312,7 @@ async function logout() {
   currentUser.value = null;
   authState.value = 'anonymous';
   mailStore.accounts = [];
+  unifiedInboxEnabled.value = false;
   sessionStorage.removeItem('flymail_view');
 }
 
@@ -360,6 +384,7 @@ async function openNotification(item: any) {
 onMounted(() => {
   window.addEventListener('flymail-navigate', handleNavigate);
   window.addEventListener('flymail-toggle-sidebar', handleSidebarRequest);
+  window.addEventListener('flymail-unified-inbox-setting-changed', handleUnifiedInboxSettingChanged);
   window.addEventListener('resize', handleWindowResize);
   window.addEventListener('keydown', handleGlobalKeydown);
   checkAuth();
@@ -368,6 +393,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('flymail-navigate', handleNavigate);
   window.removeEventListener('flymail-toggle-sidebar', handleSidebarRequest);
+  window.removeEventListener('flymail-unified-inbox-setting-changed', handleUnifiedInboxSettingChanged);
   window.removeEventListener('resize', handleWindowResize);
   window.removeEventListener('keydown', handleGlobalKeydown);
   disconnectGlobalWs();

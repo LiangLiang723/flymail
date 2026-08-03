@@ -429,13 +429,18 @@ async def get_unified_settings(request: Request):
 
     uid = await get_uid(request)
     accounts = await get_accounts(uid)
-    settings = await get_user_settings(uid, ["unified_account_ids"])
+    settings = await get_user_settings(
+        uid,
+        ["unified_inbox_enabled", "unified_account_ids"],
+    )
+    enabled = bool(settings.get("unified_inbox_enabled", False))
     selected = settings.get("unified_account_ids", [])
     if not isinstance(selected, list):
         selected = []
     valid_ids = {account.id for account in accounts}
     selected = [account_id for account_id in selected if account_id in valid_ids]
     return {
+        "enabled": enabled,
         "account_ids": selected,
         "accounts": [
             {
@@ -455,13 +460,21 @@ async def save_unified_settings(request: Request, body: UnifiedSettingsRequest):
     from db import set_user_settings
 
     uid = await get_uid(request)
-    valid_ids = {account.id for account in await get_accounts(uid)}
-    invalid_ids = [account_id for account_id in body.account_ids if account_id not in valid_ids]
-    if invalid_ids:
-        from errors import AppError
-        raise AppError(400, "聚合账号列表包含无权访问的账号")
-    deduplicated = list(dict.fromkeys(body.account_ids))
-    await set_user_settings(uid, {"unified_account_ids": deduplicated})
+    updates = {}
+
+    if body.account_ids is not None:
+        valid_ids = {account.id for account in await get_accounts(uid)}
+        invalid_ids = [account_id for account_id in body.account_ids if account_id not in valid_ids]
+        if invalid_ids:
+            from errors import AppError
+            raise AppError(400, "聚合账号列表包含无权访问的账号")
+        updates["unified_account_ids"] = list(dict.fromkeys(body.account_ids))
+
+    if body.enabled is not None:
+        updates["unified_inbox_enabled"] = bool(body.enabled)
+
+    if updates:
+        await set_user_settings(uid, updates)
     return {"success": True}
 
 
