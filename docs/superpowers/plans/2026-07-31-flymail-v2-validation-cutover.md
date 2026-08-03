@@ -501,11 +501,11 @@ Using deterministic fake providers:
 
 Store normalized plans for thread list, search, job claim, remote instance lookup and quota LRU. Reject filesort/full scan where the design promises an index path. Change indexes only through a new migration and re-run all tests.
 
-- [ ] **Step 7: Commit concise results**
+- [x] **Step 7: Commit concise results**
 
 Raw 2,000 万 data and full logs remain ignored. Commit generator, tests, methodology and summary with exact Git SHA/image/resource profile.
 
-**Measured verification:** the isolated dataset contains 50 users, 300 accounts, 20,000,000 message summaries, 5,000,000 threads and 1,000,000 cached-body search documents. Generation used deterministic seed `20260731`, four bounded write connections and deferred index rebuild, completed in `10225.43` seconds and did not touch production data. On MySQL `8.0.46`, four visible CPUs, about 31 GiB visible memory and a 4 GiB Buffer Pool, all 13 warmed 30-sample API/Worker metrics passed. Structured search was the slowest API path at `27.460 ms` P95; hybrid cached-body FULLTEXT was `14.901 ms` P95. All five normalized plans used their promised indexes and had no full table scan. The first FULLTEXT run exposed ngram ASCII result-cache expansion and an InnoDB dictionary-latch crash in the isolated database; schema 17 added separate standard and CJK indexes, after which the formal run completed without error. Real provider/network/IDLE behavior remains outside this local capacity result.
+**Measured verification:** the isolated dataset contains 50 users, 300 accounts, 20,000,000 message summaries, 5,000,000 threads and 1,000,000 cached-body search documents. Generation used deterministic seed `20260731`, four bounded write connections and deferred index rebuild, completed in `10225.43` seconds and did not touch production data. On MySQL `8.0.46`, four visible CPUs, about 31 GiB visible memory and a 4 GiB Buffer Pool, all 13 warmed 30-sample API/Worker metrics passed. The commit-bound rerun for `dc63431` recorded structured search as the slowest API path at `24.754 ms` P95; hybrid cached-body FULLTEXT was `13.966 ms` P95. All five normalized plans used their promised indexes and had no full table scan. The first FULLTEXT run exposed ngram ASCII result-cache expansion and an InnoDB dictionary-latch crash in the isolated database; schema 17 added separate standard and CJK indexes, after which the formal run completed without error. Real provider/network/IDLE behavior remains outside this local capacity result.
 
 ```bash
 git add scripts/generate-v2-benchmark-data.py backend/tests/v2/test_capacity_queries.py docs/benchmarks/flymail-v2-capacity-results.md .gitignore
