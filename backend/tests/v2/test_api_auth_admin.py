@@ -154,6 +154,47 @@ class AuthAdminApiTests(MySqlIsolatedAsyncioTestCase):
                 )
                 return list(await cursor.fetchall())
 
+    async def test_http_login_sets_non_secure_cookie_and_session_is_reusable(self):
+        async with self.running_app() as app:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(
+                    app=app,
+                    raise_app_exceptions=False,
+                    client=("192.168.3.53", 36080),
+                ),
+                base_url="http://192.168.3.53:36080",
+            ) as client:
+                response = await self.login(
+                    client,
+                    "normal-user",
+                    "UserPassword!123",
+                )
+                self.assertEqual(response.status_code, 200)
+                cookie_header = response.headers["set-cookie"]
+                self.assertIn(f"{SESSION_COOKIE_NAME}=", cookie_header)
+                self.assertIn("HttpOnly", cookie_header)
+                self.assertNotIn("Secure", cookie_header)
+                self.assertTrue(client.cookies.get(SESSION_COOKIE_NAME))
+
+                me = await client.get("/api/v2/auth/me")
+                self.assertEqual(me.status_code, 200)
+                self.assertEqual(me.json()["user"]["id"], self.user.id)
+
+                logout = await client.post(
+                    "/api/v2/auth/logout",
+                    headers=self.csrf_headers(
+                        response.json()["csrf_token"],
+                        origin="http://192.168.3.53:36080",
+                    ),
+                )
+                self.assertEqual(logout.status_code, 200)
+                self.assertNotIn("Secure", logout.headers["set-cookie"])
+                self.assertIsNone(client.cookies.get(SESSION_COOKIE_NAME))
+                self.assertEqual(
+                    (await client.get("/api/v2/auth/me")).status_code,
+                    401,
+                )
+
     async def test_login_sets_secure_cookie_and_database_stores_only_hashes(self):
         async with self.running_app() as app:
             async with self.client(app, "203.0.113.10") as client:

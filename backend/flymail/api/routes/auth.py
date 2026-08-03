@@ -38,6 +38,7 @@ def _set_session_cookie(
     *,
     value: str,
     expires_at: float,
+    secure: bool,
 ) -> None:
     max_age = max(int(expires_at - time.time()), 1)
     response.set_cookie(
@@ -45,7 +46,7 @@ def _set_session_cookie(
         value,
         max_age=max_age,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
         path="/api/v2",
     )
@@ -68,6 +69,7 @@ async def login(
         response,
         value=result.cookie_value,
         expires_at=result.expires_at,
+        secure=request.url.scheme.casefold() == "https",
     )
     return AuthResponse(
         user=UserResponse.from_user(result.user),
@@ -99,7 +101,7 @@ async def logout(
     response.delete_cookie(
         SESSION_COOKIE_NAME,
         path="/api/v2",
-        secure=True,
+        secure=request.url.scheme.casefold() == "https",
         httponly=True,
         samesite="lax",
     )
