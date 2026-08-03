@@ -738,11 +738,11 @@ Without exposing secrets, record:
 
 **Measured verification:** production remained `running/healthy` on `benxianyu/flymail:0.0.25` with `/api/health` version `0.0.25`. `/Docker/flymail/data` is `752 MiB` (`711 MiB` MySQL and `42 MiB` FlyMail files). MySQL is `8.0.46`, data directory `/data/mysql/`, bind `127.0.0.1`, with no host MySQL port. Safe aggregate counts are 2 active administrator users, 4 connected accounts, 6,718 cached messages, 9,449 attachment metadata rows, 12 history sync jobs and 2 notifications. Target image `benxianyu/flymail:0.1.0` is local digest `sha256:7300483a42d837894795acf6978e7353bb626a15e6406f70c0031114f12346fb`. No production write, stop, restart or data-path modification occurred. Full details are recorded in `docs/benchmarks/flymail-v2-production-precutover.md`.
 
-- [ ] **Step 2: Create and verify rollback snapshot**
+- [x] **Step 2: Record user-provided backup waiver and preserve old data**
 
-Stop writes as documented, create a full filesystem snapshot/copy of `/Docker/flymail/data`, calculate checksum or snapshot identifier, and verify a temporary old-version container can start from a copy of that snapshot. Do not delete original data yet.
+The user stated that an independent backup already exists and explicitly instructed the cutover to skip old-version snapshot startup validation. This external backup was not inspected or verified by the agent. As an additional local safeguard, the original data directory was preserved by atomic rename instead of deletion.
 
-- [ ] **Step 3: Request explicit destructive confirmation**
+- [x] **Step 3: Request explicit destructive confirmation**
 
 The request must include:
 
@@ -756,33 +756,49 @@ The request must include:
 
 Wait for an unambiguous confirmation specific to deletion/replacement.
 
-- [ ] **Step 4: Stop current container safely**
+**Measured verification:** the user explicitly instructed: skip old-version validation because an independent backup already exists, directly create the new version, and provide the operating commands. The cutover retained the old directory rather than deleting it.
+
+- [x] **Step 4: Stop current container safely**
 
 Use normal Docker stop and verify MySQL safe shutdown. If shutdown logs indicate corruption or timeout, stop and investigate before deleting or moving data.
 
-- [ ] **Step 5: Preserve old directory and initialize new data**
+**Measured verification:** `flymail` stopped in about four seconds. MySQL `8.0.46` recorded `Received SHUTDOWN` followed by `Shutdown complete`; the legacy application scheduler also logged a clean shutdown.
+
+- [x] **Step 5: Preserve old directory and initialize new data**
 
 Prefer atomic rename of old data directory to a timestamped preserved path on the same filesystem, then create a fresh `/Docker/flymail/data` with correct ownership/permissions. Do not use `rm -rf` as the first cutover action.
 
-- [ ] **Step 6: Start V2 production container**
+**Measured verification:** the old directory was atomically renamed to `/Docker/flymail/data-pre-v2-20260803T032435Z` on the same device. A fresh `root:root 0755` `/Docker/flymail/data` was created. No old data was deleted.
+
+- [x] **Step 6: Start V2 production container**
 
 Start `flymail` with approved image and fresh data. Verify healthy, version, Worker heartbeat, MySQL 8/data directory/bind, object store and logs.
+
+**Measured verification:** production `flymail` uses `benxianyu/flymail:0.1.0` (`sha256:7300483a42d837894795acf6978e7353bb626a15e6406f70c0031114f12346fb`), restart policy `always`, port `36080:8080`, and reached `running/healthy`. `/api/health` reports `0.1.0`; schema is `17`; MySQL is `8.0.46`, `/data/mysql/`, bind `127.0.0.1`; only application port 8080 is published.
 
 - [ ] **Step 7: Perform production acceptance**
 
 Create admin, update profile/avatar, add designated test mailbox through password or OAuth, verify proxy where configured, account icon, contacts/autocomplete, sync, read, image viewer, PDF export, search, mark-all-read, send, browser/NAS attachment, notification test delivery, operation, PWA/mobile browser and backup creation. Do not declare success from health endpoint alone.
 
-- [ ] **Step 8: Validate restart persistence**
+**Measured verification:** local production acceptance passed for initial admin creation, login, authenticated session, Bootstrap, database read/write, schema, Worker heartbeat, persistent directories, restart, safe MySQL shutdown and secret scans. The new database currently has one active administrator and zero mailbox accounts. Real mailbox, OAuth, proxy, send/receive, notification and browser/device acceptance remains blocked until external credentials and endpoints are added.
+
+- [x] **Step 8: Validate restart persistence**
 
 Create safe test state, restart `flymail`, verify user/account/task/object state and MySQL clean start. Verify shutdown remains safe.
 
-- [ ] **Step 9: Decide go or rollback**
+**Measured verification:** a temporary database write and a temporary persistent file were created. After `docker restart --time 30 flymail`, health returned `0.1.0`, the administrator row and file persisted, Worker heartbeat was fresh, and MySQL logged a clean shutdown. The temporary marker was removed.
+
+- [x] **Step 9: Decide go or rollback**
 
 If any release gate fails, stop V2, preserve its new data for diagnosis, restore old data directory snapshot and old image, and verify old health/data. Do not attempt to make old version read V2 database.
+
+**Measured verification:** all local service, login, database, Worker, persistence and security gates passed, so the decision is **go**. The old directory remains available for rollback. Real external provider acceptance is still a documented post-cutover task, not evidence supplied by health alone.
 
 - [ ] **Step 10: Finalize only after observation window**
 
 Keep old snapshot until the user explicitly approves cleanup after stable observation. Docker Hub remains untouched unless separately requested.
+
+**Current state:** `/Docker/flymail/data-pre-v2-20260803T032435Z` remains retained. No cleanup approval has been given. Docker Hub was not used. Full results and operating commands are in `docs/benchmarks/flymail-v2-production-cutover-result.md`.
 
 ## Gate 5 Completion Checklist
 
@@ -801,5 +817,6 @@ Keep old snapshot until the user explicitly approves cleanup after stable observ
 - [x] Release candidate commit is pushed to `origin/main`.
 - [x] Docker Hub is not uploaded.
 - [x] Production data is not replaced before separate explicit confirmation.
-- [ ] Rollback snapshot is verified before cutover.
-- [ ] Final production container passes feature and restart acceptance.
+- [x] User-provided backup waiver is recorded and the old data directory is preserved locally.
+- [x] Final production container passes local health, login, database, Worker and restart acceptance.
+- [ ] Real mailbox, external notification and desktop/mobile browser production acceptance remains blocked on external credentials and devices.
