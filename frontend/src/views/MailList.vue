@@ -378,6 +378,7 @@ import AccountIcon from '../components/account/AccountIcon.vue';
 import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
 import { renderThemedMailBody } from '../utils/sanitize';
 import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
+import { reconcileMessagePage } from '../utils/mail-list-reconcile';
 import type { Attachment, Message } from '../types/mail';
 import { useWebSocket } from '../composables/useWebSocket';
 import { useSelectMode } from '../composables/useSelectMode';
@@ -848,6 +849,21 @@ function normalizeMessagesForDisplay(items: Message[]) {
   return items.map((item) => item.is_read ? item : { ...item, is_read: true });
 }
 
+function applyMessagePage(data: any, reconcileVisible = false) {
+  saveCurrentPageCache(data);
+  totalMessages.value = data.total || 0;
+  if (data.filter_counts) {
+    filterCounts.value = data.filter_counts;
+  }
+  const nextMessages = normalizeMessagesForDisplay(data.messages || []);
+  if (reconcileVisible) {
+    const reconciled = reconcileMessagePage(messages.value, nextMessages);
+    messages.value.splice(0, messages.value.length, ...reconciled);
+    return;
+  }
+  messages.value = nextMessages;
+}
+
 function resetVisibleListState() {
   messages.value = [];
   totalMessages.value = 0;
@@ -995,10 +1011,15 @@ async function refreshLatestPage() {
       page_size: pageSize,
     };
     if (mailStore.currentAccountId) params.account_id = mailStore.currentAccountId;
-    await api.get('/messages/refresh', { params });
+    const refreshData = await api.get('/messages/refresh', { params }) as any;
     currentPage.value = 1;
     pageCache.clear();
-    await loadMessages();
+    if (hasActiveFilter.value || searchKeyword.value) {
+      await loadMessages(true);
+    } else {
+      applyMessagePage(refreshData, true);
+      nextTick(() => { prefetchVisibleMessages(); });
+    }
     await mailStore.loadFolderCounts();
   } catch (e) {
     console.error('刷新邮件失败:', e);
@@ -1103,20 +1124,13 @@ async function loadMessages(preserveVisible = false) {
       uiStore.error('邮箱连接异常，正在重新连接，请稍后再试');
       return;
     }
-    const nextMessages = data.messages || [];
     const nextTotal = data.total || 0;
     const nextTotalPages = Math.max(1, Math.ceil(nextTotal / pageSize));
     if (currentPage.value > nextTotalPages && nextTotal > 0) {
       currentPage.value = nextTotalPages;
       return await loadMessages(preserveVisible);
     }
-    saveCurrentPageCache(data);
-    totalMessages.value = nextTotal;
-    // 更新筛选计数
-    if (data.filter_counts) {
-      filterCounts.value = data.filter_counts;
-    }
-    messages.value = normalizeMessagesForDisplay(nextMessages);
+    applyMessagePage(data, preserveVisible);
     // 用 list_messages API 返回的数据更新侧边栏文件夹计数
     // 收件箱显示未读数，其他文件夹显示邮件总数
   } catch (e) {
