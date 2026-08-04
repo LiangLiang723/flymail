@@ -32,7 +32,11 @@ def _load_settings_route_module():
     db_stub.get_accounts = AsyncMock(return_value=[])
     db_stub.get_cached_attachment_rows = AsyncMock(return_value=[])
     db_stub.get_cached_count = AsyncMock(return_value=0)
+    db_stub.get_cached_body_check_progress = AsyncMock(
+        return_value={"total_count": 0, "checked_count": 0, "remaining_count": 0}
+    )
     db_stub.get_folder_stats = AsyncMock(return_value={})
+    db_stub.folder_key_for_path = lambda value: str(value or "").strip().lower()
     db_stub.get_history_sync_job = AsyncMock(return_value=None)
     db_stub.list_account_folder_counts = AsyncMock(return_value=[])
     db_stub.list_history_sync_jobs = AsyncMock(return_value=[])
@@ -267,6 +271,37 @@ class HistorySyncProgressTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(oa["label"], "OA")
         self.assertEqual(oa["cached_count"], 267)
         self.assertEqual(oa["total_count"], 575)
+
+    async def test_folder_progress_includes_live_body_check_counts(self):
+        settings = _load_settings_route_module()
+
+        async def fake_get_folder_stats(account_id, folder_key):
+            return {"total_count": 12, "unread_count": 2, "updated_at": 1}
+
+        async def fake_get_cached_count(account_id, folder_key):
+            return 12 if folder_key == "INBOX" else 0
+
+        body_progress = AsyncMock(
+            return_value={"total_count": 12, "checked_count": 4, "remaining_count": 8}
+        )
+
+        with (
+            patch.object(settings, "list_account_folder_counts", AsyncMock(return_value=[])),
+            patch.object(settings, "get_folder_stats", fake_get_folder_stats),
+            patch.object(settings, "get_cached_count", fake_get_cached_count),
+            patch.object(settings, "get_cached_body_check_progress", body_progress),
+            patch.object(settings, "get_history_sync_job", AsyncMock(return_value=None)),
+        ):
+            progress = await settings._build_folder_progress(
+                "account-1",
+                body_progress_folder="INBOX",
+            )
+
+        body_progress.assert_awaited_once_with("account-1", "INBOX")
+        inbox = next(item for item in progress if item["folder"] == "INBOX")
+        self.assertEqual(inbox["body_total_count"], 12)
+        self.assertEqual(inbox["body_checked_count"], 4)
+        self.assertEqual(inbox["body_remaining_count"], 8)
 
     async def test_start_history_sync_rejects_disabled_account(self):
         settings = _load_settings_route_module()

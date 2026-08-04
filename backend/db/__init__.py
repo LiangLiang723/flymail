@@ -1624,6 +1624,40 @@ async def get_cached_body_count(account_id: str, folder: str) -> int:
     return int((row[0] if row else 0) or 0)
 
 
+async def get_cached_body_check_progress(account_id: str, folder: str) -> dict:
+    """Return body-fill progress using the same completion rule as history sync."""
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''SELECT COUNT(*),
+                   COALESCE(SUM(CASE
+                       WHEN COALESCE(cm.body_text, '') = ''
+                        AND COALESCE(cm.body_html, '') = ''
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM cached_message_empty_body_checks e
+                            WHERE e.account_id = cm.account_id
+                              AND e.folder = cm.folder
+                              AND e.uid = cm.uid
+                        )
+                       THEN 1 ELSE 0
+                   END), 0)
+            FROM cached_messages cm
+            WHERE cm.account_id = ? AND cm.folder IN ({placeholders})''',
+        [account_id] + aliases,
+    )
+    row = await cursor.fetchone()
+    total_count = max(int((row or (0, 0))[0] or 0), 0)
+    remaining_count = max(int((row or (0, 0))[1] or 0), 0)
+    remaining_count = min(remaining_count, total_count)
+    return {
+        "total_count": total_count,
+        "checked_count": total_count - remaining_count,
+        "remaining_count": remaining_count,
+    }
+
+
 async def list_cached_messages_needing_body_check(
     account_id: str,
     folder: str,

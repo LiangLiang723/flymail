@@ -181,6 +181,9 @@ interface FolderProgressItem {
   summary_count?: number
   total_count: number
   unread_count: number
+  body_total_count: number
+  body_checked_count: number
+  body_remaining_count: number
   is_synced: boolean
   sync_job?: HistorySyncJob | null
   clear_job?: HistorySyncJob | null
@@ -417,11 +420,22 @@ function folderProgress(item: HistorySyncItem) {
   return item.folder_progress || [];
 }
 
+function currentFolderProgress(item: HistorySyncItem) {
+  const folderName = String(item.job?.current_folder || '').trim();
+  if (!folderName) return null;
+  return folderProgress(item).find((entry) => entry.folder === folderName) || null;
+}
+
 function currentFolderLabel(item: HistorySyncItem) {
   const folderName = String(item.job?.current_folder || '').trim();
   if (!folderName) return '当前邮箱';
-  const folder = folderProgress(item).find((entry) => entry.folder === folderName);
-  return folder?.label || folderName;
+  return currentFolderProgress(item)?.label || folderName;
+}
+
+function currentBodyProgressText(item: HistorySyncItem) {
+  const folder = currentFolderProgress(item);
+  if (!folder) return '';
+  return `正文 ${folder.body_checked_count || 0} / ${folder.body_total_count || 0}`;
 }
 
 function syncPhaseText(item: HistorySyncItem) {
@@ -429,9 +443,11 @@ function syncPhaseText(item: HistorySyncItem) {
   const folderLabel = currentFolderLabel(item);
   const waiting = item.status === 'pending';
   if (item.job.current_page === 2) {
+    const bodyProgress = currentBodyProgressText(item);
+    const suffix = bodyProgress ? ` · ${bodyProgress}` : '';
     return waiting
-      ? `等待继续补全正文和附件 · ${folderLabel}`
-      : `正在补全正文和附件 · ${folderLabel}`;
+      ? `等待继续补全正文和附件 · ${folderLabel}${suffix}`
+      : `正在补全正文和附件 · ${folderLabel}${suffix}`;
   }
   if (item.job.current_page === 3) {
     return waiting

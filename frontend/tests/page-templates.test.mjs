@@ -68,6 +68,8 @@ test('history sync distinguishes summary progress, active phase and failure time
   assert.match(source, /syncPhaseText\(item\)/);
   assert.match(source, /失败时间/);
   assert.match(source, /正在补全正文和附件/);
+  assert.match(source, /body_checked_count/);
+  assert.match(source, /正文.*\/.*body_total_count/s);
 });
 
 test('management pages use the management template and shared header', async () => {
