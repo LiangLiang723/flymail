@@ -1,5 +1,6 @@
 import unittest
 
+import providers.base as provider_base
 from providers.base_imap import BaseIMAPReceiver
 
 
@@ -36,6 +37,23 @@ class DummyReceiver(BaseIMAPReceiver):
 
 
 class ImapDateParsingTest(unittest.TestCase):
+    def test_missing_uid_raises_structured_message_not_found(self):
+        self.assertTrue(hasattr(provider_base, "MessageNotFoundError"))
+
+        class FakeConn:
+            def select(self, folder, readonly=True):
+                return "OK", []
+
+            def uid(self, command, uid, query):
+                return "OK", [None]
+
+        receiver = DummyReceiver()
+        receiver._conn = FakeConn()
+        error_type = getattr(provider_base, "MessageNotFoundError", ValueError)
+
+        with self.assertRaises(error_type):
+            receiver._fetch_detail_sync("42", "INBOX")
+
     def test_batch_fetch_uses_internaldate_when_header_date_missing(self):
         receiver = DummyReceiver()
         msg_data = [

@@ -379,6 +379,15 @@ def _jobs_grouped_by_account(jobs: list[dict]) -> dict[str, list[dict]]:
     return result
 
 
+def _latest_jobs_by_type(jobs: list[dict]) -> dict[str, dict]:
+    result: dict[str, dict] = {}
+    for job in jobs:
+        job_type = str(job.get("job_type") or "")
+        if job_type and job_type not in result:
+            result[job_type] = job
+    return result
+
+
 def _valid_cleanup_time(value: str) -> bool:
     try:
         hour_text, minute_text = str(value or "").split(":", 1)
@@ -679,7 +688,7 @@ async def get_history_sync_job_detail(account_id: str, request: Request):
         return {"job": None, "clear_job": None}
     jobs = await list_history_sync_jobs(uid)
     account_jobs = _jobs_grouped_by_account(jobs).get(account.id, [])
-    jobs_by_type = {str(item.get("job_type") or ""): item for item in account_jobs}
+    jobs_by_type = _latest_jobs_by_type(account_jobs)
     raw_job = jobs_by_type.get("history_sync")
     folder_progress = await _build_account_folder_progress(
         account.id,

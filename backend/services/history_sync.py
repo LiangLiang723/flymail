@@ -39,6 +39,7 @@ from db import (
     upsert_folder_stats,
 )
 from models import CachedAttachment, CachedMessage
+from providers.base import MessageNotFoundError
 from providers.factory import ProviderFactory
 from services.account_icons import delete_account_icon
 from services.attachment_cache import (
@@ -840,6 +841,14 @@ async def _fill_unchecked_message_bodies(
                 _count, att_count, inline_count = await _cache_message_detail(receiver, account, folder_name, message, unseen_uids)
                 downloaded_attachments += att_count
                 downloaded_inline_images += inline_count
+                checked_uids.append(uid)
+            except MessageNotFoundError:
+                logger.info(
+                    "history sync body unavailable: account=%s folder=%s uid=%s",
+                    account.email,
+                    folder_name,
+                    uid,
+                )
                 checked_uids.append(uid)
             except Exception as exc:
                 logger.debug("history sync body fill failed: account=%s folder=%s uid=%s error=%s", account.email, folder_name, uid, exc)

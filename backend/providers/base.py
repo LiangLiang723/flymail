@@ -67,6 +67,10 @@ class SendResult(BaseModel):
     error: str = ""
 
 
+class MessageNotFoundError(ValueError):
+    """The requested remote message UID no longer exists in the selected folder."""
+
+
 # OAuth token 操作需重新授权的永久错误码（RFC 6749 + Google/Microsoft）
 # 含配置类错误，避免对无效请求做无意义重试
 _PERMANENT_OAUTH_ERRORS = frozenset({

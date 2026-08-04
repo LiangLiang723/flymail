@@ -364,6 +364,44 @@ class HistorySyncProgressTest(unittest.IsolatedAsyncioTestCase):
         list_stats.assert_awaited_once_with("account-1")
         list_cached.assert_awaited_once_with("account-1")
 
+    async def test_history_sync_detail_uses_latest_job_of_each_type(self):
+        settings = _load_settings_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            email="a@example.com",
+            remark="",
+            provider="custom",
+        )
+        newest_job = {
+            "id": "job-new",
+            "account_id": "account-1",
+            "job_type": "history_sync",
+            "status": "completed",
+            "updated_at": 20,
+        }
+        older_job = {
+            "id": "job-old",
+            "account_id": "account-1",
+            "job_type": "history_sync",
+            "status": "failed",
+            "updated_at": 10,
+            "error_message": "旧失败记录",
+        }
+
+        with (
+            patch.object(settings, "get_accounts", AsyncMock(return_value=[account])),
+            patch.object(
+                settings,
+                "list_history_sync_jobs",
+                AsyncMock(return_value=[newest_job, older_job]),
+            ),
+            patch.object(settings, "_build_account_folder_progress", AsyncMock(return_value=[])),
+        ):
+            result = await settings.get_history_sync_job_detail("account-1", object())
+
+        self.assertEqual(result["job"]["id"], "job-new")
+        self.assertEqual(result["job"]["status"], "completed")
+
     async def test_start_history_sync_rejects_disabled_account(self):
         settings = _load_settings_route_module()
         account = types.SimpleNamespace(id="account-1", status="offline")

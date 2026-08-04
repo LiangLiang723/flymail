@@ -14,7 +14,7 @@ import time
 from email.header import decode_header
 from typing import List, Optional, Dict
 import imaplib
-from .base import MailReceiver, Message, MessageList, Attachment
+from .base import Attachment, MailReceiver, Message, MessageList, MessageNotFoundError
 from utils.logger import get_logger
 
 logger = get_logger("imap")
@@ -326,7 +326,7 @@ class BaseIMAPReceiver(MailReceiver):
         status, msg_data = self._conn.uid('FETCH', uid, "(INTERNALDATE BODY.PEEK[])")
         if status != "OK":
             logger.debug("UID FETCH 返回非OK: status=%s, uid=%s, folder=%s", status, uid, folder)
-            raise ValueError(f"Message {uid} not found")
+            raise MessageNotFoundError(f"Message {uid} not found")
         # 查找包含邮件内容的 tuple 项
         raw_email = None
         internal_date = ""
@@ -338,7 +338,7 @@ class BaseIMAPReceiver(MailReceiver):
                 break
         if not raw_email:
             logger.debug("UID FETCH 未找到邮件内容: uid=%s, folder=%s, msg_data=%s", uid, folder, [type(x).__name__ for x in msg_data])
-            raise ValueError(f"Message {uid} not found")
+            raise MessageNotFoundError(f"Message {uid} not found")
         msg = email.message_from_bytes(raw_email)
 
         subject = self._decode_header(msg.get("Subject", ""))
