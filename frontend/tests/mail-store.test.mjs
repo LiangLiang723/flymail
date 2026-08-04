@@ -55,6 +55,97 @@ test('patches account icon fields in memory and session storage', async () => {
   }
 });
 
+test('saves account order without switching the current account', async () => {
+  globalThis.sessionStorage = createSessionStorage();
+  sessionStorage.setItem('flymail_accounts', JSON.stringify([
+    { id: 'account-1', provider: 'custom', email: 'one@example.com', sort_order: 0 },
+    { id: 'account-2', provider: 'custom', email: 'two@example.com', sort_order: 1 },
+    { id: 'account-3', provider: 'custom', email: 'three@example.com', sort_order: 2 },
+  ]));
+  const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const server = await createServer({
+    root: frontendRoot,
+    appType: 'custom',
+    server: { middlewareMode: true },
+    logLevel: 'silent',
+  });
+
+  try {
+    const apiModule = await server.ssrLoadModule('/src/utils/api.ts');
+    apiModule.default.put = async (url, body) => {
+      assert.equal(url, '/accounts/order');
+      assert.deepEqual(body, { account_ids: ['account-3', 'account-1', 'account-2'] });
+      return { success: true };
+    };
+
+    setActivePinia(createPinia());
+    const { useMailStore } = await server.ssrLoadModule('/src/stores/mail.ts');
+    const store = useMailStore();
+    store.setAccount('account-2');
+
+    const saved = await store.saveAccountOrder(['account-3', 'account-1', 'account-2']);
+
+    assert.equal(saved, true);
+    assert.deepEqual(store.accounts.map((account) => account.id), ['account-3', 'account-1', 'account-2']);
+    assert.deepEqual(store.accounts.map((account) => account.sort_order), [0, 1, 2]);
+    assert.equal(store.currentAccountId, 'account-2');
+    assert.deepEqual(
+      JSON.parse(sessionStorage.getItem('flymail_accounts')).map((account) => account.id),
+      ['account-3', 'account-1', 'account-2'],
+    );
+  } finally {
+    await server.close();
+  }
+});
+
+test('rolls back account order when saving fails', async () => {
+  globalThis.sessionStorage = createSessionStorage();
+  sessionStorage.setItem('flymail_accounts', JSON.stringify([
+    { id: 'account-1', provider: 'custom', email: 'one@example.com', sort_order: 0 },
+    { id: 'account-2', provider: 'custom', email: 'two@example.com', sort_order: 1 },
+    { id: 'account-3', provider: 'custom', email: 'three@example.com', sort_order: 2 },
+  ]));
+  const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const server = await createServer({
+    root: frontendRoot,
+    appType: 'custom',
+    server: { middlewareMode: true },
+    logLevel: 'silent',
+  });
+
+  try {
+    const apiModule = await server.ssrLoadModule('/src/utils/api.ts');
+    apiModule.default.put = async () => {
+      throw new Error('offline');
+    };
+
+    setActivePinia(createPinia());
+    const { useUIStore } = await server.ssrLoadModule('/src/stores/ui.ts');
+    const uiStore = useUIStore();
+    let errorMessage = '';
+    uiStore.error = (message) => {
+      errorMessage = message;
+    };
+    const { useMailStore } = await server.ssrLoadModule('/src/stores/mail.ts');
+    const store = useMailStore();
+    store.setAccount('account-2');
+
+    const saved = await store.saveAccountOrder(['account-3', 'account-1', 'account-2']);
+
+    assert.equal(saved, false);
+    assert.deepEqual(store.accounts.map((account) => account.id), ['account-1', 'account-2', 'account-3']);
+    assert.deepEqual(store.accounts.map((account) => account.sort_order), [0, 1, 2]);
+    assert.equal(store.currentAccountId, 'account-2');
+    assert.deepEqual(
+      JSON.parse(sessionStorage.getItem('flymail_accounts')).map((account) => account.id),
+      ['account-1', 'account-2', 'account-3'],
+    );
+    assert.equal(errorMessage, '保存邮箱顺序失败');
+  } finally {
+    await server.close();
+  }
+});
+
 test('loading accounts also discovers custom folders for the initial account', async () => {
   globalThis.sessionStorage = createSessionStorage();
   const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

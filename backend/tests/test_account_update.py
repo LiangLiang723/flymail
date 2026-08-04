@@ -36,7 +36,14 @@ def _load_accounts_route_module():
     fastapi_responses_stub.FileResponse = object
 
     errors_stub = types.ModuleType("errors")
-    errors_stub.AppError = Exception
+
+    class _AppError(Exception):
+        def __init__(self, code, message):
+            self.code = code
+            self.message = message
+            super().__init__(message)
+
+    errors_stub.AppError = _AppError
 
     db_stub = types.ModuleType("db")
     for name in (
@@ -45,6 +52,7 @@ def _load_accounts_route_module():
         "create_account",
         "deactivate_account",
         "list_history_sync_jobs",
+        "reorder_accounts",
         "update_account_info",
         "update_account_icon",
     ):
@@ -124,6 +132,7 @@ def _load_accounts_route_module():
         "AccountAddResponse",
         "AccountListResponse",
         "AccountTestResponse",
+        "AccountOrderRequest",
         "AccountUpdateRequest",
         "AccountIconPresetRequest",
         "AccountIconResponse",
@@ -198,6 +207,30 @@ class AccountUpdateTest(unittest.IsolatedAsyncioTestCase):
         sync_stub.sync_service.add_account.assert_called_once_with("account-1")
         tasks_stub.create_background_task.assert_called_once()
         self.assertEqual(tasks_stub.create_background_task.call_args.kwargs["name"], "reload_account_imap")
+
+    async def test_reorder_accounts_saves_current_users_complete_order(self):
+        accounts, db_stub, _sync_stub, _tasks_stub = _load_accounts_route_module()
+        db_stub.reorder_accounts.return_value = True
+        body = types.SimpleNamespace(account_ids=["account-2", "account-1"])
+
+        result = await accounts.reorder_account_list(object(), body)
+
+        self.assertEqual(result, {"success": True})
+        db_stub.reorder_accounts.assert_awaited_once_with(
+            "user-1",
+            ["account-2", "account-1"],
+        )
+
+    async def test_reorder_accounts_rejects_invalid_order(self):
+        accounts, db_stub, _sync_stub, _tasks_stub = _load_accounts_route_module()
+        db_stub.reorder_accounts.return_value = False
+        body = types.SimpleNamespace(account_ids=["account-1", "outside"])
+
+        with self.assertRaises(accounts.AppError) as raised:
+            await accounts.reorder_account_list(object(), body)
+
+        self.assertEqual(raised.exception.code, 400)
+        self.assertEqual(raised.exception.message, "邮箱账号顺序无效，请刷新后重试")
 
 
 if __name__ == "__main__":

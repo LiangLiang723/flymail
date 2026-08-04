@@ -86,6 +86,31 @@
                 <button
                   type="button"
                   role="menuitem"
+                  :disabled="orderSaving || isFirstAccount(item.account_id)"
+                  @click="runActionMenuCommand(() => moveAccount(item.account_id, 'top'))"
+                >
+                  置顶
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  :disabled="orderSaving || isFirstAccount(item.account_id)"
+                  @click="runActionMenuCommand(() => moveAccount(item.account_id, 'up'))"
+                >
+                  上移
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  :disabled="orderSaving || isLastAccount(item.account_id)"
+                  @click="runActionMenuCommand(() => moveAccount(item.account_id, 'down'))"
+                >
+                  下移
+                </button>
+                <div class="job-action-separator" role="separator"></div>
+                <button
+                  type="button"
+                  role="menuitem"
                   :disabled="isFullSyncActive(item)"
                   @click="runActionMenuCommand(() => refreshSync(item))"
                 >
@@ -153,6 +178,7 @@ import UiButton from '../components/ui/UiButton.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import { useWebSocket } from '../composables/useWebSocket';
+import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
 import { providerName } from '../utils/provider';
@@ -201,10 +227,12 @@ interface HistorySyncItem {
   folder_progress?: FolderProgressItem[]
 }
 
+const mailStore = useMailStore();
 const ui = useUIStore();
 const jobs = ref<HistorySyncItem[]>([]);
 const initialLoading = ref(false);
 const manualRefreshing = ref(false);
+const orderSaving = ref(false);
 const openActionMenuId = ref<string | null>(null);
 const activeJobCount = computed(() => jobs.value.filter((item) => ['pending', 'running', 'paused'].includes(item.status)).length);
 const failedJobCount = computed(() => jobs.value.filter((item) => item.status === 'failed').length);
@@ -277,13 +305,66 @@ function handleActionMenuKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') openActionMenuId.value = null;
 }
 
+function accountIndex(accountId: string) {
+  return mailStore.accounts.findIndex((account) => account.id === accountId);
+}
+
+function isFirstAccount(accountId: string) {
+  return accountIndex(accountId) <= 0;
+}
+
+function isLastAccount(accountId: string) {
+  const index = accountIndex(accountId);
+  return index < 0 || index === mailStore.accounts.length - 1;
+}
+
+function orderJobs(items: HistorySyncItem[]) {
+  const positions = new Map(
+    mailStore.accounts.map((account, index) => [account.id, index]),
+  );
+  return [...items].sort((left, right) => (
+    (positions.get(left.account_id) ?? Number.MAX_SAFE_INTEGER)
+    - (positions.get(right.account_id) ?? Number.MAX_SAFE_INTEGER)
+  ));
+}
+
+async function moveAccount(accountId: string, direction: 'top' | 'up' | 'down') {
+  if (orderSaving.value) return;
+  const nextIds = mailStore.accounts.map((account) => account.id);
+  const currentIndex = nextIds.indexOf(accountId);
+  if (currentIndex < 0) return;
+
+  const targetIndex = direction === 'top'
+    ? 0
+    : direction === 'up'
+      ? currentIndex - 1
+      : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= nextIds.length || targetIndex === currentIndex) return;
+
+  nextIds.splice(currentIndex, 1);
+  nextIds.splice(targetIndex, 0, accountId);
+  orderSaving.value = true;
+  try {
+    const savePromise = mailStore.saveAccountOrder(nextIds);
+    jobs.value = orderJobs(jobs.value);
+    if (!await savePromise) {
+      jobs.value = orderJobs(jobs.value);
+      return;
+    }
+    ui.success('邮箱顺序已更新');
+    await loadJobs();
+  } finally {
+    orderSaving.value = false;
+  }
+}
+
 async function loadJobs(options: { showError?: boolean; manual?: boolean; initial?: boolean } = {}) {
   if (options.manual && manualRefreshing.value) return;
   if (options.initial) initialLoading.value = true;
   if (options.manual) manualRefreshing.value = true;
   try {
     const data = await api.get('/history-sync/jobs') as any;
-    jobs.value = data.jobs || [];
+    jobs.value = orderJobs(data.jobs || []);
   } catch (e: any) {
     if (options.showError) ui.error(e.message || '加载同步状态失败');
   } finally {
@@ -479,6 +560,7 @@ function formatTime(timestamp?: number) {
 onMounted(async () => {
   window.addEventListener('pointerdown', handleActionMenuPointerDown);
   window.addEventListener('keydown', handleActionMenuKeydown);
+  if (mailStore.accounts.length === 0) await mailStore.loadAccounts();
   await loadJobs({ initial: true, showError: true });
   connectWs();
   pollTimer = window.setInterval(() => {
@@ -640,6 +722,12 @@ onBeforeUnmount(() => {
 
 .job-action-menu button:hover:not(:disabled) {
   background: var(--ui-fill-hover);
+}
+
+.job-action-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--ui-border);
 }
 
 .job-action-menu button.danger {

@@ -19,6 +19,7 @@ from db import (
     create_account,
     deactivate_account,
     list_history_sync_jobs,
+    reorder_accounts,
     update_account_info,
     update_account_icon,
 )
@@ -47,6 +48,7 @@ from schemas import (
     AccountAddResponse,
     AccountListResponse,
     AccountTestResponse,
+    AccountOrderRequest,
     AccountUpdateRequest,
     AccountIconPresetRequest,
     AccountIconResponse,
@@ -271,6 +273,14 @@ async def list_accounts(request: Request):
             **account_icon_fields(acc),
         })
     return {"accounts": safe_accounts}
+
+
+@router.put("/order", summary="保存邮箱账号顺序")
+async def reorder_account_list(request: Request, body: AccountOrderRequest):
+    uid = await get_uid(request)
+    if not await reorder_accounts(uid, body.account_ids):
+        raise AppError(400, "邮箱账号顺序无效，请刷新后重试")
+    return {"success": True}
 
 
 def _icon_response(account: Account) -> dict:

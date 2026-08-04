@@ -796,21 +796,38 @@ async def get_accounts(user_uid: str) -> List[Account]:
 
 
 async def create_account(account: Account) -> Account:
-    """创建邮箱账号。"""
+    """创建邮箱账号，并追加到当前用户账号顺序末尾。"""
     db = await get_db()
-    await db.execute(
-        """INSERT INTO accounts
-           (id, user_uid, email, provider, credentials_json, status,
-            remark, group_name, hide_email, poll_interval_seconds, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (account.id, account.user_uid, account.email, account.provider,
-         account.credentials_json, account.status,
-         account.remark, account.group_name,
-         1 if account.hide_email else 0,
-         account.poll_interval_seconds,
-         account.created_at, account.updated_at)
-    )
-    await db.commit()
+    await db.execute("BEGIN")
+    try:
+        await db.execute(
+            "SELECT id FROM users WHERE id = ? FOR UPDATE",
+            (account.user_uid,),
+        )
+        cursor = await db.execute(
+            "SELECT MAX(sort_order) FROM accounts WHERE user_uid = ? FOR UPDATE",
+            (account.user_uid,),
+        )
+        row = await cursor.fetchone()
+        current_max = int(row[0]) if row and row[0] is not None else -1
+        account.sort_order = current_max + 1
+        await db.execute(
+            """INSERT INTO accounts
+               (id, user_uid, email, provider, credentials_json, status,
+                remark, group_name, hide_email, poll_interval_seconds, sort_order,
+                created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (account.id, account.user_uid, account.email, account.provider,
+             account.credentials_json, account.status,
+             account.remark, account.group_name,
+             1 if account.hide_email else 0,
+             account.poll_interval_seconds, account.sort_order,
+             account.created_at, account.updated_at)
+        )
+        await db.execute("COMMIT")
+    except Exception:
+        await db.execute("ROLLBACK")
+        raise
     return account
 
 
@@ -1536,14 +1553,49 @@ async def get_accounts(user_uid: str) -> List[Account]:
     db = await get_db()
     if user_uid:
         cursor = await db.execute(
-            'SELECT * FROM accounts WHERE user_uid = ? ORDER BY created_at ASC',
+            'SELECT * FROM accounts WHERE user_uid = ? '
+            'ORDER BY sort_order ASC, created_at ASC, id ASC',
             (user_uid,),
         )
     else:
-        cursor = await db.execute('SELECT * FROM accounts ORDER BY created_at ASC')
+        cursor = await db.execute(
+            'SELECT * FROM accounts '
+            'ORDER BY user_uid ASC, sort_order ASC, created_at ASC, id ASC'
+        )
     rows = await cursor.fetchall()
     columns = [description[0] for description in cursor.description]
     return [Account(**dict(zip(columns, row))) for row in rows]
+
+
+async def reorder_accounts(user_uid: str, account_ids: list[str]) -> bool:
+    """按当前用户提交的完整账号 ID 序列保存排序。"""
+    db = await get_db()
+    await db.execute("BEGIN")
+    try:
+        cursor = await db.execute(
+            'SELECT id FROM accounts WHERE user_uid = ? '
+            'ORDER BY sort_order ASC, created_at ASC, id ASC FOR UPDATE',
+            (user_uid,),
+        )
+        owned_ids = [str(row[0]) for row in await cursor.fetchall()]
+        if len(account_ids) != len(set(account_ids)) or set(account_ids) != set(owned_ids):
+            await db.execute("ROLLBACK")
+            return False
+
+        now = time.time()
+        await db.executemany(
+            'UPDATE accounts SET sort_order = ?, updated_at = ? '
+            'WHERE id = ? AND user_uid = ?',
+            [
+                (index, now, account_id, user_uid)
+                for index, account_id in enumerate(account_ids)
+            ],
+        )
+        await db.execute("COMMIT")
+        return True
+    except Exception:
+        await db.execute("ROLLBACK")
+        raise
 
 
 async def delete_account(account_id: str, user_uid: str) -> bool:

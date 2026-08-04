@@ -141,6 +141,10 @@ class AccountTestResponse(BaseModel):
     error: str = Field(default="", description="错误信息（连接失败时）")
 
 
+class AccountOrderRequest(BaseModel):
+    account_ids: List[str] = Field(min_length=1, description="当前用户完整邮箱账号 ID 顺序")
+
+
 class AccountUpdateRequest(BaseModel):
     remark: str = Field(default="", description="备注名")
     group_name: str = Field(default="", description="分组名称")

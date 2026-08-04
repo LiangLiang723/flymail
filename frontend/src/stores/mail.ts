@@ -64,6 +64,11 @@ export const useMailStore = defineStore('mail', () => {
   const accounts = ref<MailAccount[]>(
     (JSON.parse(sessionStorage.getItem('flymail_accounts') || '[]') as MailAccount[]).map(normalizeAccount),
   );
+
+  function persistAccounts() {
+    sessionStorage.setItem('flymail_accounts', JSON.stringify(accounts.value));
+  }
+
   const reauthAccountIds = ref<Set<string>>(new Set());
   const folderCountsByAccount = ref<Record<string, AccountFolderCounts>>(
     JSON.parse(sessionStorage.getItem('flymail_folder_counts_by_account') || '{}'),
@@ -192,7 +197,7 @@ export const useMailStore = defineStore('mail', () => {
         if (account.reauth_needed) nextReauthIds.add(account.id);
       }
       reauthAccountIds.value = nextReauthIds;
-      sessionStorage.setItem('flymail_accounts', JSON.stringify(accounts.value));
+      persistAccounts();
       if (accounts.value.length === 0) {
         currentAccountId.value = '';
         folderCountRequestVersion++;
@@ -220,7 +225,35 @@ export const useMailStore = defineStore('mail', () => {
     const index = accounts.value.findIndex((account) => account.id === accountId);
     if (index < 0) return;
     accounts.value[index] = normalizeAccount({ ...accounts.value[index], ...patch });
-    sessionStorage.setItem('flymail_accounts', JSON.stringify(accounts.value));
+    persistAccounts();
+  }
+
+  async function saveAccountOrder(accountIds: string[]): Promise<boolean> {
+    const original = accounts.value.map((account) => ({ ...account }));
+    if (
+      accountIds.length !== original.length
+      || new Set(accountIds).size !== original.length
+      || accountIds.some((accountId) => !original.some((account) => account.id === accountId))
+    ) {
+      return false;
+    }
+
+    const byId = new Map(original.map((account) => [account.id, account]));
+    accounts.value = accountIds.map((accountId, index) => normalizeAccount({
+      ...byId.get(accountId)!,
+      sort_order: index,
+    }));
+    persistAccounts();
+
+    try {
+      await api.put('/accounts/order', { account_ids: accountIds });
+      return true;
+    } catch (error) {
+      accounts.value = original.map(normalizeAccount);
+      persistAccounts();
+      uiStore.error('保存邮箱顺序失败');
+      return false;
+    }
   }
 
   async function loadFolders() {
@@ -449,6 +482,7 @@ export const useMailStore = defineStore('mail', () => {
     currentFolderName,
     loadAccounts,
     patchAccount,
+    saveAccountOrder,
     loadFolders,
     loadFolderCounts,
     setFolder,
