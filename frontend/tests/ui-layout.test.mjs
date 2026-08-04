@@ -67,7 +67,7 @@ test('application overlays keep dense layout and independent scrolling', async (
   assert.match(shellCss, /\.confirm-actions\s*\{[^}]*display:\s*flex;/s);
 });
 
-test('mail view keeps the toolbar inside the list card without a permanent preview pane', async () => {
+test('mail view keeps the toolbar inside the list while rendering a dedicated detail pane', async () => {
   const source = await readSource('src/views/MailList.vue');
   const listStart = source.indexOf('class="mail-list"');
   const toolbarStart = source.indexOf('class="list-toolbar"');
@@ -76,6 +76,8 @@ test('mail view keeps the toolbar inside the list card without a permanent previ
   assert.match(source, /class="account-switcher"/);
   assert.ok(listStart >= 0, 'mail list container should exist');
   assert.ok(toolbarStart > listStart, 'list toolbar should stay inside the mail list container');
+  assert.match(source, /v-if="selectedMessage" class="mail-detail"/);
+  assert.match(source, /class="mail-detail mail-detail-empty"/);
   assert.doesNotMatch(source, /mail-preview-pane/);
 });
 

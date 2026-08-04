@@ -131,13 +131,13 @@ test('high-density layout measurements are centralized as semantic tokens', asyn
   const layout = await readSource('src/styles/layout-system.css');
 
   for (const declaration of [
-    '--page-gutter: 24px',
-    '--page-gutter-compact: 16px',
-    '--page-section-gap: 16px',
-    '--panel-padding: 16px',
-    '--control-height-md: 36px',
-    '--toolbar-height: 48px',
-    '--list-row-height: 48px',
+    '--page-gutter: 18px',
+    '--page-gutter-compact: 14px',
+    '--page-section-gap: 14px',
+    '--panel-padding: 14px',
+    '--control-height-md: 34px',
+    '--toolbar-height: 44px',
+    '--list-row-height: 52px',
   ]) {
     assert.match(tokens, new RegExp(declaration.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
@@ -163,8 +163,8 @@ test('layout primitives expose the four approved page templates', async () => {
 test('page width tokens distinguish fluid workspaces from bounded forms', async () => {
   const tokens = await readSource('src/styles/tokens.css');
 
-  assert.match(tokens, /--page-gutter:\s*24px/);
-  assert.match(tokens, /--page-gutter-compact:\s*16px/);
+  assert.match(tokens, /--page-gutter:\s*18px/);
+  assert.match(tokens, /--page-gutter-compact:\s*14px/);
   assert.match(tokens, /--page-form-max:\s*1120px/);
   assert.match(tokens, /--page-reading-max:\s*960px/);
   assert.doesNotMatch(tokens, /--page-content-max:\s*1280px/);

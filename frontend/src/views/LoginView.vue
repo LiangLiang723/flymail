@@ -96,31 +96,32 @@ async function submit() {
   place-items: center;
   padding: var(--ui-space-6);
   background:
-    radial-gradient(circle at 20% 15%, var(--color-accent-lighter), transparent 34%),
+    radial-gradient(circle at 50% 0%, var(--color-accent-lighter), transparent 38%),
     var(--ui-canvas);
 }
 
 .login-card {
-  width: min(420px, 100%);
+  width: min(400px, 100%);
+  border-radius: var(--ui-radius-lg);
 }
 
 .login-brand {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-4);
-  margin-bottom: var(--ui-space-6);
+  gap: var(--ui-space-3);
+  margin-bottom: var(--ui-space-5);
 }
 
 .brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   flex: 0 0 auto;
 }
 
 .login-brand h1 {
   margin: 0;
   color: var(--ui-text-1);
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1.12;
   letter-spacing: -0.025em;
 }

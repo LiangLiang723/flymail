@@ -595,7 +595,7 @@ const toolbarButtons = [
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .toolbar-btn:hover {
@@ -846,7 +846,7 @@ const toolbarButtons = [
   font-size: 12px;
   cursor: pointer;
   border-radius: 4px;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
   white-space: nowrap;
 }
 

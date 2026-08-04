@@ -17,7 +17,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--ui-space-2);
-  padding: 0 15px;
+  padding: 0 12px;
   border: 1px solid transparent;
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-2);
@@ -293,7 +293,7 @@
 .field textarea {
   width: 100%;
   min-height: var(--ui-control-md);
-  padding: 9px 12px;
+  padding: 7px 10px;
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-1);
@@ -378,7 +378,7 @@ input[type="radio"] {
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface-1);
   color: var(--ui-text-1);
-  box-shadow: var(--ui-shadow-xs);
+  box-shadow: none;
 }
 
 .ui-card--interactive,
@@ -396,19 +396,19 @@ input[type="radio"] {
 .ui-card--interactive:hover,
 .account-card:hover,
 .provider-card:hover {
-  transform: translateY(-1px);
   border-color: var(--ui-border-strong);
-  box-shadow: var(--ui-shadow-sm);
+  background: color-mix(in srgb, var(--ui-surface-1) 88%, var(--ui-accent-soft));
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .ui-card__header,
 .ui-card__footer {
-  padding: var(--ui-space-4) var(--ui-space-5);
+  padding: var(--ui-space-3) var(--ui-space-4);
 }
 
 .ui-card__header { border-bottom: 1px solid var(--ui-border); }
 .ui-card__footer { border-top: 1px solid var(--ui-border); }
-.ui-card__body { padding: var(--ui-space-5); }
+.ui-card__body { padding: var(--ui-space-4); }
 
 .ui-alert,
 .error-message,
@@ -442,7 +442,7 @@ input[type="radio"] {
 .status-chip,
 .count-badge,
 .filter-chip {
-  min-height: 24px;
+  min-height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

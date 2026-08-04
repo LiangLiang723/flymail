@@ -1210,7 +1210,7 @@ async function reconnectAccount(account: any) {
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -1317,7 +1317,7 @@ async function reconnectAccount(account: any) {
   border-radius: var(--ui-radius-lg);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .account-card:hover {
@@ -1395,7 +1395,7 @@ async function reconnectAccount(account: any) {
   color: var(--text-tertiary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
   opacity: 0;
 }
 
@@ -1464,7 +1464,7 @@ async function reconnectAccount(account: any) {
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -1497,7 +1497,7 @@ async function reconnectAccount(account: any) {
   border-radius: var(--border-radius-md);
   background: var(--bg-primary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   font-family: inherit;
 }
 
@@ -1530,7 +1530,7 @@ async function reconnectAccount(account: any) {
   font-size: var(--text-xs);
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .group-tag:hover { border-color: var(--color-accent); color: var(--color-accent); }
