@@ -18,7 +18,6 @@
         :current-view="currentView"
         :nav-items="navItems"
         :user="currentUser"
-        :app-version="appVersion"
         @toggle-collapse="toggleSidebar"
         @close-mobile="mobileSidebarOpen = false"
         @navigate="navigateFromSidebar"
@@ -155,7 +154,6 @@ const isMobileLayout = ref(window.innerWidth <= 960);
 const sidebarCollapsed = ref(localStorage.getItem('flymail_sidebar_collapsed') === '1');
 const mobileSidebarOpen = ref(false);
 const unifiedInboxEnabled = ref(false);
-const appVersion = import.meta.env.VITE_APP_VERSION || '0.0.0';
 const savedView = sessionStorage.getItem('flymail_view') || 'mail';
 const currentView = ref(savedView === 'compose' ? 'mail' : savedView);
 

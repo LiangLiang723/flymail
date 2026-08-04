@@ -477,14 +477,6 @@ button.sidebar-row:active,
   background: var(--ui-border);
 }
 
-.sidebar-version {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 14px 0 var(--sidebar-item-icon-column);
-  color: var(--ui-text-3);
-  font-size: 9px;
-}
-
 .popover-enter-active,
 .popover-leave-active {
   transition: opacity 150ms ease-out, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -803,10 +795,6 @@ button.sidebar-row:active,
     opacity: 1 !important;
     transform: none !important;
     pointer-events: auto !important;
-  }
-
-  .sidebar-version {
-    padding-left: 56px;
   }
 
   .mobile-sidebar-backdrop {

@@ -63,10 +63,45 @@
           <div class="job-actions">
             <button v-if="canPause(item.status)" class="btn btn-secondary" @click="pauseJob(item.account_id)">暂停</button>
             <button v-else-if="canResume(item.status)" class="btn btn-primary" @click="resumeJob(item.account_id)">继续</button>
-            <button v-else class="btn btn-secondary" disabled>暂停/继续</button>
-            <button class="btn btn-warning" :disabled="isFullSyncActive(item)" @click="refreshSync(item)">刷新同步</button>
-            <button class="btn btn-danger" :disabled="isClearActive(item.clear_job)" @click="clearJob(item)">清空</button>
-            <button v-if="canRetry(item.status)" class="btn btn-primary" @click="retryJob(item.account_id)">重试</button>
+            <button v-else-if="canRetry(item.status)" class="btn btn-primary" @click="retryJob(item.account_id)">重试</button>
+            <div class="job-more">
+              <button
+                class="job-more-trigger"
+                type="button"
+                aria-label="更多操作"
+                aria-haspopup="menu"
+                :aria-expanded="openActionMenuId === item.account_id"
+                :aria-controls="`sync-job-menu-${item.account_id}`"
+                @click.stop="toggleActionMenu(item.account_id)"
+              >
+                <span aria-hidden="true">···</span>
+              </button>
+              <div
+                v-if="openActionMenuId === item.account_id"
+                :id="`sync-job-menu-${item.account_id}`"
+                class="job-action-menu"
+                role="menu"
+                @click.stop
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  :disabled="isFullSyncActive(item)"
+                  @click="runActionMenuCommand(() => refreshSync(item))"
+                >
+                  刷新同步
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="danger"
+                  :disabled="isClearActive(item.clear_job)"
+                  @click="runActionMenuCommand(() => clearJob(item))"
+                >
+                  清空同步数据
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -167,6 +202,7 @@ const ui = useUIStore();
 const jobs = ref<HistorySyncItem[]>([]);
 const initialLoading = ref(false);
 const manualRefreshing = ref(false);
+const openActionMenuId = ref<string | null>(null);
 const activeJobCount = computed(() => jobs.value.filter((item) => ['pending', 'running', 'paused'].includes(item.status)).length);
 const failedJobCount = computed(() => jobs.value.filter((item) => item.status === 'failed').length);
 const cachedMessageTotal = computed(() => jobs.value.reduce((total, item) => total + syncedMessageCount(item), 0));
@@ -211,6 +247,27 @@ function handleWsMessage(data: any) {
   if (data.type === 'cache_updated' || data.type === 'rebuild_done') {
     scheduleLoadJobs();
   }
+}
+
+function toggleActionMenu(accountId: string) {
+  openActionMenuId.value = openActionMenuId.value === accountId ? null : accountId;
+}
+
+function runActionMenuCommand(command: () => void | Promise<void>) {
+  openActionMenuId.value = null;
+  void command();
+}
+
+function handleActionMenuPointerDown(event: PointerEvent) {
+  if (!openActionMenuId.value) return;
+  const target = event.target;
+  if (!(target instanceof Element) || !target.closest('.job-more')) {
+    openActionMenuId.value = null;
+  }
+}
+
+function handleActionMenuKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') openActionMenuId.value = null;
 }
 
 async function loadJobs(options: { showError?: boolean; manual?: boolean; initial?: boolean } = {}) {
@@ -400,6 +457,8 @@ function formatTime(timestamp?: number) {
 }
 
 onMounted(async () => {
+  window.addEventListener('pointerdown', handleActionMenuPointerDown);
+  window.addEventListener('keydown', handleActionMenuKeydown);
   await loadJobs({ initial: true, showError: true });
   connectWs();
   pollTimer = window.setInterval(() => {
@@ -408,6 +467,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', handleActionMenuPointerDown);
+  window.removeEventListener('keydown', handleActionMenuKeydown);
   disconnectWs();
   if (pollTimer) window.clearInterval(pollTimer);
   if (wsRefreshTimer) window.clearTimeout(wsRefreshTimer);
@@ -486,9 +547,92 @@ onBeforeUnmount(() => {
 
 .job-actions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  flex: 0 0 auto;
   justify-content: flex-end;
+}
+
+.job-more {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.job-more-trigger {
+  width: var(--ui-control-md);
+  height: var(--ui-control-md);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast), color var(--ui-motion-fast);
+}
+
+.job-more-trigger:hover,
+.job-more-trigger[aria-expanded="true"] {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-fill-hover);
+  color: var(--ui-text-1);
+}
+
+.job-action-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 168px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-1);
+  box-shadow: var(--ui-shadow-md);
+}
+
+.job-action-menu button {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-1);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.job-action-menu button:hover:not(:disabled) {
+  background: var(--ui-fill-hover);
+}
+
+.job-action-menu button.danger {
+  color: var(--ui-danger);
+}
+
+.job-action-menu button.danger:hover:not(:disabled) {
+  background: var(--ui-danger-soft);
+}
+
+.job-action-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .progress-grid {
@@ -623,5 +767,6 @@ onBeforeUnmount(() => {
   .sync-card-grid,
   .progress-grid { grid-template-columns: 1fr; }
   .job-actions { width: 100%; justify-content: flex-start; }
+  .job-action-menu { right: auto; left: 0; }
 }
 </style>

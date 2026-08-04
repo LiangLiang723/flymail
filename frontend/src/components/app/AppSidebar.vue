@@ -132,11 +132,6 @@
         @change-password="$emit('change-password')"
         @logout="$emit('logout')"
       />
-
-      <div class="sidebar-version sidebar-label-pane">
-        <span>FlyMail</span>
-        <span>v{{ appVersion }}</span>
-      </div>
     </div>
   </aside>
 </template>
@@ -170,7 +165,6 @@ defineProps<{
     avatar_url?: string;
     role: string;
   } | null;
-  appVersion: string;
 }>();
 
 const emit = defineEmits<{
