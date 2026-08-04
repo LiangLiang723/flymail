@@ -36,6 +36,8 @@ def _load_settings_route_module():
         return_value={"total_count": 0, "checked_count": 0, "remaining_count": 0}
     )
     db_stub.get_folder_stats = AsyncMock(return_value={})
+    db_stub.list_folder_stats_by_account = AsyncMock(return_value=[])
+    db_stub.list_cached_counts_by_account = AsyncMock(return_value={})
     db_stub.folder_key_for_path = lambda value: str(value or "").strip().lower()
     db_stub.get_history_sync_job = AsyncMock(return_value=None)
     db_stub.list_account_folder_counts = AsyncMock(return_value=[])
@@ -302,6 +304,65 @@ class HistorySyncProgressTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(inbox["body_total_count"], 12)
         self.assertEqual(inbox["body_checked_count"], 4)
         self.assertEqual(inbox["body_remaining_count"], 8)
+
+    async def test_history_job_list_uses_bulk_folder_progress_queries(self):
+        settings = _load_settings_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            email="a@example.com",
+            remark="",
+            provider="custom",
+            status="connected",
+        )
+        history_job = {
+            "id": "job-1",
+            "account_id": "account-1",
+            "job_type": "history_sync",
+            "status": "running",
+            "current_folder": "INBOX",
+            "current_page": 1,
+        }
+        with (
+            patch.object(settings, "get_accounts", AsyncMock(return_value=[account])),
+            patch.object(settings, "list_history_sync_jobs", AsyncMock(return_value=[history_job])),
+            patch.object(
+                settings,
+                "list_account_folder_counts",
+                AsyncMock(return_value=[{
+                    "folder_key": "inbox",
+                    "folder_path": "INBOX",
+                    "display_name": "收件箱",
+                    "total_count": 10,
+                    "unread_count": 2,
+                    "cached_count": 7,
+                    "updated_at": 1,
+                }]),
+            ) as list_counts,
+            patch.object(
+                settings,
+                "list_folder_stats_by_account",
+                AsyncMock(return_value=[{
+                    "folder": "INBOX",
+                    "total_count": 10,
+                    "unread_count": 2,
+                    "updated_at": 1,
+                }]),
+            ) as list_stats,
+            patch.object(
+                settings,
+                "list_cached_counts_by_account",
+                AsyncMock(return_value={"inbox": 7}),
+            ) as list_cached,
+            patch.object(settings, "get_folder_stats", AsyncMock(side_effect=AssertionError("N+1 stats query"))),
+            patch.object(settings, "get_cached_count", AsyncMock(side_effect=AssertionError("N+1 cache query"))),
+            patch.object(settings, "get_history_sync_job", AsyncMock(side_effect=AssertionError("N+1 job query"))),
+        ):
+            result = await settings.get_history_sync_jobs(object())
+
+        self.assertEqual(result["jobs"][0]["folder_progress"][0]["cached_count"], 7)
+        list_counts.assert_awaited_once_with("account-1")
+        list_stats.assert_awaited_once_with("account-1")
+        list_cached.assert_awaited_once_with("account-1")
 
     async def test_start_history_sync_rejects_disabled_account(self):
         settings = _load_settings_route_module()

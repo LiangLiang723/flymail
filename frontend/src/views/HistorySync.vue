@@ -247,7 +247,11 @@ function scheduleLoadJobs() {
 }
 
 function handleWsMessage(data: any) {
-  if (data.type === 'cache_updated' || data.type === 'rebuild_done') {
+  if (
+    data.type === 'cache_updated'
+    || data.type === 'rebuild_done'
+    || data.type === 'history_sync_updated'
+  ) {
     scheduleLoadJobs();
   }
 }
@@ -479,7 +483,7 @@ onMounted(async () => {
   connectWs();
   pollTimer = window.setInterval(() => {
     if (hasActiveJobs()) loadJobs();
-  }, 3000);
+  }, 15000);
 });
 
 onBeforeUnmount(() => {

@@ -87,6 +87,7 @@ from services.attachment_cache import (
     write_transient_download,
 )
 from services.sync import sync_service
+from services.sync_coordinator import sync_coordinator
 from services.token import ensure_token as ensure_account_token
 from utils.logger import get_logger
 from utils.tasks import create_background_task
@@ -347,51 +348,61 @@ async def _fetch_remote_page_to_cache(
     folder: str,
     page: int,
     page_size: int,
+    priority: str = "background",
 ) -> tuple[MessageList | None, str]:
     if account.status == "offline" or sync_service.is_account_suspended(account.id):
         return None, ""
 
-    try:
-        async def _fetch_remote():
-            credentials = await ensure_account_token(account)
-            receiver = ProviderFactory.get_receiver(account.provider)
-            await receiver.connect(credentials)
-            try:
-                remote_folder = await _resolve_remote_folder(receiver, folder)
-                result = await receiver.fetch_messages(remote_folder, page=page, page_size=page_size)
-                try:
-                    unseen_uids = set(await receiver.fetch_unseen_uids(remote_folder))
-                    for message in result.messages:
-                        message.is_read = message.uid not in unseen_uids
-                except Exception as exc:
-                    logger.debug("list unread sync failed: %s", exc)
-                return result, remote_folder
-            finally:
-                await _safe_disconnect(receiver)
+    context_factory = (
+        sync_coordinator.interactive
+        if priority == "interactive"
+        else sync_coordinator.background
+    )
+    async with context_factory(account.id) as allowed:
+        if not allowed:
+            return None, "账号同步任务正在占用远端连接，已返回本地邮件"
 
-        result, remote_folder = await asyncio.wait_for(
-            _with_outlook_retry(account, _fetch_remote),
-            timeout=REMOTE_PAGE_FETCH_TIMEOUT_SECONDS,
-        )
-        await _cache_remote_page(account, remote_folder, result)
-        await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
-        return result, ""
-    except TimeoutError:
-        message = "远端邮箱响应超时，请稍后重试"
-        logger.warning(
-            "fetch remote page timeout: account=%s folder=%s page=%s timeout=%ss",
-            account.email,
-            folder,
-            page,
-            REMOTE_PAGE_FETCH_TIMEOUT_SECONDS,
-        )
-        return None, message
-    except Exception as exc:
-        logger.warning("fetch remote page failed: account=%s folder=%s page=%s error=%s", account.email, folder, page, exc)
-        await _notify_if_permanent_token_error(exc, account, user_uid)
-        if _is_outlook_connection_error(account, str(exc)):
-            return None, _OUTLOOK_RECONNECTING_MSG
-        return None, str(exc)
+        try:
+            async def _fetch_remote():
+                credentials = await ensure_account_token(account)
+                receiver = ProviderFactory.get_receiver(account.provider)
+                await receiver.connect(credentials)
+                try:
+                    remote_folder = await _resolve_remote_folder(receiver, folder)
+                    result = await receiver.fetch_messages(remote_folder, page=page, page_size=page_size)
+                    try:
+                        unseen_uids = set(await receiver.fetch_unseen_uids(remote_folder))
+                        for message in result.messages:
+                            message.is_read = message.uid not in unseen_uids
+                    except Exception as exc:
+                        logger.debug("list unread sync failed: %s", exc)
+                    return result, remote_folder
+                finally:
+                    await _safe_disconnect(receiver)
+
+            result, remote_folder = await asyncio.wait_for(
+                _with_outlook_retry(account, _fetch_remote),
+                timeout=REMOTE_PAGE_FETCH_TIMEOUT_SECONDS,
+            )
+            await _cache_remote_page(account, remote_folder, result)
+            await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
+            return result, ""
+        except TimeoutError:
+            message = "远端邮箱响应超时，请稍后重试"
+            logger.warning(
+                "fetch remote page timeout: account=%s folder=%s page=%s timeout=%ss",
+                account.email,
+                folder,
+                page,
+                REMOTE_PAGE_FETCH_TIMEOUT_SECONDS,
+            )
+            return None, message
+        except Exception as exc:
+            logger.warning("fetch remote page failed: account=%s folder=%s page=%s error=%s", account.email, folder, page, exc)
+            await _notify_if_permanent_token_error(exc, account, user_uid)
+            if _is_outlook_connection_error(account, str(exc)):
+                return None, _OUTLOOK_RECONNECTING_MSG
+            return None, str(exc)
 
 
 async def _run_missing_summary_sync(account: Account, folder: str, user_uid: str) -> None:
@@ -754,6 +765,7 @@ async def list_messages(
                         folder=folder,
                         page=page,
                         page_size=page_size,
+                        priority="interactive",
                     )
                     if result:
                         local_filter_counts = await get_folder_filter_counts(user_uid, account.id, folder)
@@ -786,6 +798,7 @@ async def list_messages(
                     folder=folder,
                     page=page,
                     page_size=page_size,
+                    priority="interactive",
                 )
                 if result:
                     local_filter_counts = await get_folder_filter_counts(user_uid, account.id, folder)
@@ -807,6 +820,7 @@ async def list_messages(
             folder=folder,
             page=page,
             page_size=page_size,
+            priority="interactive",
         )
         local_filter_counts = await get_folder_filter_counts(user_uid, account.id, folder)
         if result:
@@ -840,6 +854,7 @@ async def list_messages(
                     folder=folder,
                     page=page,
                     page_size=page_size,
+                    priority="interactive",
                 )
 
     if read_filter and not attachment_filter:
@@ -900,6 +915,7 @@ async def search_messages(
             folder=folder,
             page=1,
             page_size=page_size,
+            priority="interactive",
         )
     return await _load_local_messages(
         user_uid=user_uid,
@@ -921,8 +937,9 @@ async def refresh_messages(
     account_id: str = Query(default=""),
 ):
     user_uid, account = await _get_account(request, account_id)
-    if account.status == "offline":
-        return await _load_local_messages(
+
+    async def _local_result(error: str = ""):
+        data = await _load_local_messages(
             user_uid=user_uid,
             account=account,
             folder=folder,
@@ -931,6 +948,14 @@ async def refresh_messages(
             read_filter="",
             attachment_filter=False,
         )
+        if error:
+            data["error"] = error
+        return data
+
+    if account.status == "offline":
+        return await _local_result()
+    if await sync_coordinator.is_exclusive(account.id):
+        return await _local_result("历史同步或缓存维护正在进行，已返回本地邮件")
 
     try:
         async def _refresh_remote():
@@ -950,36 +975,35 @@ async def refresh_messages(
             finally:
                 await _safe_disconnect(receiver)
 
-        result, remote_folder = await _with_outlook_retry(account, _refresh_remote)
-        await _cache_remote_page(account, remote_folder, result)
+        async with sync_coordinator.interactive(account.id) as allowed:
+            if not allowed:
+                return await _local_result("历史同步或缓存维护正在进行，已返回本地邮件")
+            result, remote_folder = await asyncio.wait_for(
+                _with_outlook_retry(account, _refresh_remote),
+                timeout=REMOTE_PAGE_FETCH_TIMEOUT_SECONDS,
+            )
+            await _cache_remote_page(account, remote_folder, result)
+            await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
         _schedule_missing_summary_sync(account, remote_folder, user_uid)
-        await sync_service.refresh_clients(account.id, folder, user_uid=user_uid)
+    except TimeoutError:
+        logger.warning(
+            "refresh messages timeout: account=%s folder=%s timeout=%ss",
+            account.email,
+            folder,
+            REMOTE_PAGE_FETCH_TIMEOUT_SECONDS,
+        )
+        return await _local_result("远端邮箱响应超时，请稍后重试")
     except Exception as exc:
         logger.warning("refresh messages failed: account=%s folder=%s error=%s", account.email, folder, exc)
         await _notify_if_permanent_token_error(exc, account, user_uid)
         if _is_outlook_connection_error(account, str(exc)):
-            local_data = await _load_local_messages(
-                user_uid=user_uid,
-                account=account,
-                folder=folder,
-                page=1,
-                page_size=page_size,
-                read_filter="",
-                attachment_filter=False,
-            )
+            local_data = await _local_result()
             local_data["reconnecting"] = True
             local_data["error"] = _OUTLOOK_RECONNECTING_MSG
             return local_data
+        return await _local_result("刷新远端邮箱失败，请稍后重试")
 
-    return await _load_local_messages(
-        user_uid=user_uid,
-        account=account,
-        folder=folder,
-        page=1,
-        page_size=page_size,
-        read_filter="",
-        attachment_filter=False,
-    )
+    return await _local_result()
 
 
 @router.get("/api/messages/{message_id}", response_model=MessageItem, summary="获取邮件详情")

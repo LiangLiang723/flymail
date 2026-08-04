@@ -2,6 +2,7 @@ import importlib.util
 import sys
 import types
 import unittest
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -152,6 +153,18 @@ def _load_messages_route_module():
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = object()
 
+    sync_coordinator_stub = types.ModuleType("services.sync_coordinator")
+
+    @asynccontextmanager
+    async def allow_interactive(_account_id):
+        yield True
+
+    sync_coordinator_stub.sync_coordinator = types.SimpleNamespace(
+        is_exclusive=AsyncMock(return_value=False),
+        interactive=allow_interactive,
+        background=allow_interactive,
+    )
+
     mail_cache_stub = types.ModuleType("services.mail_cache")
     mail_cache_stub.sync_missing_messages = AsyncMock(return_value=1)
     mail_cache_stub.sync_missing_message_summaries = AsyncMock(return_value=1)
@@ -183,6 +196,7 @@ def _load_messages_route_module():
         "services.attachments",
         "services.attachment_cache",
         "services.sync",
+        "services.sync_coordinator",
         "services.mail_cache",
         "services.token",
         "utils.logger",
@@ -204,6 +218,7 @@ def _load_messages_route_module():
             "services.attachments": attachments_stub,
             "services.attachment_cache": attachment_cache_stub,
             "services.sync": sync_stub,
+            "services.sync_coordinator": sync_coordinator_stub,
             "services.mail_cache": mail_cache_stub,
             "services.token": token_stub,
             "utils.logger": logger_stub,
@@ -308,6 +323,90 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
         )
         messages.sync_service.refresh_clients.assert_awaited_once_with("account-1", "Sent", user_uid="user-1")
 
+    async def test_manual_refresh_returns_local_cache_during_exclusive_sync(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="qq",
+            status="connected",
+        )
+        local_data = {
+            "messages": [],
+            "total": 10,
+            "unread_total": 1,
+            "page": 1,
+            "page_size": 50,
+            "account_id": "account-1",
+            "filter_counts": {},
+        }
+        messages._get_account = AsyncMock(return_value=("user-1", account))
+        messages._load_local_messages = AsyncMock(return_value=local_data)
+        messages.ensure_account_token = AsyncMock()
+        messages.sync_coordinator = types.SimpleNamespace(
+            is_exclusive=AsyncMock(return_value=True),
+        )
+
+        result = await messages.refresh_messages(
+            request=object(),
+            folder="INBOX",
+            page_size=50,
+            account_id="account-1",
+        )
+
+        messages.ensure_account_token.assert_not_awaited()
+        self.assertEqual(result["total"], 10)
+        self.assertIn("同步", result["error"])
+
+    async def test_manual_refresh_times_out_after_45_seconds_and_returns_cache(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="qq",
+            status="connected",
+        )
+        local_data = {
+            "messages": [],
+            "total": 10,
+            "unread_total": 1,
+            "page": 1,
+            "page_size": 50,
+            "account_id": "account-1",
+            "filter_counts": {},
+        }
+
+        @asynccontextmanager
+        async def interactive(_account_id):
+            yield True
+
+        async def timeout_wait_for(coro, timeout):
+            coro.close()
+            self.assertEqual(timeout, 45)
+            raise TimeoutError()
+
+        messages._get_account = AsyncMock(return_value=("user-1", account))
+        messages._load_local_messages = AsyncMock(return_value=local_data)
+        messages.ensure_account_token = AsyncMock(return_value=object())
+        messages._with_outlook_retry = AsyncMock()
+        messages.sync_coordinator = types.SimpleNamespace(
+            is_exclusive=AsyncMock(return_value=False),
+            interactive=interactive,
+        )
+
+        with patch.object(messages.asyncio, "wait_for", AsyncMock(side_effect=timeout_wait_for)):
+            result = await messages.refresh_messages(
+                request=object(),
+                folder="INBOX",
+                page_size=50,
+                account_id="account-1",
+            )
+
+        self.assertIn("超时", result["error"])
+        self.assertEqual(result["total"], 10)
+
     async def test_missing_summary_sync_is_deduplicated_per_folder(self):
         messages = _load_messages_route_module()
         account = types.SimpleNamespace(id="account-1", email="user@example.com")
@@ -350,6 +449,42 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
         mail_cache_stub.sync_missing_message_summaries.assert_awaited_once()
         self.assertEqual(messages.sync_service.refresh_clients.await_count, 2)
         self.assertNotIn(("account-1", "OA"), messages._MISSING_SUMMARY_REFRESHING)
+
+    async def test_background_remote_page_fetch_yields_when_priority_is_denied(self):
+        messages = _load_messages_route_module()
+        account = types.SimpleNamespace(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="custom",
+            status="connected",
+        )
+
+        @asynccontextmanager
+        async def deny_background(_account_id):
+            yield False
+
+        messages.sync_coordinator = types.SimpleNamespace(
+            background=deny_background,
+            interactive=deny_background,
+        )
+        messages.sync_service = types.SimpleNamespace(
+            is_account_suspended=lambda _account_id: False,
+            refresh_clients=AsyncMock(),
+        )
+        messages._with_outlook_retry = AsyncMock()
+
+        result, error = await messages._fetch_remote_page_to_cache(
+            user_uid="user-1",
+            account=account,
+            folder="INBOX",
+            page=1,
+            page_size=50,
+        )
+
+        self.assertIsNone(result)
+        self.assertIn("同步", error)
+        messages._with_outlook_retry.assert_not_awaited()
 
     async def test_incomplete_later_page_fetches_remote_before_returning_partial_cache(self):
         messages = _load_messages_route_module()
@@ -419,6 +554,7 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             folder="OA",
             page=2,
             page_size=50,
+            priority="interactive",
         )
 
     async def test_resolves_netease_sent_folder_by_display_name(self):

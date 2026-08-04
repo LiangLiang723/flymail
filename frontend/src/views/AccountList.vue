@@ -357,9 +357,9 @@
             </div>
           </div>
           <div class="form-field">
-            <label class="field-label">新邮件轮询间隔（秒）</label>
+            <label class="field-label">非 IDLE 邮箱实时检查间隔（秒）</label>
             <input v-model.number="editForm.poll_interval_seconds" class="input" type="number" min="5" max="3600" step="1" />
-            <span class="field-hint">所有在线账号都会按该间隔兜底拉新；支持 IDLE 的账号仍优先使用实时通知。</span>
+            <span class="field-hint">网易、自定义等邮箱按该间隔批量检查全部文件夹；Gmail、QQ、Outlook 使用 IDLE 实时通知，完整兜底同步最低每 3 分钟执行一次。</span>
           </div>
           <div class="form-field toggle-field">
             <span class="toggle-label">隐藏邮箱地址</span>

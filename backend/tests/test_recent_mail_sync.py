@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import types
 import unittest
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -35,6 +36,8 @@ def _load_mail_cache_module():
         "purge_deleted_from_cache",
         "get_cached_count",
         "get_cached_uids",
+        "get_existing_cached_uids",
+        "list_cached_read_states",
         "get_cached_messages_by_folder",
         "batch_update_is_read",
     ):
@@ -52,6 +55,17 @@ def _load_mail_cache_module():
 
     history_sync_stub = types.ModuleType("services.history_sync")
     history_sync_stub._cache_message_assets = AsyncMock(return_value=("", "", 0, 0))
+
+    sync_coordinator_stub = types.ModuleType("services.sync_coordinator")
+
+    @asynccontextmanager
+    async def allow_background(_account_id):
+        yield True
+
+    sync_coordinator_stub.sync_coordinator = types.SimpleNamespace(
+        background=allow_background,
+        should_yield_background=AsyncMock(return_value=False),
+    )
 
     logger_stub = types.ModuleType("utils.logger")
     logger_stub.get_logger = lambda name: types.SimpleNamespace(
@@ -71,6 +85,7 @@ def _load_mail_cache_module():
             "providers.factory",
             "services.attachment_cache",
             "services.history_sync",
+            "services.sync_coordinator",
             "services.token",
             "utils.logger",
         )
@@ -81,6 +96,7 @@ def _load_mail_cache_module():
             "providers.factory": factory_stub,
             "services.attachment_cache": attachment_cache_stub,
             "services.history_sync": history_sync_stub,
+            "services.sync_coordinator": sync_coordinator_stub,
             "services.token": token_stub,
             "utils.logger": logger_stub,
         }
@@ -113,6 +129,72 @@ class RecentMailSyncTest(unittest.TestCase):
 
 
 class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
+    async def test_recent_sync_queries_only_current_page_uids(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="gmail",
+        )
+        receiver = AsyncMock()
+        receiver.fetch_messages.return_value = MessageList(
+            messages=[_message(105), _message(104), _message(103)],
+            total=6,
+            unread_total=0,
+            page=1,
+            page_size=3,
+        )
+        receiver.fetch_unseen_uids.return_value = []
+        receiver.fetch_message_detail.side_effect = lambda uid, folder="INBOX": _message(int(uid))
+        receiver.disconnect = AsyncMock()
+        token_stub = types.ModuleType("services.token")
+        token_stub.ensure_token = AsyncMock(return_value=object())
+        existing = AsyncMock(return_value={103})
+
+        with (
+            patch.dict(sys.modules, {"services.token": token_stub}),
+            patch.object(mail_cache, "ProviderFactory") as factory,
+            patch.object(mail_cache, "get_existing_cached_uids", existing),
+            patch.object(mail_cache, "get_cached_uids", AsyncMock(side_effect=AssertionError("full UID scan"))),
+            patch.object(mail_cache, "upsert_folder_stats", AsyncMock()),
+            patch.object(mail_cache, "upsert_cached_messages", AsyncMock()),
+            patch.object(mail_cache, "get_cached_message_detail", AsyncMock(return_value=None)),
+            patch.object(mail_cache, "_cache_message_assets", AsyncMock(return_value=("", "", 0, 0))),
+        ):
+            factory.get_receiver.return_value = receiver
+            added = await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)
+
+        self.assertEqual(added, 2)
+        existing.assert_any_await("account-1", "INBOX", [105, 104, 103])
+
+    async def test_cached_read_state_sync_uses_uid_pages(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="gmail",
+        )
+        first_page = [{"uid": uid, "is_read": 0} for uid in range(1, 1001)]
+        second_page = [{"uid": 1001, "is_read": 1}]
+        list_states = AsyncMock(side_effect=[first_page, second_page])
+        batch_update = AsyncMock(return_value=0)
+
+        with (
+            patch.object(mail_cache, "list_cached_read_states", list_states),
+            patch.object(mail_cache, "batch_update_is_read", batch_update),
+        ):
+            await mail_cache._sync_cached_read_state_from_pages(
+                account,
+                "INBOX",
+                {2, 1001},
+            )
+
+        self.assertEqual(list_states.await_args_list[0].kwargs, {"after_uid": 0, "limit": 1000})
+        self.assertEqual(list_states.await_args_list[1].kwargs, {"after_uid": 1000, "limit": 1000})
+        self.assertEqual(batch_update.await_count, 2)
+
     async def test_recent_sync_does_not_fetch_next_page_after_cached_message(self):
         mail_cache = _load_mail_cache_module()
         account = Account(
@@ -315,6 +397,66 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(added, 3)
         self.assertEqual(receiver.fetch_messages.await_count, 1)
 
+    async def test_recent_sync_skips_when_background_priority_is_denied(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="gmail",
+        )
+
+        @asynccontextmanager
+        async def deny_background(_account_id):
+            yield False
+
+        mail_cache.sync_coordinator = types.SimpleNamespace(
+            background=deny_background,
+            should_yield_background=AsyncMock(return_value=True),
+        )
+        token_stub = types.ModuleType("services.token")
+        token_stub.ensure_token = AsyncMock(return_value=object())
+
+        with (
+            patch.dict(sys.modules, {"services.token": token_stub}),
+            patch.object(mail_cache, "ProviderFactory") as factory,
+        ):
+            added = await mail_cache.sync_recent_folder_to_cache(account, "INBOX", page_size=3)
+
+        self.assertEqual(added, 0)
+        token_stub.ensure_token.assert_not_awaited()
+        factory.get_receiver.assert_not_called()
+
+    async def test_folder_sync_skips_when_background_priority_is_denied(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="gmail",
+        )
+
+        @asynccontextmanager
+        async def deny_background(_account_id):
+            yield False
+
+        mail_cache.sync_coordinator = types.SimpleNamespace(
+            background=deny_background,
+            should_yield_background=AsyncMock(return_value=True),
+        )
+        token_stub = types.ModuleType("services.token")
+        token_stub.ensure_token = AsyncMock(return_value=object())
+
+        with (
+            patch.dict(sys.modules, {"services.token": token_stub}),
+            patch.object(mail_cache, "ProviderFactory") as factory,
+        ):
+            added = await mail_cache.sync_folder_to_cache(account, "INBOX")
+
+        self.assertEqual(added, 0)
+        token_stub.ensure_token.assert_not_awaited()
+        factory.get_receiver.assert_not_called()
+
     async def test_recent_sync_skips_when_account_lock_is_busy(self):
         mail_cache = _load_mail_cache_module()
         account = Account(
@@ -388,6 +530,37 @@ class RecentMailSyncAsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(on_batch.await_args_list[0].args, (100, 200))
         self.assertEqual(on_batch.await_args_list[1].args, (200, 200))
         update_stats.assert_awaited_with("account-1", "OA", 250, 2)
+
+    async def test_missing_summary_sync_yields_after_current_batch_for_interactive_work(self):
+        mail_cache = _load_mail_cache_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="user@example.com",
+            provider="custom",
+        )
+        receiver = AsyncMock()
+        receiver.fetch_new_message_uids.return_value = list(range(1, 251))
+        receiver.fetch_unseen_uids.return_value = []
+        receiver.fetch_messages_by_uids.side_effect = lambda folder, uids: [_message(uid) for uid in uids]
+        mail_cache.sync_coordinator = types.SimpleNamespace(
+            should_yield_background=AsyncMock(side_effect=[False, True]),
+        )
+
+        with (
+            patch.object(mail_cache, "get_cached_uids", AsyncMock(return_value=set())),
+            patch.object(mail_cache, "upsert_cached_messages", AsyncMock()),
+            patch.object(mail_cache, "upsert_folder_stats", AsyncMock()),
+        ):
+            added = await mail_cache._sync_missing_message_summaries_with_receiver(
+                receiver,
+                account,
+                "OA",
+                batch_size=100,
+            )
+
+        self.assertEqual(added, 100)
+        self.assertEqual(receiver.fetch_messages_by_uids.await_count, 1)
 
     async def test_summary_sync_does_not_wait_for_account_wide_lock(self):
         mail_cache = _load_mail_cache_module()

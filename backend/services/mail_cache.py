@@ -18,8 +18,8 @@ from db import (
     get_cached_message_detail,
     upsert_cached_messages, get_max_cached_uid, get_accounts,
     upsert_folder_stats, get_folder_stats,
-    get_cached_count, get_cached_uids,
-    get_cached_messages_by_folder, batch_update_is_read,
+    get_cached_count, get_cached_uids, get_existing_cached_uids,
+    get_cached_messages_by_folder, list_cached_read_states, batch_update_is_read,
 )
 from data_paths import coalesce_message_date, normalize_message_date
 from models import CachedMessage, Account
@@ -27,6 +27,7 @@ from providers.base import Message
 from providers.factory import ProviderFactory
 from services.attachment_cache import purge_deleted_from_cache_and_release
 from services.history_sync import _cache_message_assets
+from services.sync_coordinator import sync_coordinator
 from utils.logger import get_logger
 from utils.tasks import create_background_task
 
@@ -114,6 +115,55 @@ def _select_uncached_recent_messages(messages: List[Message], cached_uids: set[i
         selected.append(message)
         cached_uids.add(message.uid)
     return selected, False
+
+
+async def _get_existing_page_uids(account_id: str, folder: str, uids: list[int]) -> set[int]:
+    """Query cache membership for one remote page, with a legacy fallback for adapters."""
+    result = await get_existing_cached_uids(account_id, folder, uids)
+    if isinstance(result, (set, list, tuple)):
+        return {int(uid) for uid in result}
+    return await get_cached_uids(account_id, folder)
+
+
+async def _sync_cached_read_state_from_pages(
+    account: Account,
+    folder: str,
+    unseen_uids: set[int],
+) -> int:
+    updated = 0
+    after_uid = 0
+    while True:
+        rows = await list_cached_read_states(
+            account.id,
+            folder,
+            after_uid=after_uid,
+            limit=1000,
+        )
+        if not isinstance(rows, list):
+            legacy = await get_cached_messages_by_folder(
+                account.user_uid,
+                account.id,
+                folder,
+                page=1,
+                page_size=10000,
+            )
+            rows = legacy.get("messages", [])
+        if not rows:
+            break
+        updates = []
+        for row in rows:
+            uid = int(row.get("uid", 0) or 0)
+            if uid <= 0:
+                continue
+            should_read = uid not in unseen_uids
+            if bool(row.get("is_read")) != should_read:
+                updates.append((uid, 1 if should_read else 0))
+        if updates:
+            updated += await batch_update_is_read(account.id, folder, updates)
+        after_uid = max(int(row.get("uid", 0) or 0) for row in rows)
+        if len(rows) < 1000:
+            break
+    return updated
 
 
 async def _sync_read_state_from_unseen(account: Account, folder: str, messages: List[Message], unseen_uids: set[int] | None) -> int:
@@ -212,95 +262,98 @@ async def _resolve_remote_folder(receiver, folder: str) -> str:
 
 
 async def sync_recent_folder_to_cache(account: Account, folder: str = "INBOX", page_size: int = 50) -> int:
-    """Fetch recent remote pages and cache only messages not already saved locally."""
-    lock = await try_acquire_sync_lock(account.id)
-    if not lock:
-        logger.debug("最近邮件同步跳过: 账号=%s 文件夹=%s 上一轮仍在执行", account.email, folder)
-        return 0
-    receiver = None
-    try:
-        from services.token import ensure_token
-        credentials = await ensure_token(account)
-        receiver = ProviderFactory.get_receiver(account.provider)
-        await receiver.connect(credentials)
+    """Fetch recent remote pages without competing with interactive account work."""
+    async with sync_coordinator.background(account.id) as allowed:
+        if not allowed:
+            logger.debug("最近邮件同步让行: 账号=%s 文件夹=%s", account.email, folder)
+            return 0
 
-        folder = await _resolve_remote_folder(receiver, folder)
-        cached_uids = await get_cached_uids(account.id, folder)
-        unseen_uids = None
-        try:
-            unseen_uids = set(await receiver.fetch_unseen_uids(folder))
-        except Exception as exc:
-            logger.debug("最近邮件同步获取 UNSEEN 失败: %s", exc)
-
-        page = 1
-        added = 0
-        while True:
-            result = await receiver.fetch_messages(folder, page=page, page_size=page_size)
-            if page == 1:
-                await upsert_folder_stats(account.id, folder, result.total or 0, result.unread_total or 0)
-            if not result.messages:
-                break
-
-            await _sync_read_state_from_unseen(account, folder, result.messages, unseen_uids)
-            new_messages, reached_cached = _select_uncached_recent_messages(result.messages, cached_uids)
-            if new_messages:
-                added += await _cache_messages_with_details(receiver, account, folder, new_messages, unseen_uids)
-                await schedule_archive_for_new_uids(
-                    account,
-                    folder,
-                    [message.uid for message in new_messages],
-                )
-
-            if reached_cached:
-                break
-            if result.total and page * result.page_size >= result.total:
-                break
-            if len(result.messages) < result.page_size:
-                break
-            page += 1
-
-        if added:
-            logger.info("最近邮件同步完成: 账号=%s, 文件夹=%s, 新增 %d 封", account.email, folder, added)
-        return added
-    except Exception as e:
-        logger.warning("最近邮件同步失败: 账号=%s 文件夹=%s 错误=%s", account.email, folder, e)
-        return 0
-    finally:
-        if receiver:
-            try:
-                await receiver.disconnect()
-            except Exception as e:
-                logger.debug("最近邮件同步后断开连接失败: %s", e)
-        lock.release()
-
-
-async def sync_folder_to_cache(account: Account, folder: str = "INBOX", force_full: bool = False) -> int:
-    """将文件夹的邮件摘要同步到本地缓存（增量：只拉取新邮件）
-
-    使用独立的 IMAP 连接，不影响后台 IDLE 监听。
-    返回新增的邮件数量。
-    force_full: 强制全量同步（rebuild-sync 时使用）
-    """
-    lock = _get_lock(account.id)
-    async with lock:
-        # 建立独立连接（不复用后台 IDLE 的连接，避免干扰）
-        # Gmail 需要检查 access_token 是否过期并自动刷新
+        lock = await try_acquire_sync_lock(account.id)
+        if not lock:
+            logger.debug("最近邮件同步跳过: 账号=%s 文件夹=%s 上一轮仍在执行", account.email, folder)
+            return 0
         receiver = None
         try:
             from services.token import ensure_token
             credentials = await ensure_token(account)
             receiver = ProviderFactory.get_receiver(account.provider)
             await receiver.connect(credentials)
-            return await _do_sync(receiver, account, folder, force_full=force_full)
+
+            folder = await _resolve_remote_folder(receiver, folder)
+            unseen_uids = None
+            try:
+                unseen_uids = set(await receiver.fetch_unseen_uids(folder))
+            except Exception as exc:
+                logger.debug("最近邮件同步获取 UNSEEN 失败: %s", exc)
+
+            page = 1
+            added = 0
+            while True:
+                result = await receiver.fetch_messages(folder, page=page, page_size=page_size)
+                if page == 1:
+                    await upsert_folder_stats(account.id, folder, result.total or 0, result.unread_total or 0)
+                if not result.messages:
+                    break
+
+                await _sync_read_state_from_unseen(account, folder, result.messages, unseen_uids)
+                page_uids = [message.uid for message in result.messages if message.uid > 0]
+                cached_uids = await _get_existing_page_uids(account.id, folder, page_uids)
+                new_messages, reached_cached = _select_uncached_recent_messages(result.messages, cached_uids)
+                if new_messages:
+                    added += await _cache_messages_with_details(receiver, account, folder, new_messages, unseen_uids)
+                    await schedule_archive_for_new_uids(
+                        account,
+                        folder,
+                        [message.uid for message in new_messages],
+                    )
+
+                if reached_cached:
+                    break
+                if result.total and page * result.page_size >= result.total:
+                    break
+                if len(result.messages) < result.page_size:
+                    break
+                page += 1
+
+            if added:
+                logger.info("最近邮件同步完成: 账号=%s, 文件夹=%s, 新增 %d 封", account.email, folder, added)
+            return added
         except Exception as e:
-            logger.warning("同步账号 %s 文件夹 %s 失败: %s", account.email, folder, e)
+            logger.warning("最近邮件同步失败: 账号=%s 文件夹=%s 错误=%s", account.email, folder, e)
             return 0
         finally:
             if receiver:
                 try:
                     await receiver.disconnect()
                 except Exception as e:
-                    logger.debug("同步后断开连接失败: %s", e)
+                    logger.debug("最近邮件同步后断开连接失败: %s", e)
+            lock.release()
+
+
+async def sync_folder_to_cache(account: Account, folder: str = "INBOX", force_full: bool = False) -> int:
+    """同步文件夹缓存，并在交互或独占任务到来时安全让行。"""
+    async with sync_coordinator.background(account.id) as allowed:
+        if not allowed:
+            logger.debug("文件夹同步让行: 账号=%s 文件夹=%s", account.email, folder)
+            return 0
+        lock = _get_lock(account.id)
+        async with lock:
+            receiver = None
+            try:
+                from services.token import ensure_token
+                credentials = await ensure_token(account)
+                receiver = ProviderFactory.get_receiver(account.provider)
+                await receiver.connect(credentials)
+                return await _do_sync(receiver, account, folder, force_full=force_full)
+            except Exception as e:
+                logger.warning("同步账号 %s 文件夹 %s 失败: %s", account.email, folder, e)
+                return 0
+            finally:
+                if receiver:
+                    try:
+                        await receiver.disconnect()
+                    except Exception as e:
+                        logger.debug("同步后断开连接失败: %s", e)
 
 
 async def _do_sync(receiver, account: Account, folder: str, force_full: bool = False) -> int:
@@ -450,7 +503,8 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
         logger.debug("获取 UNSEEN UID 失败: %s", e)
 
     if messages:
-        existing_uids = await get_cached_uids(account.id, folder)
+        message_uids = [message.uid for message in messages if message.uid > 0]
+        existing_uids = await _get_existing_page_uids(account.id, folder, message_uids)
         new_uids = [message.uid for message in messages if message.uid not in existing_uids]
         await _cache_messages_with_details(receiver, account, folder, messages, unseen_uids)
         await schedule_archive_for_new_uids(account, folder, new_uids)
@@ -461,54 +515,19 @@ async def _do_sync(receiver, account: Account, folder: str, force_full: bool = F
             account.email, folder, len(messages), read_count, len(messages) - read_count
         )
 
-    # 增量同步时校正已有缓存邮件的 is_read 状态
-    # 场景：用户在其他客户端标记已读/未读 → IDLE FETCH+FLAGS → 触发同步 → 更新缓存
-    # 复用上面获取的 unseen_uids，不额外查询 IMAP
-    if not force_full and unseen_uids is not None:
+    # 分页校正整个文件夹的已读状态，避免一次加载大量完整邮件记录。
+    if unseen_uids is not None:
         try:
-            cached_msgs = await get_cached_messages_by_folder(
-                account.user_uid, account.id, folder, page=1, page_size=10000
-            )
-            if cached_msgs.get("messages"):
-                to_fix = []
-                for msg in cached_msgs["messages"]:
-                    should_read = msg["uid"] not in unseen_uids
-                    if bool(msg["is_read"]) != should_read:
-                        to_fix.append((msg["uid"], 1 if should_read else 0))
-                if to_fix:
-                    await batch_update_is_read(account.id, folder, to_fix)
-                    fixed_read = sum(1 for _, v in to_fix if v == 1)
-                    logger.info(
-                        "增量 is_read 校正: 账号=%s, 文件夹=%s, 修正 %d 封 (→已读 %d, →未读 %d)",
-                        account.email, folder, len(to_fix), fixed_read, len(to_fix) - fixed_read
-                    )
+            fixed = await _sync_cached_read_state_from_pages(account, folder, unseen_uids)
+            if fixed:
+                logger.info(
+                    "is_read 分页校正: 账号=%s, 文件夹=%s, 修正 %d 封",
+                    account.email,
+                    folder,
+                    fixed,
+                )
         except Exception as e:
-            logger.debug("增量 is_read 校正失败: %s", e)
-
-    # 同步完成后，批量校正整个文件夹缓存中的 is_read（force_full 时执行全量校正）
-    # 增量同步已在上方校正所有缓存邮件的 is_read，force_full 时再做一次确保完整
-    if force_full:
-        try:
-            cached_msgs = await get_cached_messages_by_folder(
-                account.user_uid, account.id, folder, page=1, page_size=10000
-            )
-            if cached_msgs.get("messages"):
-                all_unseen = set(await receiver.fetch_unseen_uids(folder))
-                # 找出需要更新的邮件（is_read 与实际不符的）
-                to_fix = []
-                for msg in cached_msgs["messages"]:
-                    should_read = msg["uid"] not in all_unseen
-                    if bool(msg["is_read"]) != should_read:
-                        to_fix.append((msg["uid"], 1 if should_read else 0))
-                if to_fix:
-                    await batch_update_is_read(account.id, folder, to_fix)
-                    fixed_read = sum(1 for _, v in to_fix if v == 1)
-                    logger.info(
-                        "批量 is_read 校正: 账号=%s, 文件夹=%s, 修正 %d 封 (→已读 %d, →未读 %d)",
-                        account.email, folder, len(to_fix), fixed_read, len(to_fix) - fixed_read
-                    )
-        except Exception as e:
-            logger.warning("批量 is_read 校正失败: %s", e)
+            logger.warning("is_read 分页校正失败: %s", e)
 
     # 清理缓存中已不在 IMAP 服务器上的邮件；先保留本地归档并标记服务器删除。
     if all_uids is not None and len(all_uids) > 0:
@@ -667,6 +686,15 @@ async def _sync_missing_message_summaries_with_receiver(
     )
 
     for start in range(0, total_missing, batch_size):
+        if await sync_coordinator.should_yield_background(account.id):
+            logger.debug(
+                "摘要补全让行: 账号=%s 文件夹=%s 已补全=%d/%d",
+                account.email,
+                folder,
+                total_filled,
+                total_missing,
+            )
+            break
         batch = missing_uids[start:start + batch_size]
         try:
             messages = await receiver.fetch_messages_by_uids(folder, batch)
@@ -708,33 +736,37 @@ async def sync_missing_message_summaries(
     batch_size: int = 100,
     on_batch: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> int:
-    """Fill missing message summaries newest-first without downloading bodies or attachments."""
-    lock = _get_summary_sync_lock(account.id, folder)
-    async with lock:
-        receiver = None
-        try:
-            from services.token import ensure_token
-
-            credentials = await ensure_token(account)
-            receiver = ProviderFactory.get_receiver(account.provider)
-            await receiver.connect(credentials)
-            folder = await _resolve_remote_folder(receiver, folder)
-            return await _sync_missing_message_summaries_with_receiver(
-                receiver,
-                account,
-                folder,
-                batch_size=batch_size,
-                on_batch=on_batch,
-            )
-        except Exception as exc:
-            logger.warning("摘要补全失败: 账号=%s, 文件夹=%s, 错误=%s", account.email, folder, exc)
+    """Fill missing summaries as a low-priority, per-folder task."""
+    async with sync_coordinator.background(account.id) as allowed:
+        if not allowed:
+            logger.debug("摘要补全让行: 账号=%s 文件夹=%s", account.email, folder)
             return 0
-        finally:
-            if receiver:
-                try:
-                    await receiver.disconnect()
-                except Exception as exc:
-                    logger.debug("摘要补全后断开连接失败: %s", exc)
+        lock = _get_summary_sync_lock(account.id, folder)
+        async with lock:
+            receiver = None
+            try:
+                from services.token import ensure_token
+
+                credentials = await ensure_token(account)
+                receiver = ProviderFactory.get_receiver(account.provider)
+                await receiver.connect(credentials)
+                folder = await _resolve_remote_folder(receiver, folder)
+                return await _sync_missing_message_summaries_with_receiver(
+                    receiver,
+                    account,
+                    folder,
+                    batch_size=batch_size,
+                    on_batch=on_batch,
+                )
+            except Exception as exc:
+                logger.warning("摘要补全失败: 账号=%s, 文件夹=%s, 错误=%s", account.email, folder, exc)
+                return 0
+            finally:
+                if receiver:
+                    try:
+                        await receiver.disconnect()
+                    except Exception as exc:
+                        logger.debug("摘要补全后断开连接失败: %s", exc)
 
 
 async def sync_missing_messages(account: Account, folder: str) -> int:

@@ -848,6 +848,65 @@ async def get_cached_uids(account_id: str, folder: str) -> set:
     return {int(row[0]) for row in rows if row and row[0] is not None}
 
 
+async def get_existing_cached_uids(account_id: str, folder: str, uids: list[int]) -> set[int]:
+    """Return only requested UIDs that already exist in the local cache."""
+    requested = list(dict.fromkeys(int(uid) for uid in uids if int(uid) > 0))
+    aliases = _expand_folder_aliases(folder)
+    if not requested or not aliases:
+        return set()
+
+    db = await get_db()
+    alias_placeholders = ",".join("?" * len(aliases))
+    existing: set[int] = set()
+    for start in range(0, len(requested), 500):
+        batch = requested[start:start + 500]
+        uid_placeholders = ",".join("?" * len(batch))
+        cursor = await db.execute(
+            f"""SELECT uid
+                FROM cached_messages
+                WHERE account_id = ?
+                  AND folder IN ({alias_placeholders})
+                  AND uid IN ({uid_placeholders})""",
+            [account_id] + aliases + batch,
+        )
+        rows = await cursor.fetchall()
+        existing.update(int(row[0]) for row in rows if row and row[0] is not None)
+    return existing
+
+
+async def list_cached_read_states(
+    account_id: str,
+    folder: str,
+    *,
+    after_uid: int = 0,
+    limit: int = 1000,
+) -> list[dict]:
+    """Page cached UID/read-state rows without loading an entire folder."""
+    aliases = _expand_folder_aliases(folder)
+    if not aliases:
+        return []
+    safe_limit = min(5000, max(1, int(limit or 1000)))
+    db = await get_db()
+    placeholders = ",".join("?" * len(aliases))
+    cursor = await db.execute(
+        f"""SELECT uid, MAX(is_read) AS is_read
+            FROM cached_messages
+            WHERE account_id = ?
+              AND folder IN ({placeholders})
+              AND uid > ?
+            GROUP BY uid
+            ORDER BY uid ASC
+            LIMIT ?""",
+        [account_id] + aliases + [max(0, int(after_uid or 0)), safe_limit],
+    )
+    rows = await cursor.fetchall()
+    return [
+        {"uid": int(row[0]), "is_read": bool(row[1])}
+        for row in rows
+        if row and row[0] is not None
+    ]
+
+
 # ==================== 文件夹统计 CRUD ====================
 
 async def upsert_folder_stats(account_id: str, folder: str, total_count: int, unread_count: int) -> None:
@@ -1595,6 +1654,24 @@ async def get_max_cached_uid(user_uid: str, account_id: str, folder: str) -> int
     )
     row = await cursor.fetchone()
     return int((row[0] if row else 0) or 0)
+
+
+async def list_cached_counts_by_account(account_id: str) -> dict[str, int]:
+    """Return cached message counts grouped by canonical folder key."""
+    db = await get_db()
+    cursor = await db.execute(
+        """SELECT folder, COUNT(*)
+           FROM cached_messages
+           WHERE account_id = ?
+           GROUP BY folder""",
+        (account_id,),
+    )
+    rows = await cursor.fetchall()
+    counts: dict[str, int] = {}
+    for folder, count in rows:
+        key = folder_key_for_path(str(folder or ""))
+        counts[key] = counts.get(key, 0) + int(count or 0)
+    return counts
 
 
 async def get_cached_count(account_id: str, folder: str) -> int:

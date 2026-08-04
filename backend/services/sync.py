@@ -66,7 +66,11 @@ class MailSyncService:
       - 协作: 检测到新邮件后调用 mail_cache 增量同步，同步结果通过 WebSocket 推送前端
     """
 
-    IDLE_REISSUE_INTERVAL = 5 * 60  # NOOP provider 每 5 分钟检查一次邮件数量变化
+    IDLE_REISSUE_INTERVAL = 5 * 60
+    IDLE_FALLBACK_SYNC_INTERVAL = 180
+    POLL_FALLBACK_SYNC_INTERVAL = 120
+    NOOP_FALLBACK_SYNC_INTERVAL = 60
+    PERIODIC_ACCOUNT_CONCURRENCY = 3
     INITIAL_RECONNECT_DELAY = 5  # 首次连接失败时的快速重试延迟 5 秒
     MAX_RECONNECT_DELAY = 300    # 最大重连延迟 5 分钟（指数退避上限）
     INITIAL_FAST_RETRIES = 3     # 首次连接失败时快速重试次数
@@ -79,10 +83,12 @@ class MailSyncService:
         self._running = False
         # 需要重新授权的账号 ID 集合（前端加载时可查询）
         self.reauth_account_ids: set = set()
-        # 暂停实时监听的账号（历史同步/重建同步等独占任务期间）
-        self.suspended_account_ids: set = set()
+        # 暂停实时监听使用引用计数，避免多个独占任务重叠时过早恢复监听。
+        self._suspension_counts: Dict[str, int] = {}
         self.periodic_task: Optional[asyncio.Task] = None
         self._periodic_last_sync: Dict[str, float] = {}
+        self._periodic_account_tasks: Dict[str, asyncio.Task] = {}
+        self._periodic_semaphore = asyncio.Semaphore(self.PERIODIC_ACCOUNT_CONCURRENCY)
 
     # ==================== WebSocket 客户端管理 ====================
 
@@ -176,6 +182,13 @@ class MailSyncService:
             "current_folder": current_folder,
             "completed": completed,
             "total": total,
+        }), user_uid)
+
+    async def notify_history_sync_updated(self, account_id: str, user_uid: str = ""):
+        """Notify the sync management page that persisted progress changed."""
+        await self._broadcast(json.dumps({
+            "type": "history_sync_updated",
+            "account_id": account_id,
         }), user_uid)
 
     async def notify_message_state_changed(self, account_id: str, action: str, uids: list, folder: str = "INBOX", user_uid: str = ""):
@@ -355,17 +368,71 @@ class MailSyncService:
             task.cancel()
         if self.periodic_task:
             self.periodic_task.cancel()
+        periodic_account_tasks = list(self._periodic_account_tasks.values())
+        for task in periodic_account_tasks:
+            task.cancel()
         # 等待所有任务清理完成，避免 "Task was destroyed but it is pending" 错误
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         if self.periodic_task:
             await asyncio.gather(self.periodic_task, return_exceptions=True)
+        if periodic_account_tasks:
+            await asyncio.gather(*periodic_account_tasks, return_exceptions=True)
         self.idle_tasks.clear()
+        self._periodic_account_tasks.clear()
         self.periodic_task = None
 
-    async def _periodic_sync_loop(self):
+    def _periodic_sync_interval(self, account) -> int:
+        configured = self._poll_interval(account)
+        provider = str(getattr(account, "provider", "") or "").lower()
+        if provider in self.IDLE_PROVIDERS:
+            return max(configured, self.IDLE_FALLBACK_SYNC_INTERVAL)
+        if provider in self.POLL_PROVIDERS:
+            return max(configured, self.POLL_FALLBACK_SYNC_INTERVAL)
+        return max(configured, self.NOOP_FALLBACK_SYNC_INTERVAL)
+
+    def _remove_periodic_account_task(self, account_id: str, task: asyncio.Task) -> None:
+        if self._periodic_account_tasks.get(account_id) is task:
+            self._periodic_account_tasks.pop(account_id, None)
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+        except asyncio.CancelledError:
+            return
+        if exc is not None:
+            logger.warning("periodic account sync failed: account=%s error=%s", account_id, exc)
+
+    async def _periodic_sync_account(self, account) -> None:
         from services.mail_cache import sync_recent_folder_to_cache
 
+        async with self._periodic_semaphore:
+            try:
+                if self.is_account_suspended(account.id) or getattr(account, "status", "") == "offline":
+                    return
+                folders = await self._get_idle_folders_from_config(account)
+                seen = set()
+                for folder in folders:
+                    folder_name = (folder or "").strip()
+                    if not folder_name or folder_name in seen:
+                        continue
+                    seen.add(folder_name)
+                    try:
+                        await sync_recent_folder_to_cache(account, folder_name)
+                        await self.refresh_clients(account.id, folder_name, user_uid=account.user_uid)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        logger.debug(
+                            "periodic sync failed: account=%s folder=%s error=%s",
+                            account.email,
+                            folder_name,
+                            exc,
+                        )
+            finally:
+                self._periodic_last_sync[account.id] = time.time()
+
+    async def _periodic_sync_loop(self):
         while self._running:
             try:
                 now = time.time()
@@ -374,30 +441,31 @@ class MailSyncService:
                 for account_id in list(self._periodic_last_sync.keys()):
                     if account_id not in active_account_ids:
                         self._periodic_last_sync.pop(account_id, None)
+                for account_id, task in list(self._periodic_account_tasks.items()):
+                    if task.done() or account_id not in active_account_ids:
+                        self._periodic_account_tasks.pop(account_id, None)
                 for account in all_accounts:
                     if not self._running:
                         break
-                    if account.id in self.suspended_account_ids:
+                    if self.is_account_suspended(account.id) or account.status == "offline":
                         continue
-                    if account.status == "offline":
+                    if account.id in self._periodic_account_tasks:
                         continue
-                    interval = self._poll_interval(account)
+                    interval = self._periodic_sync_interval(account)
                     last_sync = self._periodic_last_sync.get(account.id, 0)
                     if last_sync and now - last_sync < interval:
                         continue
-                    folders = await self._get_idle_folders_from_config(account)
-                    seen = set()
-                    for folder in folders:
-                        folder_name = (folder or "").strip()
-                        if not folder_name or folder_name in seen:
-                            continue
-                        seen.add(folder_name)
-                        try:
-                            await sync_recent_folder_to_cache(account, folder_name)
-                            await self.refresh_clients(account.id, folder_name, user_uid=account.user_uid)
-                        except Exception as exc:
-                            logger.debug("periodic sync failed: account=%s folder=%s error=%s", account.email, folder_name, exc)
-                    self._periodic_last_sync[account.id] = time.time()
+                    task = asyncio.create_task(
+                        self._periodic_sync_account(account),
+                        name=f"periodic_sync:{account.id}",
+                    )
+                    self._periodic_account_tasks[account.id] = task
+                    task.add_done_callback(
+                        lambda finished, account_id=account.id: self._remove_periodic_account_task(
+                            account_id,
+                            finished,
+                        )
+                    )
                 await asyncio.sleep(5)
             except asyncio.CancelledError:
                 break
@@ -456,18 +524,24 @@ class MailSyncService:
                 pass
 
     async def suspend_account(self, account_id: str):
-        """暂停单个账号的实时监听，避免与独占同步任务并发冲突。"""
-        self.suspended_account_ids.add(account_id)
-        await self.remove_account(account_id)
+        """引用计数地暂停单个账号实时监听。"""
+        count = self._suspension_counts.get(account_id, 0) + 1
+        self._suspension_counts[account_id] = count
+        if count == 1:
+            await self.remove_account(account_id)
 
     async def resume_account(self, account_id: str):
-        """恢复单个账号的实时监听。"""
-        self.suspended_account_ids.discard(account_id)
-        if self._running:
-            await self.add_account(account_id)
+        """释放一次暂停；最后一个占用者退出后才恢复监听。"""
+        count = self._suspension_counts.get(account_id, 0)
+        if count <= 1:
+            self._suspension_counts.pop(account_id, None)
+            if self._running:
+                await self.add_account(account_id)
+            return
+        self._suspension_counts[account_id] = count - 1
 
     def is_account_suspended(self, account_id: str) -> bool:
-        return account_id in self.suspended_account_ids
+        return self._suspension_counts.get(account_id, 0) > 0
 
     # ==================== IDLE 监听循环 ====================
 
@@ -608,6 +682,79 @@ class MailSyncService:
 
         await self.refresh_clients(account.id, folder, user_uid=account.user_uid)
 
+    async def _ensure_poll_connections(
+        self,
+        account,
+        folders: list[str],
+        connections: dict,
+        poll_manager,
+        poll_config: dict,
+    ) -> dict:
+        """Keep live Poll connections and rebuild only missing folders."""
+        for folder in folders:
+            existing = connections.get(folder)
+            if existing is not None and getattr(existing, "connected", False):
+                continue
+            connections.pop(folder, None)
+            try:
+                connections[folder] = await poll_manager.get_or_create(
+                    account.id,
+                    **poll_config,
+                    folder=folder,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "账号 %s 文件夹 %s Poll 连接失败: %s",
+                    account.email,
+                    folder,
+                    exc,
+                )
+        return connections
+
+    async def _scan_non_idle_folders(
+        self,
+        receiver,
+        account,
+        folders: list[str],
+        previous_counts: dict[str, dict[str, int]],
+    ) -> dict[str, dict[str, int]]:
+        """Check all folders with one STATUS batch and process observed changes."""
+        current_counts = await receiver.fetch_folder_counts(folders)
+        if not current_counts:
+            raise ConnectionError("STATUS 轮询未返回文件夹统计")
+
+        next_counts = dict(previous_counts)
+        for folder in folders:
+            current = current_counts.get(folder)
+            if current is None:
+                continue
+            current_total = max(0, int(current.get("total", 0) or 0))
+            current_unread = max(0, int(current.get("unread", 0) or 0))
+            normalized = {"total": current_total, "unread": current_unread}
+            previous = previous_counts.get(folder)
+            next_counts[folder] = normalized
+            if previous is None:
+                continue
+
+            previous_total = max(0, int(previous.get("total", 0) or 0))
+            previous_unread = max(0, int(previous.get("unread", 0) or 0))
+            if current_total > previous_total:
+                await self._handle_new_mail(account, folder)
+                continue
+            if current_total < previous_total or current_unread != previous_unread:
+                try:
+                    from services.mail_cache import sync_folder_to_cache
+
+                    await sync_folder_to_cache(account, folder)
+                    await self.refresh_clients(
+                        account.id,
+                        folder,
+                        user_uid=account.user_uid,
+                    )
+                except Exception as exc:
+                    logger.debug("文件夹 %s 状态同步失败: %s", folder, exc)
+        return next_counts
+
     async def _idle_loop(self, account):
         """单个账号的新邮件监听循环
 
@@ -620,7 +767,6 @@ class MailSyncService:
         use_poll = account.provider in self.POLL_PROVIDERS
         consecutive_failures = 0
         receiver = None  # 网易使用（需要 IMAP ID 命令）
-        poll_conn = None  # Poll provider 使用
 
         while self._running:
             try:
@@ -685,6 +831,8 @@ class MailSyncService:
 
                     # 首次建立所有连接
                     await _ensure_idle_connections()
+                    if not idle_conns:
+                        raise ConnectionError("所有 IDLE 文件夹连接均建立失败")
                     if idle_conns:
                         # 首次启动用 INFO（重要事件），重连后用 DEBUG（避免日志刷屏）
                         if consecutive_failures == 0:
@@ -763,22 +911,20 @@ class MailSyncService:
                         if self._running and idle_conns is not None:
                             await _ensure_idle_connections()
 
-                        # 如果所有连接都断了且重建也失败，退出到外层
+                        # 如果所有连接都断了且重建也失败，进入统一退避重连。
                         if not idle_conns:
+                            if self._running:
+                                raise ConnectionError("所有 IDLE 文件夹连接均已断开")
                             break
 
                         # 短暂等待避免频繁重连
                         await asyncio.sleep(2)
 
                 elif use_poll:
-                    # Poll provider（iCloud）：通过 poll_manager 异步轮询，不阻塞线程池
-                    if poll_conn is None or not poll_conn.connected:
-                        from services.idle_manager import poll_manager
-                        poll_config = self._get_idle_config(account, credentials)
-                        poll_conn = await poll_manager.get_or_create(account.id, **poll_config)
-                        consecutive_failures = 0
-                        await self.notify_connection_status(account.id, "connected", account.user_uid)
+                    # Poll provider（iCloud）：通过 poll_manager 异步轮询，不阻塞线程池。
+                    from services.idle_manager import poll_manager
 
+                    poll_config = self._get_idle_config(account, credentials)
                     # 动态获取文件夹列表
                     receiver = ProviderFactory.get_receiver(account.provider)
                     await receiver.connect(credentials)
@@ -787,15 +933,17 @@ class MailSyncService:
                     finally:
                         await receiver.disconnect()
 
-                    # 为每个文件夹创建独立的 Poll 连接（并行 Poll，与 IDLE 方案 A 一致）
-                    poll_conns = {}
-                    for folder in idle_folders:
-                        try:
-                            conn = await poll_manager.get_or_create(account.id, **poll_config, folder=folder)
-                            poll_conns[folder] = conn
-                        except Exception as e:
-                            logger.warning("账号 %s 文件夹 %s Poll 连接失败: %s", account.email, folder, e)
+                    # 为每个文件夹创建独立的 Poll 连接（并行 Poll，与 IDLE 方案 A 一致）。
+                    poll_conns = await self._ensure_poll_connections(
+                        account,
+                        idle_folders,
+                        {},
+                        poll_manager,
+                        poll_config,
+                    )
 
+                    if not poll_conns:
+                        raise ConnectionError("所有 Poll 文件夹连接均建立失败")
                     if poll_conns:
                         # 首次启动用 INFO，重连后用 DEBUG（与 IDLE 模式一致）
                         if consecutive_failures == 0:
@@ -860,67 +1008,75 @@ class MailSyncService:
                                     # 其他异常也标记为断开
                                     if folder in poll_conns:
                                         poll_conns[folder].connected = False
-                        # 清理断开的连接
+                        # 清理断开的连接并只补建缺失文件夹。
                         for folder in list(poll_conns.keys()):
                             if not poll_conns[folder].connected:
                                 del poll_conns[folder]
+                        if self._running:
+                            poll_conns = await self._ensure_poll_connections(
+                                account,
+                                idle_folders,
+                                poll_conns,
+                                poll_manager,
+                                poll_config,
+                            )
                         if not poll_conns:
+                            if self._running:
+                                raise ConnectionError("所有 Poll 文件夹连接均已断开")
                             break
-                        # 有部分连接存活时短暂等待后重建断开的连接
                         await asyncio.sleep(5)
 
                 else:
-                    # 网易：使用 imaplib 的 NOOP/STATUS 轮询（需要 IMAP ID 命令）
-                    # 网易使用同步 imaplib，单连接不能并发操作，因此保持串行但缩短轮询周期
+                    # 不支持稳定 IDLE 的邮箱：一次 STATUS 批量扫描全部文件夹，
+                    # 避免每个文件夹分别等待一个完整轮询周期。
                     if receiver is None:
                         receiver = ProviderFactory.get_receiver(account.provider)
                         await receiver.connect(credentials)
-                        consecutive_failures = 0
-                        await self.notify_connection_status(account.id, "connected", account.user_uid)
 
                     idle_folders = await self._get_idle_folders(receiver, account)
-                    # 首次启动用 INFO，重连后用 DEBUG（与 IDLE/Poll 模式一致）
+                    folder_counts = await receiver.fetch_folder_counts(idle_folders)
+                    if not folder_counts:
+                        raise ConnectionError("STATUS 轮询初始化失败")
                     if consecutive_failures == 0:
-                        logger.info("账号 %s 新邮件监听已启动 (NOOP x%d): %s",
-                                   account.email, len(idle_folders), idle_folders)
+                        logger.info(
+                            "账号 %s 新邮件监听已启动 (STATUS x%d): %s",
+                            account.email,
+                            len(idle_folders),
+                            idle_folders,
+                        )
                     else:
-                        logger.debug("账号 %s NOOP 连接已就绪 (x%d)", account.email, len(idle_folders))
+                        logger.debug(
+                            "账号 %s STATUS 连接已就绪 (x%d)",
+                            account.email,
+                            len(idle_folders),
+                        )
+                    consecutive_failures = 0
+                    await self.notify_connection_status(account.id, "connected", account.user_uid)
 
                     while self._running:
-                        for folder in idle_folders:
-                            if not self._running:
-                                break
-                            # 网易单连接串行轮询，使用短超时（10秒）快速轮转所有文件夹
-                            event = await receiver.idle_wait(folder, self._poll_interval(account))
-                            if event == "new_mail":
-                                await self._handle_new_mail(account, folder)
-                            elif event == "expunge":
-                                # 邮件数量减少，触发缓存清理 + 前端刷新
-                                try:
-                                    from services.mail_cache import sync_folder_to_cache
-                                    await sync_folder_to_cache(account, folder)
-                                    await self.refresh_clients(account.id, folder, user_uid=account.user_uid)
-                                except Exception as e:
-                                    logger.debug("文件夹 %s 缓存同步失败: %s", folder, e)
-                            else:
-                                await self._check_receiver_alive(receiver)
+                        await asyncio.sleep(self._poll_interval(account))
+                        folder_counts = await self._scan_non_idle_folders(
+                            receiver,
+                            account,
+                            idle_folders,
+                            folder_counts,
+                        )
 
             except asyncio.CancelledError:
                 await self.notify_connection_status(account.id, "disconnected", account.user_uid)
                 break
             except Exception as e:
-                # 连接异常，清理连接对象，下次循环重建
+                # 连接异常，所有 Provider 统一累计失败次数并进入同一退避策略。
+                consecutive_failures += 1
                 logger.error("账号 %s 监听异常: %s", account.email, e)
                 if use_idle:
                     # 清理该账号的所有 IDLE 连接
                     from services.idle_manager import idle_manager
                     await idle_manager.remove(account.id)
                 elif use_poll:
-                    # 清理该账号的所有 Poll 连接（与 IDLE 模式保持一致）
-                    # 旧代码只清理 poll_conn，poll_conns 中的其他连接会泄漏
+                    # 清理该账号的所有 Poll 连接（与 IDLE 模式保持一致）。
                     from services.idle_manager import poll_manager
                     await poll_manager.remove(account.id)
-                    poll_conn = None
                 else:
                     if receiver:
                         try:
@@ -928,7 +1084,6 @@ class MailSyncService:
                         except Exception as ex:
                             logger.debug("断开 receiver 连接失败: %s", ex)
                     receiver = None
-                    consecutive_failures += 1
                 await self.notify_connection_status(account.id, "error", account.user_uid, error=str(e))
 
                 # 连续失败超过 20 次（约 2 小时），进入长休眠 30 分钟
@@ -1001,11 +1156,11 @@ class MailSyncService:
                     if consecutive_failures <= self.INITIAL_FAST_RETRIES:
                         delay = self.INITIAL_RECONNECT_DELAY
                     else:
-                        # 指数退避：5 * 2^(n-1)，上限 MAX_RECONNECT_DELAY
-                        # 第4次=10s, 第5次=20s, 第6次=40s, 第7次=80s, 第8次=160s, 第9次+=300s
+                        # 第4次=10s, 第5次=20s, 第6次=40s，之后上限 300s。
                         delay = min(
-                            self.INITIAL_RECONNECT_DELAY * (2 ** (consecutive_failures - 1)),
-                            self.MAX_RECONNECT_DELAY
+                            self.INITIAL_RECONNECT_DELAY
+                            * (2 ** (consecutive_failures - self.INITIAL_FAST_RETRIES)),
+                            self.MAX_RECONNECT_DELAY,
                         )
 
                     # "authenticated but not connected" 状态错乱：强制断开旧连接
@@ -1117,14 +1272,6 @@ class MailSyncService:
             "icloud": ["INBOX", "Sent Messages", "Drafts", "Junk", "Deleted Messages"],
         }
         return folder_map.get(account.provider, ["INBOX"])
-
-    async def _check_receiver_alive(self, receiver):
-        """检查 IMAP 连接是否仍可用；不可用时抛异常，让外层循环重连。
-
-        仅用于网易（需要 IMAP ID 命令，使用 imaplib receiver）。
-        """
-        await receiver.idle_wait("INBOX", 1)
-
 
 # 全局同步服务实例
 sync_service = MailSyncService()

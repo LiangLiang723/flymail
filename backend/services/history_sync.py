@@ -4,6 +4,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
+from typing import Awaitable, Callable
 from urllib.parse import urlencode
 
 from data_paths import (
@@ -22,6 +23,8 @@ from db import (
     get_cached_message_detail,
     get_account_by_id,
     get_cached_uids,
+    get_existing_cached_uids,
+    list_cached_read_states,
     get_history_sync_job,
     get_history_sync_job_by_id,
     list_cached_messages_needing_body_check,
@@ -45,6 +48,7 @@ from services.attachment_cache import (
     resolve_cached_attachment_path,
 )
 from services.sync import sync_service
+from services.sync_coordinator import sync_coordinator
 from services.token import ensure_token
 from utils.logger import get_logger
 from utils.tasks import create_background_task
@@ -53,6 +57,7 @@ logger = get_logger("history_sync")
 RECENT_SYNC_PAGE_SIZE = 50
 BODY_CHECK_BATCH_SIZE = 100
 HISTORY_SYNC_HEARTBEAT_SECONDS = 30
+BODY_FILL_RETRY_DELAYS = (2, 5, 10)
 
 
 def _strip_cid(content_id: str) -> str:
@@ -154,6 +159,16 @@ async def _heartbeat_history_sync_job(
                     return
             except Exception as exc:
                 logger.debug("history sync heartbeat failed: job=%s error=%s", job_id, exc)
+
+
+async def _notify_history_sync_update(account) -> None:
+    notifier = getattr(sync_service, "notify_history_sync_updated", None)
+    if notifier is None:
+        return
+    try:
+        await notifier(account.id, account.user_uid)
+    except Exception as exc:
+        logger.debug("history sync websocket notify failed: account=%s error=%s", account.email, exc)
 
 
 async def schedule_history_sync(account_id: str) -> bool:
@@ -397,7 +412,12 @@ async def run_clear_cache(account_id: str) -> None:
     }
     await create_history_sync_job(job)
 
+    exclusive_context = sync_coordinator.exclusive(account.id)
+    await exclusive_context.__aenter__()
+    suspended = False
     try:
+        await sync_service.suspend_account(account.id)
+        suspended = True
         await update_history_sync_job(job_id, status="running")
 
         total_messages, _deleted_attachments = await clear_account_cache_and_release(account.id)
@@ -456,6 +476,10 @@ async def run_clear_cache(account_id: str) -> None:
             error_message=str(exc),
             finished_at=time.time(),
         )
+    finally:
+        await exclusive_context.__aexit__(None, None, None)
+        if suspended:
+            await sync_service.resume_account(account.id)
 
 
 async def run_delete_account(account_id: str) -> None:
@@ -490,6 +514,8 @@ async def run_delete_account(account_id: str) -> None:
         }
     )
 
+    exclusive_context = sync_coordinator.exclusive(account.id)
+    await exclusive_context.__aenter__()
     try:
         await update_history_sync_job(job_id, status="running")
         await sync_service.remove_account(account.id)
@@ -532,6 +558,8 @@ async def run_delete_account(account_id: str) -> None:
             error_message=str(exc),
             finished_at=time.time(),
         )
+    finally:
+        await exclusive_context.__aexit__(None, None, None)
 
 
 async def run_folder_clear_cache(account_id: str, folder_name: str, job_type: str) -> None:
@@ -562,7 +590,12 @@ async def run_folder_clear_cache(account_id: str, folder_name: str, job_type: st
             "finished_at": 0,
         }
     )
+    exclusive_context = sync_coordinator.exclusive(account.id)
+    await exclusive_context.__aenter__()
+    suspended = False
     try:
+        await sync_service.suspend_account(account.id)
+        suspended = True
         await update_history_sync_job(job_id, status="running")
         deleted = 0
         for index in range(0, len(uid_list), 100):
@@ -589,6 +622,10 @@ async def run_folder_clear_cache(account_id: str, folder_name: str, job_type: st
             error_message=str(exc),
             finished_at=time.time(),
         )
+    finally:
+        await exclusive_context.__aexit__(None, None, None)
+        if suspended:
+            await sync_service.resume_account(account.id)
 
 
 async def _cache_message_assets(receiver, account, folder_name: str, detail) -> tuple[str, str, int, int]:
@@ -730,8 +767,16 @@ async def _cache_message_detail(receiver, account, folder_name: str, message, un
     return 1, att_count, inline_count
 
 
+async def _history_existing_page_uids(account_id: str, folder_name: str, uids: list[int]) -> set[int]:
+    if not callable(get_existing_cached_uids):
+        return await get_cached_uids(account_id, folder_name)
+    result = await get_existing_cached_uids(account_id, folder_name, uids)
+    if isinstance(result, (set, list, tuple)):
+        return {int(uid) for uid in result}
+    return await get_cached_uids(account_id, folder_name)
+
+
 async def _sync_recent_uncached_messages(receiver, account, folder_name: str, unseen_uids: set[int] | None) -> tuple[int, int, int]:
-    cached_uids = await get_cached_uids(account.id, folder_name)
     page = 1
     fetched = 0
     downloaded_attachments = 0
@@ -744,6 +789,8 @@ async def _sync_recent_uncached_messages(receiver, account, folder_name: str, un
         if not result.messages:
             break
 
+        page_uids = [message.uid for message in result.messages if message.uid > 0]
+        cached_uids = await _history_existing_page_uids(account.id, folder_name, page_uids)
         new_messages, reached_cached = _select_uncached_recent_messages(result.messages, cached_uids)
         for message in new_messages:
             count, att_count, inline_count = await _cache_message_detail(receiver, account, folder_name, message, unseen_uids)
@@ -767,10 +814,14 @@ async def _fill_unchecked_message_bodies(
     folder_name: str,
     unseen_uids: set[int] | None,
     include_checked_empty: bool = True,
+    should_stop: Callable[[], Awaitable[bool]] | None = None,
+    on_batch: Callable[[int], Awaitable[None]] | None = None,
 ) -> tuple[int, int]:
     downloaded_attachments = 0
     downloaded_inline_images = 0
     while True:
+        if should_stop is not None and await should_stop():
+            break
         rows = await list_cached_messages_needing_body_check(
             account.id,
             folder_name,
@@ -794,6 +845,10 @@ async def _fill_unchecked_message_bodies(
                 logger.debug("history sync body fill failed: account=%s folder=%s uid=%s error=%s", account.email, folder_name, uid, exc)
         await mark_cached_messages_body_checked(account.id, folder_name, checked_uids)
         await mark_cached_messages_empty_body_checked(account.id, folder_name, checked_uids)
+        if on_batch is not None:
+            await on_batch(len(checked_uids))
+        if should_stop is not None and await should_stop():
+            break
         if not checked_uids:
             break
     return downloaded_attachments, downloaded_inline_images
@@ -816,12 +871,35 @@ async def _sync_cached_read_state(receiver, account, folder_name: str, unseen_ui
         except Exception as exc:
             logger.debug("history sync read state skipped: account=%s folder=%s error=%s", account.email, folder_name, exc)
             return 0
-    cached_uids = sorted(await get_cached_uids(account.id, folder_name))
+
     updated = 0
-    for i in range(0, len(cached_uids), 1000):
-        batch = cached_uids[i:i + 1000]
-        updates = [(uid, 0 if uid in unseen_uids else 1) for uid in batch]
-        updated += await batch_update_is_read(account.id, folder_name, updates)
+    after_uid = 0
+    while True:
+        rows = (
+            await list_cached_read_states(
+                account.id,
+                folder_name,
+                after_uid=after_uid,
+                limit=1000,
+            )
+            if callable(list_cached_read_states)
+            else None
+        )
+        if not isinstance(rows, list):
+            cached_uids = sorted(await get_cached_uids(account.id, folder_name))
+            rows = [{"uid": uid, "is_read": 0} for uid in cached_uids if uid > after_uid][:1000]
+        if not rows:
+            break
+        updates = [
+            (int(row["uid"]), 0 if int(row["uid"]) in unseen_uids else 1)
+            for row in rows
+            if int(row.get("uid", 0) or 0) > 0
+        ]
+        if updates:
+            updated += await batch_update_is_read(account.id, folder_name, updates)
+        after_uid = max(int(row.get("uid", 0) or 0) for row in rows)
+        if len(rows) < 1000:
+            break
     return updated
 
 
@@ -877,6 +955,8 @@ async def run_history_sync(
         name=f"history_sync_heartbeat:{job_id}",
     )
 
+    exclusive_context = sync_coordinator.exclusive(account.id)
+    await exclusive_context.__aenter__()
     try:
         await sync_service.suspend_account(account.id)
         credentials = await ensure_token(account)
@@ -907,6 +987,7 @@ async def run_history_sync(
             error_message="",
             finished_at=0,
         )
+        await _notify_history_sync_update(account)
 
         fetched_messages = int(job.get("fetched_messages", 0) or 0)
         downloaded_attachments = int(job.get("downloaded_attachments", 0) or 0)
@@ -951,6 +1032,7 @@ async def run_history_sync(
                 downloaded_attachments=downloaded_attachments,
                 downloaded_inline_images=downloaded_inline_images,
             )
+            await _notify_history_sync_update(account)
             fetched_delta, att_delta, inline_delta = await _sync_recent_uncached_messages(
                 receiver, account, folder_name, unseen_uids
             )
@@ -975,22 +1057,39 @@ async def run_history_sync(
                 downloaded_attachments=downloaded_attachments,
                 downloaded_inline_images=downloaded_inline_images,
             )
-            att_delta, inline_delta = await _fill_unchecked_message_bodies(
-                receiver, account, folder_name, unseen_uids
-            )
-            downloaded_attachments += att_delta
-            downloaded_inline_images += inline_delta
-            if await _has_unchecked_message_bodies(account, folder_name):
+            await _notify_history_sync_update(account)
+
+            async def _body_batch_progress(_processed: int) -> None:
                 await update_history_sync_job(
                     job_id,
-                    status="pending",
                     current_folder=folder_name,
                     current_page=2,
                     fetched_messages=fetched_messages,
                     downloaded_attachments=downloaded_attachments,
                     downloaded_inline_images=downloaded_inline_images,
                 )
-                return
+                await _notify_history_sync_update(account)
+
+            for retry_index in range(len(BODY_FILL_RETRY_DELAYS) + 1):
+                att_delta, inline_delta = await _fill_unchecked_message_bodies(
+                    receiver,
+                    account,
+                    folder_name,
+                    unseen_uids,
+                    should_stop=lambda: _is_paused(job_id),
+                    on_batch=_body_batch_progress,
+                )
+                downloaded_attachments += att_delta
+                downloaded_inline_images += inline_delta
+                if await _is_paused(job_id):
+                    return
+                if not await _has_unchecked_message_bodies(account, folder_name):
+                    break
+                if retry_index >= len(BODY_FILL_RETRY_DELAYS):
+                    raise RuntimeError(
+                        f"正文补全连续无进度，文件夹 {folder_name} 已保留断点，请重试"
+                    )
+                await asyncio.sleep(BODY_FILL_RETRY_DELAYS[retry_index])
             await update_history_sync_job(
                 job_id,
                 current_folder=folder_name,
@@ -999,6 +1098,7 @@ async def run_history_sync(
                 downloaded_attachments=downloaded_attachments,
                 downloaded_inline_images=downloaded_inline_images,
             )
+            await _notify_history_sync_update(account)
             await _sync_cached_read_state(receiver, account, folder_name, unseen_uids)
 
             await update_history_sync_job(
@@ -1011,6 +1111,7 @@ async def run_history_sync(
                 downloaded_attachments=downloaded_attachments,
                 downloaded_inline_images=downloaded_inline_images,
             )
+            await _notify_history_sync_update(account)
             current_folder_name = ""
 
         await update_history_sync_job(
@@ -1025,6 +1126,7 @@ async def run_history_sync(
             current_uid=0,
             finished_at=time.time(),
         )
+        await _notify_history_sync_update(account)
     except Exception as exc:
         logger.warning("history sync failed for %s: %s", account.email, exc)
         await update_history_sync_job(
@@ -1033,6 +1135,7 @@ async def run_history_sync(
             error_message=str(exc),
             finished_at=time.time(),
         )
+        await _notify_history_sync_update(account)
     finally:
         if heartbeat_stop is not None:
             heartbeat_stop.set()
@@ -1046,6 +1149,7 @@ async def run_history_sync(
                 await receiver.disconnect()
             except Exception:
                 pass
+        await exclusive_context.__aexit__(None, None, None)
         try:
             await sync_service.resume_account(account.id)
         except Exception as exc:

@@ -22,6 +22,8 @@ def _load_mail_cache_module():
         "get_cached_message_detail",
         "get_cached_messages_by_folder",
         "get_cached_uids",
+        "get_existing_cached_uids",
+        "list_cached_read_states",
         "get_folder_stats",
         "get_max_cached_uid",
         "purge_deleted_from_cache",
@@ -48,6 +50,9 @@ def _load_mail_cache_module():
     history_stub = types.ModuleType("services.history_sync")
     history_stub._cache_message_assets = object()
 
+    coordinator_stub = types.ModuleType("services.sync_coordinator")
+    coordinator_stub.sync_coordinator = object()
+
     logger_stub = types.ModuleType("utils.logger")
     logger_stub.get_logger = lambda name: types.SimpleNamespace(
         debug=lambda *args, **kwargs: None,
@@ -65,6 +70,7 @@ def _load_mail_cache_module():
             "providers.factory",
             "services.attachment_cache",
             "services.history_sync",
+            "services.sync_coordinator",
             "utils.logger",
         )
     }
@@ -76,6 +82,7 @@ def _load_mail_cache_module():
             "providers.factory": factory_stub,
             "services.attachment_cache": attachment_cache_stub,
             "services.history_sync": history_stub,
+            "services.sync_coordinator": coordinator_stub,
             "utils.logger": logger_stub,
         }
     )

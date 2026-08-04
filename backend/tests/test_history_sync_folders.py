@@ -4,8 +4,9 @@ import sys
 import tempfile
 import types
 import unittest
+from contextlib import asynccontextmanager
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from providers.base import Attachment, Message
 
@@ -23,6 +24,8 @@ def _load_history_sync_module():
         "get_cached_message_detail",
         "get_account_by_id",
         "get_cached_uids",
+        "get_existing_cached_uids",
+        "list_cached_read_states",
         "get_history_sync_job",
         "get_history_sync_job_by_id",
         "list_cached_attachments",
@@ -60,6 +63,9 @@ def _load_history_sync_module():
     attachment_cache_stub.clear_account_cache_and_release = AsyncMock(return_value=(0, 0))
     attachment_cache_stub.resolve_cached_attachment_path = AsyncMock(return_value=None)
 
+    account_icons_stub = types.ModuleType("services.account_icons")
+    account_icons_stub.delete_account_icon = lambda *args, **kwargs: None
+
     sync_stub = types.ModuleType("services.sync")
     sync_stub.sync_service = object()
 
@@ -84,6 +90,7 @@ def _load_history_sync_module():
             "data_paths",
             "providers.factory",
             "services.attachment_cache",
+            "services.account_icons",
             "services.sync",
             "services.token",
             "utils.logger",
@@ -96,6 +103,7 @@ def _load_history_sync_module():
             "data_paths": data_paths_stub,
             "providers.factory": factory_stub,
             "services.attachment_cache": attachment_cache_stub,
+            "services.account_icons": account_icons_stub,
             "services.sync": sync_stub,
             "services.token": token_stub,
             "utils.logger": logger_stub,
@@ -258,6 +266,59 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(attachment_count, 0)
         self.assertEqual(inline_count, 1)
 
+    async def test_recent_stage_queries_only_current_page_uids(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        receiver.fetch_messages.return_value = types.SimpleNamespace(
+            messages=[
+                types.SimpleNamespace(uid=105, date="2026-07-03", is_read=False),
+                types.SimpleNamespace(uid=104, date="2026-07-03", is_read=False),
+                types.SimpleNamespace(uid=103, date="2026-07-03", is_read=False),
+            ],
+            total=6,
+            unread_total=0,
+            page_size=50,
+        )
+        existing = AsyncMock(return_value={103})
+
+        with (
+            patch.object(history_sync, "get_existing_cached_uids", existing),
+            patch.object(history_sync, "get_cached_uids", AsyncMock(side_effect=AssertionError("full UID scan"))),
+            patch.object(history_sync, "upsert_folder_stats", AsyncMock()),
+            patch.object(history_sync, "_cache_message_detail", AsyncMock(return_value=(1, 0, 0))),
+        ):
+            fetched, _att, _inline = await history_sync._sync_recent_uncached_messages(
+                receiver, account, "INBOX", set()
+            )
+
+        self.assertEqual(fetched, 2)
+        existing.assert_awaited_once_with("account-1", "INBOX", [105, 104, 103])
+
+    async def test_cached_read_state_uses_uid_pages(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        first_page = [{"uid": uid, "is_read": 0} for uid in range(1, 1001)]
+        second_page = [{"uid": 1001, "is_read": 0}]
+        list_states = AsyncMock(side_effect=[first_page, second_page])
+        batch_update = AsyncMock(return_value=0)
+
+        with (
+            patch.object(history_sync, "list_cached_read_states", list_states),
+            patch.object(history_sync, "batch_update_is_read", batch_update),
+        ):
+            await history_sync._sync_cached_read_state(
+                receiver,
+                account,
+                "INBOX",
+                {2, 1001},
+            )
+
+        self.assertEqual(list_states.await_args_list[0].kwargs, {"after_uid": 0, "limit": 1000})
+        self.assertEqual(list_states.await_args_list[1].kwargs, {"after_uid": 1000, "limit": 1000})
+        self.assertEqual(batch_update.await_count, 2)
+
     async def test_recent_stage_stops_after_cached_message(self):
         history_sync = _load_history_sync_module()
         account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
@@ -343,7 +404,68 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(list_needing.await_args_list[0].kwargs["include_checked_empty"])
 
-    async def test_history_sync_sets_pending_when_body_fill_has_more_work(self):
+    async def test_body_fill_checks_pause_and_reports_each_completed_batch(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        receiver = AsyncMock()
+        should_stop = AsyncMock(side_effect=[False, True])
+        on_batch = AsyncMock()
+
+        with (
+            patch.object(
+                history_sync,
+                "list_cached_messages_needing_body_check",
+                AsyncMock(return_value=[{"uid": 101, "date": "2026-07-03"}]),
+            ),
+            patch.object(history_sync, "_cache_message_detail", AsyncMock(return_value=(1, 0, 0))),
+            patch.object(history_sync, "mark_cached_messages_body_checked", AsyncMock()),
+            patch.object(history_sync, "mark_cached_messages_empty_body_checked", AsyncMock()),
+        ):
+            await history_sync._fill_unchecked_message_bodies(
+                receiver,
+                account,
+                "INBOX",
+                set(),
+                should_stop=should_stop,
+                on_batch=on_batch,
+            )
+
+        on_batch.assert_awaited_once()
+        self.assertEqual(should_stop.await_count, 2)
+
+    async def test_clear_cache_uses_exclusive_account_coordination(self):
+        history_sync = _load_history_sync_module()
+        account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com")
+        events = []
+
+        @asynccontextmanager
+        async def exclusive(_account_id):
+            events.append("exclusive-enter")
+            yield True
+            events.append("exclusive-exit")
+
+        coordinator = types.SimpleNamespace(exclusive=Mock(side_effect=exclusive))
+        sync_service = types.SimpleNamespace(
+            suspend_account=AsyncMock(side_effect=lambda _account_id: events.append("suspend")),
+            resume_account=AsyncMock(side_effect=lambda _account_id: events.append("resume")),
+        )
+        with (
+            patch.object(history_sync, "get_account_by_id", AsyncMock(return_value=account)),
+            patch.object(history_sync, "_account_local_cache_files", AsyncMock(return_value=[])),
+            patch.object(history_sync, "create_history_sync_job", AsyncMock()),
+            patch.object(history_sync, "update_history_sync_job", AsyncMock()),
+            patch.object(history_sync, "clear_account_cache_and_release", AsyncMock(return_value=(0, 0))),
+            patch.object(history_sync, "delete_folder_stats_by_account", AsyncMock()),
+            patch.object(history_sync, "get_history_sync_job", AsyncMock(return_value=None)),
+            patch.object(history_sync, "sync_coordinator", coordinator),
+            patch.object(history_sync, "sync_service", sync_service),
+        ):
+            await history_sync.run_clear_cache("account-1")
+
+        coordinator.exclusive.assert_called_once_with("account-1")
+        self.assertEqual(events, ["exclusive-enter", "suspend", "exclusive-exit", "resume"])
+
+    async def test_history_sync_fails_after_limited_body_fill_retries_without_progress(self):
         history_sync = _load_history_sync_module()
         account = types.SimpleNamespace(id="account-1", user_uid="user-1", email="a@example.com", provider="qq")
         job = {"id": "job-1", "status": "running", "fetched_messages": 0}
@@ -352,26 +474,44 @@ class HistorySyncFastRefreshTest(unittest.IsolatedAsyncioTestCase):
         receiver.fetch_folders.return_value = [folder]
         receiver.fetch_unseen_uids.return_value = []
         updates = []
+        delays = []
 
         async def update_job(_job_id, **kwargs):
             updates.append(kwargs)
 
+        async def fake_sleep(delay):
+            delays.append(delay)
+
+        sync_service = types.SimpleNamespace(
+            suspend_account=AsyncMock(),
+            resume_account=AsyncMock(),
+            notify_history_sync_updated=AsyncMock(),
+        )
+        fill_bodies = AsyncMock(return_value=(0, 0))
         with (
             patch.object(history_sync, "get_account_by_id", AsyncMock(return_value=account)),
             patch.object(history_sync, "get_history_sync_job_by_id", AsyncMock(return_value=job)),
-            patch.object(history_sync, "sync_service", types.SimpleNamespace(suspend_account=AsyncMock())),
+            patch.object(history_sync, "sync_service", sync_service),
             patch.object(history_sync, "ensure_token", AsyncMock(return_value=object())),
             patch.object(history_sync, "ProviderFactory", types.SimpleNamespace(get_receiver=lambda _provider: receiver)),
             patch.object(history_sync, "update_history_sync_job", AsyncMock(side_effect=update_job)),
             patch.object(history_sync, "get_cached_count", AsyncMock(return_value=0)),
             patch.object(history_sync, "_is_paused", AsyncMock(return_value=False)),
             patch.object(history_sync, "_sync_recent_uncached_messages", AsyncMock(return_value=(0, 0, 0))),
-            patch.object(history_sync, "_fill_unchecked_message_bodies", AsyncMock(return_value=(0, 0))),
+            patch.object(history_sync, "_fill_unchecked_message_bodies", fill_bodies),
             patch.object(history_sync, "_has_unchecked_message_bodies", AsyncMock(return_value=True)),
+            patch.object(history_sync, "_heartbeat_history_sync_job", AsyncMock()),
+            patch.object(history_sync.asyncio, "sleep", AsyncMock(side_effect=fake_sleep)),
         ):
             await history_sync.run_history_sync("account-1", "job-1")
 
-        self.assertTrue(any(update.get("status") == "pending" and update.get("current_page") == 2 for update in updates))
+        self.assertEqual(fill_bodies.await_count, 4)
+        self.assertEqual(delays, [2, 5, 10])
+        failed_update = next(update for update in updates if update.get("status") == "failed")
+        self.assertIn("正文补全连续无进度", failed_update["error_message"])
+        self.assertFalse(any(update.get("status") == "pending" for update in updates))
+        sync_service.suspend_account.assert_awaited_once_with("account-1")
+        sync_service.resume_account.assert_awaited_once_with("account-1")
 
 
 if __name__ == "__main__":

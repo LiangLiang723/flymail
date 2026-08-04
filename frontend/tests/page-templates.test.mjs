@@ -70,6 +70,15 @@ test('history sync distinguishes summary progress, active phase and failure time
   assert.match(source, /正在补全正文和附件/);
   assert.match(source, /body_checked_count/);
   assert.match(source, /正文.*\/.*body_total_count/s);
+  assert.match(source, /history_sync_updated/);
+  assert.match(source, /15000/);
+});
+
+test('account polling help explains provider-aware refresh rules', async () => {
+  const source = await read('src/views/AccountList.vue');
+
+  assert.match(source, /非 IDLE 邮箱实时检查间隔/);
+  assert.match(source, /完整兜底同步最低每 3 分钟/);
 });
 
 test('management pages use the management template and shared header', async () => {

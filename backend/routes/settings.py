@@ -19,6 +19,8 @@ from db import (
     folder_key_for_path,
     get_history_sync_job,
     list_account_folder_counts,
+    list_cached_counts_by_account,
+    list_folder_stats_by_account,
     list_history_sync_jobs,
     get_user_settings,
     set_user_settings,
@@ -190,9 +192,18 @@ def _disabled_account_response() -> dict:
     return {"success": False, "message": ACCOUNT_DISABLED_MESSAGE, "code": "account_disabled"}
 
 
-async def _build_folder_progress(account_id: str, body_progress_folder: str = "") -> list[dict]:
+async def _build_folder_progress(
+    account_id: str,
+    body_progress_folder: str = "",
+    *,
+    count_rows: list[dict] | None = None,
+    folder_stats_by_key: dict[str, dict] | None = None,
+    cached_counts_by_key: dict[str, int] | None = None,
+    jobs_by_type: dict[str, dict] | None = None,
+) -> list[dict]:
     items = []
-    count_rows = await list_account_folder_counts(account_id)
+    if count_rows is None:
+        count_rows = await list_account_folder_counts(account_id)
     active_body_progress = {"total_count": 0, "checked_count": 0, "remaining_count": 0}
     body_progress_key = ""
     if body_progress_folder:
@@ -216,9 +227,16 @@ async def _build_folder_progress(account_id: str, body_progress_folder: str = ""
     )
 
     for folder_key, label, summary in progress_folders:
-        folder_stats = await get_folder_stats(account_id, folder_key)
-        cached_count = await get_cached_count(account_id, folder_key)
         item_path = (summary or {}).get("folder_path") or folder_key
+        canonical_key = folder_key_for_path(item_path)
+        if folder_stats_by_key is None:
+            folder_stats = await get_folder_stats(account_id, folder_key)
+        else:
+            folder_stats = folder_stats_by_key.get(canonical_key, {})
+        if cached_counts_by_key is None:
+            cached_count = await get_cached_count(account_id, folder_key)
+        else:
+            cached_count = int(cached_counts_by_key.get(canonical_key, 0) or 0)
         body_progress = (
             active_body_progress
             if body_progress_key and folder_key_for_path(item_path) == body_progress_key
@@ -226,8 +244,12 @@ async def _build_folder_progress(account_id: str, body_progress_folder: str = ""
         )
         synced_count = int((summary or {}).get("cached_count", 0) or 0)
         synced_count = max(synced_count, cached_count)
-        sync_job = await get_history_sync_job(account_id, job_type=f"folder_sync:{folder_key}")
-        clear_job = await get_history_sync_job(account_id, job_type=f"folder_clear:{folder_key}")
+        if jobs_by_type is None:
+            sync_job = await get_history_sync_job(account_id, job_type=f"folder_sync:{folder_key}")
+            clear_job = await get_history_sync_job(account_id, job_type=f"folder_clear:{folder_key}")
+        else:
+            sync_job = jobs_by_type.get(f"folder_sync:{folder_key}")
+            clear_job = jobs_by_type.get(f"folder_clear:{folder_key}")
         total_count = max(
             int(folder_stats.get("total_count", 0) or 0),
             int((summary or {}).get("total_count", 0) or 0),
@@ -257,6 +279,58 @@ async def _build_folder_progress(account_id: str, body_progress_folder: str = ""
             }
         )
     return items
+
+
+def _folder_stats_by_key(rows: list[dict]) -> dict[str, dict]:
+    result: dict[str, dict] = {}
+    for row in rows:
+        key = folder_key_for_path(row.get("folder") or "")
+        current = result.get(key)
+        if current is None:
+            result[key] = dict(row)
+            continue
+        result[key] = {
+            "folder": current.get("folder") or row.get("folder") or "",
+            "total_count": max(
+                int(current.get("total_count", 0) or 0),
+                int(row.get("total_count", 0) or 0),
+            ),
+            "unread_count": max(
+                int(current.get("unread_count", 0) or 0),
+                int(row.get("unread_count", 0) or 0),
+            ),
+            "updated_at": max(
+                float(current.get("updated_at", 0) or 0),
+                float(row.get("updated_at", 0) or 0),
+            ),
+        }
+    return result
+
+
+async def _build_account_folder_progress(
+    account_id: str,
+    body_progress_folder: str,
+    account_jobs: list[dict],
+) -> list[dict]:
+    count_rows, folder_stats_rows, cached_counts = await asyncio.gather(
+        list_account_folder_counts(account_id),
+        list_folder_stats_by_account(account_id),
+        list_cached_counts_by_account(account_id),
+    )
+    jobs_by_type = {
+        str(job.get("job_type") or ""): job
+        for job in account_jobs
+        if job.get("job_type")
+    }
+    return await _build_folder_progress(
+        account_id,
+        body_progress_folder=body_progress_folder,
+        count_rows=count_rows,
+        folder_stats_by_key=_folder_stats_by_key(folder_stats_rows),
+        cached_counts_by_key=cached_counts,
+        jobs_by_type=jobs_by_type,
+    )
+
 
 def _body_progress_folder(job: dict | None) -> str:
     if not job or job.get("status") not in {"pending", "running", "paused"}:
@@ -293,6 +367,15 @@ def _latest_job_by_account(jobs: list[dict], job_type: str) -> dict[str, dict]:
             continue
         if job["account_id"] not in result:
             result[job["account_id"]] = job
+    return result
+
+
+def _jobs_grouped_by_account(jobs: list[dict]) -> dict[str, list[dict]]:
+    result: dict[str, list[dict]] = {}
+    for job in jobs:
+        account_id = str(job.get("account_id") or "")
+        if account_id:
+            result.setdefault(account_id, []).append(job)
     return result
 
 
@@ -559,13 +642,15 @@ async def get_history_sync_jobs(request: Request):
     jobs = await list_history_sync_jobs(uid)
     history_by_account = _latest_job_by_account(jobs, "history_sync")
     clear_by_account = _latest_job_by_account(jobs, "clear_cache")
+    jobs_by_account = _jobs_grouped_by_account(jobs)
 
     items = []
     for account in accounts:
         raw_history_job = history_by_account.get(account.id)
-        folder_progress = await _build_folder_progress(
+        folder_progress = await _build_account_folder_progress(
             account.id,
-            body_progress_folder=_body_progress_folder(raw_history_job),
+            _body_progress_folder(raw_history_job),
+            jobs_by_account.get(account.id, []),
         )
         history_job = _visible_history_job(raw_history_job, folder_progress)
         clear_job = clear_by_account.get(account.id)
@@ -592,13 +677,17 @@ async def get_history_sync_job_detail(account_id: str, request: Request):
     account = next((item for item in accounts if item.id == account_id), None)
     if not account:
         return {"job": None, "clear_job": None}
-    raw_job = await get_history_sync_job(account_id, job_type="history_sync")
-    folder_progress = await _build_folder_progress(
+    jobs = await list_history_sync_jobs(uid)
+    account_jobs = _jobs_grouped_by_account(jobs).get(account.id, [])
+    jobs_by_type = {str(item.get("job_type") or ""): item for item in account_jobs}
+    raw_job = jobs_by_type.get("history_sync")
+    folder_progress = await _build_account_folder_progress(
         account.id,
-        body_progress_folder=_body_progress_folder(raw_job),
+        _body_progress_folder(raw_job),
+        account_jobs,
     )
     job = _visible_history_job(raw_job, folder_progress)
-    clear_job = await get_history_sync_job(account_id, job_type="clear_cache")
+    clear_job = jobs_by_type.get("clear_cache")
     return {
         "job": job,
         "clear_job": clear_job,
@@ -620,12 +709,18 @@ async def refresh_history_sync_job_status(account_id: str, request: Request):
     if not account:
         return {"success": False, "message": "account_not_found"}
     raw_job = await refresh_history_sync_job(account_id)
-    folder_progress = await _build_folder_progress(
+    jobs = await list_history_sync_jobs(uid)
+    account_jobs = _jobs_grouped_by_account(jobs).get(account.id, [])
+    folder_progress = await _build_account_folder_progress(
         account.id,
-        body_progress_folder=_body_progress_folder(raw_job),
+        _body_progress_folder(raw_job),
+        account_jobs,
     )
     job = _visible_history_job(raw_job, folder_progress)
-    clear_job = await get_history_sync_job(account_id, job_type="clear_cache")
+    clear_job = next(
+        (item for item in account_jobs if item.get("job_type") == "clear_cache"),
+        None,
+    )
     return {
         "success": True,
         "job": job,
