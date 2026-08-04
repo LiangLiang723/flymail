@@ -53,7 +53,7 @@
     </aside>
 
     <!-- 邮件列表视图 -->
-    <div v-show="!isMobile || !selectedMessage" class="mail-list">
+    <div v-if="!selectedMessage" class="mail-list">
       <!-- 普通模式工具栏 -->
       <div v-if="!selectMode" class="list-toolbar">
         <div class="toolbar-left">
@@ -227,6 +227,10 @@
               <svg v-if="msg.has_attachments" class="att-badge" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             </div>
           </div>
+          <!-- 已读/未读标签 -->
+          <UiBadge v-if="!noReadStateFolder" :tone="msg.is_read ? 'neutral' : 'accent'" class="mail-status-tag">
+            {{ msg.is_read ? '已读' : '未读' }}
+          </UiBadge>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
         </button>
@@ -258,7 +262,7 @@
     </div>
 
     <!-- 邮件详情视图（支持左滑返回） -->
-    <div v-if="selectedMessage" class="mail-detail"
+    <div v-else class="mail-detail"
          @touchstart="onDetailTouchStart"
          @touchmove="onDetailTouchMove"
          @touchend="onDetailTouchEnd">
@@ -359,12 +363,6 @@
         :images="viewerImages"
         :initial-index="viewerInitialIndex"
         @close="imageViewerOpen = false"
-      />
-    </div>
-    <div v-else-if="!isMobile" class="mail-detail mail-detail-empty">
-      <UiEmptyState
-        title="选择一封邮件"
-        description="邮件内容会显示在这里。"
       />
     </div>
     </div>
@@ -600,11 +598,11 @@ function clearSearch() {
 }
 
 // 移动端检测（防抖 + 组件卸载时清理事件监听）
-const isMobile = ref(window.innerWidth <= 960);
+const isMobile = ref(window.innerWidth <= 768);
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 const onResize = () => {
   if (resizeTimer) clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { isMobile.value = window.innerWidth <= 960; }, 150);
+  resizeTimer = setTimeout(() => { isMobile.value = window.innerWidth <= 768; }, 150);
 };
 window.addEventListener('resize', onResize);
 
@@ -1648,7 +1646,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: transparent;
   border-radius: var(--border-radius-full);
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  transition: all var(--transition-fast);
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-family: inherit;
@@ -1687,7 +1685,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   border-radius: 50%;
   cursor: pointer;
   color: var(--ui-warning);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: all var(--transition-fast);
   padding: 0;
 }
 
@@ -1773,7 +1771,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s;
 }
 .filter-btn:hover {
   background: var(--bg-hover);
@@ -1806,7 +1804,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s;
   flex-shrink: 0;
 }
 
@@ -1865,7 +1863,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  transition: all 0.15s;
 }
 
 .select-btn:hover {
@@ -1945,7 +1943,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   border-radius: 50%;
   background: var(--text-tertiary);
   opacity: 0.4;
-  transition: background var(--transition-normal), opacity var(--transition-normal), box-shadow var(--transition-normal);
+  transition: all var(--transition-normal);
 }
 
 .sync-status.connected .status-dot {
@@ -2083,7 +2081,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   margin-right: 10px;
 }
 
@@ -2147,7 +2145,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  transition: all 0.15s;
   font-family: inherit;
   padding: 0 6px;
 }
@@ -2288,7 +2286,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-size: var(--text-xs);
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .btn-back:hover {
@@ -2314,7 +2312,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-size: var(--text-xs);
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .btn-action:hover {
@@ -2818,7 +2816,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
   /* 弹出层动画 */
   .sheet-enter-active, .sheet-leave-active {
-    transition: opacity 0.3s ease;
+    transition: all 0.3s ease;
   }
   .sheet-enter-from, .sheet-leave-to {
     opacity: 0;
@@ -2907,26 +2905,19 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   opacity: 0.9;
 }
 
-/* Apple Mail 风格邮件工作区 */
-.mail-shell,
-.mail-shell.detail {
-  grid-template-columns: var(--mail-folder-pane) minmax(320px, var(--mail-list-pane)) minmax(0, 1fr);
-  gap: 0;
-  border: 1px solid var(--border-color);
-  border-radius: var(--ui-radius-lg);
-  background: var(--bg-card);
-  box-shadow: var(--ui-shadow-xs);
-  overflow: hidden;
+/* 2026 邮件工作区视觉重构 */
+.mail-shell {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
 }
 
 .folder-sidebar {
   display: flex;
   flex-direction: column;
   padding: 0;
-  border-right: 1px solid var(--border-color);
-  border-radius: 0;
-  background: var(--ui-surface-2);
-  box-shadow: none;
+  border-radius: 14px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -3044,11 +3035,9 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-list {
-  min-width: 0;
-  border-right: 1px solid var(--border-color);
-  border-radius: 0;
+  border-radius: 14px;
   background: var(--bg-card);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .list-toolbar {
@@ -3100,8 +3089,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 .mail-item,
 .mail-item:not(.unread) {
   position: relative;
-  min-height: var(--list-row-height);
-  padding: 8px 12px 8px 17px;
+  min-height: 56px;
+  padding: 9px 14px 9px 18px;
   background: transparent;
 }
 
@@ -3180,47 +3169,22 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .pagination {
-  min-height: var(--toolbar-height);
+  min-height: 48px;
   background: var(--bg-card);
 }
 
-.mail-detail {
-  min-width: 0;
-  border-radius: 0;
-  background: var(--bg-card);
-  box-shadow: none;
-}
-
-.mail-detail-empty {
-  display: grid;
-  place-items: center;
-  padding: var(--page-gutter);
-}
-
-.mail-detail-empty :deep(.ui-empty-state) {
-  max-width: 320px;
-}
-
-.btn-back {
-  display: none;
-}
-
-@media (max-width: 1180px) and (min-width: 961px) {
-  .mail-shell,
-  .mail-shell.detail {
-    grid-template-columns: minmax(320px, var(--mail-list-pane)) minmax(0, 1fr);
-  }
-
-  .folder-sidebar {
-    display: none;
+@media (max-width: 1180px) and (min-width: 769px) {
+  .mail-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 10px;
   }
 
   .mail-sender {
-    width: 142px;
+    width: 150px;
   }
 
   .search-input {
-    width: 180px;
+    width: 190px;
   }
 
   .list-count,
@@ -3234,21 +3198,10 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   .mail-shell.detail {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
   }
 
   .folder-sidebar {
     display: none;
-  }
-
-  .mail-list {
-    border-right: 0;
-  }
-
-  .btn-back {
-    display: inline-flex;
   }
 }
 

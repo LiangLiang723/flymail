@@ -1064,7 +1064,7 @@ function formatSize(bytes: number): string {
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+  transition: all 0.15s;
 }
 
 .toolbar-btn:hover {
@@ -1323,7 +1323,7 @@ function formatSize(bytes: number): string {
   color: var(--ui-accent);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: all 0.15s;
 }
 
 .upload-btn:hover {
@@ -1601,7 +1601,7 @@ function formatSize(bytes: number): string {
   border-radius: 4px;
   flex-shrink: 0;
   margin-left: 8px;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s;
 }
 
 .scheduled-item-cancel:hover {
@@ -1661,11 +1661,11 @@ function formatSize(bytes: number): string {
 
 /* Toast 动画 */
 .toast-enter-active {
-  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  transition: all 0.3s ease-out;
 }
 
 .toast-leave-active {
-  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+  transition: all 0.2s ease-in;
 }
 
 .toast-enter-from {
@@ -1808,7 +1808,7 @@ function formatSize(bytes: number): string {
   border-radius: 7px;
   background: var(--bg-secondary);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  transition: all 0.15s;
 }
 
 .sig-preset-card:hover {
@@ -1851,7 +1851,7 @@ function formatSize(bytes: number): string {
   background: var(--ui-fill-muted); color: var(--ui-text-2);
   font-size: 10px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: background 0.15s, color 0.15s, opacity 0.15s;
+  opacity: 0; transition: all 0.15s;
   flex-shrink: 0;
 }
 .sig-preset-card:hover .sig-customize-btn,
@@ -1926,7 +1926,7 @@ function formatSize(bytes: number): string {
   font-size: 13px;
   cursor: pointer;
   border-radius: 5px;
-  transition: background 0.12s, color 0.12s;
+  transition: all 0.12s;
   text-align: left;
 }
 
@@ -1952,7 +1952,7 @@ function formatSize(bytes: number): string {
   background: transparent; color: var(--text-tertiary);
   font-size: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; opacity: 0; transition: background 0.12s, color 0.12s, opacity 0.12s;
+  flex-shrink: 0; opacity: 0; transition: all 0.12s;
 }
 .sig-user-item:hover .sig-delete-btn,
 .sig-delete-btn:focus-visible { opacity: 1; }
@@ -1968,7 +1968,7 @@ function formatSize(bytes: number): string {
   border: 1px dashed var(--ui-accent);
   border-radius: 6px; background: transparent;
   color: var(--ui-accent); font-size: 12px;
-  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; text-align: left;
+  cursor: pointer; transition: all 0.15s; text-align: left;
 }
 .sig-save-current-btn:hover { background: var(--ui-accent-soft); }
 

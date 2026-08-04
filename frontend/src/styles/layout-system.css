@@ -71,7 +71,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface-1);
-  box-shadow: none;
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .mail-view .page-frame__body,
@@ -98,11 +98,11 @@
   display: flex;
   align-items: center;
   margin-bottom: var(--page-section-gap);
-  padding: 5px 9px;
+  padding: 8px 12px;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-1);
-  box-shadow: none;
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .page-header-shell {
@@ -120,7 +120,7 @@
 .page-header-shell__copy h1 {
   margin: 0;
   color: var(--ui-text-1);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.025em;
@@ -173,7 +173,7 @@
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-1);
   color: var(--ui-text-1);
-  box-shadow: none;
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .ui-panel--plain {
@@ -276,7 +276,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-1);
-  box-shadow: none;
+  box-shadow: var(--ui-shadow-xs);
 }
 
 .ui-loading-state {
@@ -312,7 +312,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-1);
-  box-shadow: none;
+  box-shadow: var(--ui-shadow-xs);
 }
 
 @keyframes ui-loading-spin {

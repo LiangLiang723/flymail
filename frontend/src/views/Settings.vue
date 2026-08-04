@@ -11,22 +11,7 @@
       </PageHeader>
     </template>
 
-    <div class="settings-layout">
-      <nav class="settings-nav" aria-label="设置分类">
-        <a href="#settings-appearance">外观与收件箱</a>
-        <a href="#settings-storage">存储与清理</a>
-        <a href="#settings-network">网络</a>
-        <a href="#settings-providers">邮箱服务商</a>
-        <a href="#settings-guides">配置教程</a>
-      </nav>
-
-      <div class="document-column settings-document settings-content">
-      <section id="settings-appearance" class="settings-section" aria-labelledby="settings-appearance-title">
-        <div class="settings-section-heading">
-          <span>通用</span>
-          <h2 id="settings-appearance-title">外观与收件箱</h2>
-          <p>调整界面主题和聚合收件箱入口。</p>
-        </div>
+    <div class="document-column settings-document">
 
     <UiCard class="provider-card appearance-card" padding="none">
       <div class="storage-card-body">
@@ -98,14 +83,6 @@
         </p>
       </div>
     </UiCard>
-      </section>
-
-      <section id="settings-storage" class="settings-section" aria-labelledby="settings-storage-title">
-        <div class="settings-section-heading">
-          <span>空间</span>
-          <h2 id="settings-storage-title">存储与清理</h2>
-          <p>管理临时上传文件和普通附件缓存容量。</p>
-        </div>
 
     <div class="provider-card">
       <div class="storage-card-body">
@@ -209,14 +186,6 @@
         </div>
       </div>
     </div>
-      </section>
-
-      <section id="settings-network" class="settings-section" aria-labelledby="settings-network-title">
-        <div class="settings-section-heading">
-          <span>连接</span>
-          <h2 id="settings-network-title">网络</h2>
-          <p>为当前用户配置 Gmail 出站代理。</p>
-        </div>
 
     <div class="provider-card">
       <div class="storage-card-body">
@@ -244,14 +213,6 @@
         </div>
       </div>
     </div>
-      </section>
-
-      <section id="settings-providers" class="settings-section" aria-labelledby="settings-providers-title">
-        <div class="settings-section-heading">
-          <span>授权</span>
-          <h2 id="settings-providers-title">邮箱服务商</h2>
-          <p>配置 Gmail 和 Microsoft OAuth2 应用凭据。</p>
-        </div>
 
     <!-- Gmail 配置卡片（可折叠） -->
     <div class="provider-card">
@@ -477,14 +438,6 @@
         </div>
       </transition>
     </div>
-      </section>
-
-      <section id="settings-guides" class="settings-section" aria-labelledby="settings-guides-title">
-        <div class="settings-section-heading">
-          <span>帮助</span>
-          <h2 id="settings-guides-title">配置教程</h2>
-          <p>查看不同邮箱服务商的授权步骤。</p>
-        </div>
 
     <!-- ==================== 配置教程（可折叠） ==================== -->
     <div class="guide-section">
@@ -668,16 +621,15 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 客户端 ID 和密钥配置完成后，在「账号管理」中添加 Outlook、Hotmail、Live、MSN 邮箱即可自动跳转授权。
               </div>
-              <div class="guide-tip guide-tip-warning">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <span>注意：Microsoft 要求重定向 URI 必须为 HTTPS，本服务默认仅提供 HTTP 端口，需自行配置反向代理（如 Nginx）将 HTTPS 请求转发到本服务的 HTTP 端口，而非直接填写 https:// 地址即可。</span>
+              <div class="guide-tip" style="margin-top: 8px; background: rgba(255, 159, 10, 0.08); border-color: rgba(255, 159, 10, 0.3);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span style="color: #FF9F0A;">注意：Microsoft 要求重定向 URI 必须为 HTTPS，本服务默认仅提供 HTTP 端口，需自行配置反向代理（如 Nginx）将 HTTPS 请求转发到本服务的 HTTP 端口，而非直接填写 https:// 地址即可。</span>
               </div>
             </div>
           </div>
         </div>
       </transition>
     </div>
-      </section>
 
     <!-- 图片预览弹窗 -->
     <transition name="fade">
@@ -697,7 +649,6 @@
         <About />
       </div>
     </div>
-      </div>
     </div>
   </PageFrame>
 </template>
@@ -1049,95 +1000,8 @@ async function saveSettings() {
   background: var(--bg-secondary);
 }
 
-.settings-layout {
-  width: 100%;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
-  align-items: start;
-  gap: var(--page-gutter);
-}
-
-.settings-nav {
-  position: sticky;
-  top: 0;
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  padding: 5px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-surface-2);
-}
-
-.settings-nav a {
-  min-height: var(--touch-target);
-  display: flex;
-  align-items: center;
-  padding: 0 11px;
-  border-radius: var(--ui-radius-md);
-  color: var(--ui-text-2) !important;
-  font-size: var(--ui-text-sm);
-  font-weight: 600;
-  text-decoration: none;
-  touch-action: manipulation;
-  transition: background var(--ui-motion-fast), color var(--ui-motion-fast);
-}
-
-.settings-nav a:hover,
-.settings-nav a:focus-visible {
-  background: var(--ui-fill-hover);
-  color: var(--ui-text-1) !important;
-}
-
 .settings-document {
-  width: 100%;
-  max-width: none;
   align-content: start;
-}
-
-.settings-section {
-  min-width: 0;
-  display: grid;
-  gap: 10px;
-  scroll-margin-top: var(--page-gutter);
-}
-
-.settings-section + .settings-section {
-  margin-top: 28px;
-  padding-top: 24px;
-  border-top: 1px solid var(--ui-border);
-}
-
-.settings-section-heading {
-  display: grid;
-  gap: 3px;
-  padding: 0 2px 2px;
-}
-
-.settings-section-heading > span {
-  color: var(--ui-accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.settings-section-heading h2 {
-  margin: 0;
-  font-size: 18px !important;
-  line-height: 1.25 !important;
-  letter-spacing: -0.015em !important;
-}
-
-.settings-section-heading p {
-  margin: 0;
-  font-size: var(--ui-text-sm);
-}
-
-.settings-section > .provider-card,
-.settings-section > .guide-section {
-  margin-bottom: 0;
 }
 
 .settings-header {
@@ -1762,7 +1626,7 @@ async function saveSettings() {
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
   font-family: inherit;
 }
 
@@ -1872,7 +1736,7 @@ async function saveSettings() {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--border-color);
-  transition: border-color var(--ui-motion-fast), box-shadow var(--ui-motion-fast), transform var(--ui-motion-fast);
+  transition: all 0.2s ease;
   background: var(--bg-tertiary);
 }
 
@@ -1920,10 +1784,6 @@ async function saveSettings() {
   color: var(--ui-warning);
 }
 
-.guide-tip-warning {
-  margin-top: 8px;
-}
-
 /* ==================== 图片预览弹窗 ==================== */
 
 .img-preview-overlay {
@@ -1958,12 +1818,12 @@ async function saveSettings() {
   justify-content: center;
   box-shadow: var(--ui-shadow-sm);
   color: var(--text-secondary);
-  transition: background var(--ui-motion-fast), color var(--ui-motion-fast), transform var(--ui-motion-fast);
+  transition: all 0.15s ease;
 }
 
 .img-preview-close:hover {
   background: var(--color-danger);
-  color: var(--ui-text-inverse);
+  color: white;
 }
 
 .img-preview-large {
@@ -2008,31 +1868,6 @@ async function saveSettings() {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
-}
-
-/* 紧凑设置导航 */
-@media (max-width: 960px) {
-  .settings-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .settings-nav {
-    position: static;
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
-  }
-
-  .settings-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .settings-nav a {
-    padding-inline: 13px;
-  }
 }
 
 /* 移动端适配 */

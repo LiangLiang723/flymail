@@ -118,10 +118,10 @@ test('page frames expose explicit fluid form and reading widths', async () => {
   assert.match(layout, /\.page-frame__shell\s*\{[^}]*max-width:\s*var\(--page-frame-max\);[^}]*margin-right:\s*auto/s);
 });
 
-test('split pages use a bordered desktop surface and edge-to-edge mobile layout', async () => {
+test('split pages use a rounded desktop surface and edge-to-edge mobile layout', async () => {
   const layout = await read('src/styles/layout-system.css');
 
-  assert.match(layout, /\.page-frame--split \.page-frame__body\s*\{[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-lg\);[^}]*background:\s*var\(--ui-surface-1\);[^}]*box-shadow:\s*none/s);
+  assert.match(layout, /\.page-frame--split \.page-frame__body\s*\{[^}]*border:\s*1px solid var\(--ui-border\);[^}]*border-radius:\s*var\(--ui-radius-lg\);[^}]*background:\s*var\(--ui-surface-1\);[^}]*box-shadow:\s*var\(--ui-shadow-xs\)/s);
   assert.match(layout, /@media \(max-width:\s*960px\)[\s\S]*\.page-frame--split \.page-frame__body\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*box-shadow:\s*none/s);
 });
 

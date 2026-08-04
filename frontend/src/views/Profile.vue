@@ -136,20 +136,20 @@ async function removeAvatar() {
 <style scoped>
 .profile-page { width: 100%; min-width: 0; min-height: 0; }
 .profile-card {
-  width: min(760px, 100%);
+  width: min(720px, 100%);
   display: grid;
-  gap: 22px;
-  padding: 22px;
+  gap: 28px;
+  padding: 28px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg);
+  border-radius: var(--ui-radius-xl);
   background: var(--ui-surface-1);
-  box-shadow: none;
+  box-shadow: var(--ui-shadow-sm);
 }
 .avatar-section { display: flex; align-items: center; gap: 20px; }
 .profile-avatar {
-  width: 72px;
-  height: 72px;
-  flex: 0 0 72px;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 88px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -167,8 +167,7 @@ async function removeAvatar() {
 .avatar-upload { position: relative; overflow: hidden; }
 .avatar-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .avatar-upload.disabled { opacity: .55; pointer-events: none; }
-.profile-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.profile-actions { grid-column: 1 / -1; }
+.profile-form { display: grid; gap: 18px; }
 .profile-field { display: grid; gap: 7px; color: var(--ui-text-2); font-size: 13px; font-weight: 620; }
 .profile-field input {
   width: 100%;
@@ -177,15 +176,14 @@ async function removeAvatar() {
   padding: 0 13px;
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-md);
-  background: var(--ui-surface-1);
+  background: var(--ui-surface-0);
   color: var(--ui-text-1);
   font: inherit;
 }
 .profile-field input:focus { outline: 2px solid color-mix(in srgb, var(--ui-accent) 36%, transparent); border-color: var(--ui-accent); }
 @media (max-width: 640px) {
-  .profile-card { padding: 18px; }
+  .profile-card { padding: 20px; }
   .avatar-section { align-items: flex-start; }
-  .profile-avatar { width: 64px; height: 64px; flex-basis: 64px; }
-  .profile-form { grid-template-columns: minmax(0, 1fr); }
+  .profile-avatar { width: 68px; height: 68px; flex-basis: 68px; }
 }
 </style>

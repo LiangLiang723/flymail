@@ -665,7 +665,7 @@ function downloadAttachment(att: BackupAttachment) {
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.15s;
 }
 .filter-btn:hover {
   background: var(--ui-fill-hover);
@@ -912,7 +912,7 @@ function downloadAttachment(att: BackupAttachment) {
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  transition: all 0.15s;
 }
 .btn-action:hover {
   background: var(--ui-fill-hover);
@@ -1317,7 +1317,7 @@ function downloadAttachment(att: BackupAttachment) {
   .sheet-folder-count { font-size: 15px; color: var(--text-secondary); margin-right: 8px; }
 
   /* 弹出层动画 */
-  .sheet-enter-active, .sheet-leave-active { transition: opacity 0.3s ease; }
+  .sheet-enter-active, .sheet-leave-active { transition: all 0.3s ease; }
   .sheet-enter-from, .sheet-leave-to { opacity: 0; }
   .sheet-enter-from .sheet-content, .sheet-leave-to .sheet-content { transform: translateY(100%); }
   .sheet-enter-active .sheet-content, .sheet-leave-active .sheet-content { transition: transform 0.3s ease; }
