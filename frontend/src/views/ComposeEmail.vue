@@ -385,6 +385,8 @@ import UiField from '../components/ui/UiField.vue';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { useContactAutocomplete } from '../composables/useContactAutocomplete';
 import type { ContactSuggestion } from '../composables/useContacts';
+import type { ComposeKind, SignatureTemplate } from '../types/signature';
+import { resolveDefaultSignature } from '../utils/signature-management';
 
 const emit = defineEmits<{
   discard: [];
@@ -584,16 +586,8 @@ const builtinSignatures = [
 ];
 
 /** 用户自定义签名：可按邮箱配置新邮件与回复/转发默认项。 */
-interface UserSig {
-  id: number;
-  name: string;
-  content_html: string;
-  is_default: boolean;
-  is_reply_default: boolean;
-  account_id: string;
-}
-const userSigs = ref<UserSig[]>([]);
-const composeKind = ref<'new' | 'reply' | 'forward' | 'draft'>('new');
+const userSigs = ref<SignatureTemplate[]>([]);
+const composeKind = ref<ComposeKind>('new');
 const availableUserSigs = computed(() => userSigs.value.filter(
   (sig) => !sig.account_id || sig.account_id === fromAccountId.value,
 ));
@@ -615,7 +609,7 @@ function insertSigToEditor(contentHtml: string, signatureId = -1) {
   showSignaturePanel.value = false;
 }
 
-function selectSignature(sig: UserSig | null) {
+function selectSignature(sig: SignatureTemplate | null) {
   if (!sig) {
     editorRef.value?.setManagedSignature(null);
     showSignaturePanel.value = false;
@@ -674,7 +668,7 @@ async function saveCustomizedSig() {
 
 // ==================== 编辑用户签名 ====================
 const showEditUserSigDialog = ref(false);
-const editingUserSig = ref<UserSig | null>(null);
+const editingUserSig = ref<SignatureTemplate | null>(null);
 const editingUserSigName = ref('');
 const editingUserSigHtml = ref('');
 const editingUserSigAccountId = ref('');
@@ -682,7 +676,7 @@ const editingUserSigIsDefault = ref(false);
 const editingUserSigIsReplyDefault = ref(false);
 let applyingComposeDraft = false;
 
-function resetSignatureEditor(sig: UserSig | null) {
+function resetSignatureEditor(sig: SignatureTemplate | null) {
   editingUserSig.value = sig;
   editingUserSigName.value = sig?.name || '';
   editingUserSigHtml.value = formatHtmlForEdit(sig?.content_html || '<p><br></p>');
@@ -698,26 +692,14 @@ function openSignatureManager() {
 }
 
 /** 打开编辑用户签名对话框。 */
-function openEditUserSigDialog(sig: UserSig) {
+function openEditUserSigDialog(sig: SignatureTemplate) {
   resetSignatureEditor(sig);
   showEditUserSigDialog.value = true;
 }
 
-/** 解析当前发件邮箱与写信场景应使用的默认签名，账号专属优先于全局。 */
-function resolveDefaultSignature(): UserSig | null {
-  if (composeKind.value === 'draft') return null;
-  const useReplyDefault = composeKind.value === 'reply' || composeKind.value === 'forward';
-  const defaults = userSigs.value.filter((sig) => (
-    useReplyDefault ? sig.is_reply_default : sig.is_default
-  ));
-  return defaults.find((sig) => sig.account_id === fromAccountId.value)
-    || defaults.find((sig) => !sig.account_id)
-    || null;
-}
-
 async function applyDefaultSignature() {
   if (composeKind.value === 'draft') return;
-  const defaultSig = resolveDefaultSignature();
+  const defaultSig = resolveDefaultSignature(userSigs.value, fromAccountId.value, composeKind.value);
   await nextTick();
   if (!editorRef.value) return;
   if (!defaultSig) {
