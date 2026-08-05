@@ -6,8 +6,16 @@ from fastapi import APIRouter, Request, Body
 
 from errors import AppError
 
-from db import get_signatures, get_signature_by_id, create_signature, update_signature, delete_signature
-from db import get_user_settings, set_user_settings
+from db import (
+    create_signature,
+    delete_signature,
+    get_account_by_id,
+    get_signature_by_id,
+    get_signatures,
+    get_user_settings,
+    set_user_settings,
+    update_signature,
+)
 from deps import get_uid
 from models import Signature
 from schemas import (
@@ -59,6 +67,17 @@ async def save_signature(request: Request, body: SignatureSettingsRequest = Body
 # ==================== 签名模板接口（多模板管理） ====================
 
 
+async def _validate_signature_account(account_id: str, user_uid: str) -> str:
+    """Validate that a scoped signature only references an account owned by the user."""
+    normalized = (account_id or "").strip()
+    if not normalized:
+        return ""
+    account = await get_account_by_id(normalized)
+    if not account or account.user_uid != user_uid:
+        raise AppError(404, "关联邮箱不存在")
+    return normalized
+
+
 @router.get("/api/signatures", response_model=SignatureListResponse, summary="获取所有签名模板")
 async def get_signatures_api(request: Request):
     """获取当前用户的所有签名模板列表"""
@@ -72,6 +91,7 @@ async def get_signatures_api(request: Request):
                 "name": s.name,
                 "content_html": s.content_html,
                 "is_default": bool(s.is_default),
+                "is_reply_default": bool(s.is_reply_default),
                 "account_id": s.account_id,
             }
             for s in sigs
@@ -86,11 +106,13 @@ async def create_signature_api(request: Request, body: SignatureTemplateRequest 
     name = body.name.strip()
     if not name:
         raise AppError(400, "签名名称不能为空")
+    account_id = await _validate_signature_account(body.account_id, uid)
     sig = Signature(
         name=name,
         content_html=body.content_html,
         is_default=1 if body.is_default else 0,
-        account_id=body.account_id,
+        is_reply_default=1 if body.is_reply_default else 0,
+        account_id=account_id,
         user_uid=uid,  # 绑定当前用户
     )
     sig = await create_signature(sig)
@@ -99,6 +121,7 @@ async def create_signature_api(request: Request, body: SignatureTemplateRequest 
         "name": sig.name,
         "content_html": sig.content_html,
         "is_default": bool(sig.is_default),
+        "is_reply_default": bool(sig.is_reply_default),
         "account_id": sig.account_id,
     }
 
@@ -118,8 +141,10 @@ async def update_signature_api(request: Request, sig_id: int, body: SignatureTem
         existing.content_html = body.content_html
     if body.is_default is not None:
         existing.is_default = 1 if body.is_default else 0
+    if body.is_reply_default is not None:
+        existing.is_reply_default = 1 if body.is_reply_default else 0
     if body.account_id is not None:
-        existing.account_id = body.account_id
+        existing.account_id = await _validate_signature_account(body.account_id, uid)
 
     ok = await update_signature(existing)
     if not ok:

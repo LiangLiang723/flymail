@@ -36,6 +36,10 @@
           <span>签名</span>
         </button>
         <div v-if="showSignaturePanel" class="sig-panel">
+          <div class="sig-panel-actions">
+            <button class="sig-action-btn" type="button" @click="selectSignature(null)">无签名</button>
+            <button class="sig-action-btn primary" type="button" @click="openSignatureManager">管理签名</button>
+          </div>
           <!-- 内置预设模板 -->
           <div class="sig-section">
             <div class="sig-section-label">内置模板</div>
@@ -67,7 +71,7 @@
           <div v-if="showCustomizeDialog && showSignaturePanel" class="modal-overlay" @click.self="showCustomizeDialog = false">
             <div class="modal-content sig-customize-modal">
               <h3>自定义签名：{{ customizingPreset?.name }}</h3>
-              <textarea v-model="editingSigHtml" class="sig-customize-textarea" spellcheck="false"></textarea>
+              <TiptapEditor v-model="editingSigHtml" class="signature-editor" />
               <div class="modal-actions">
                 <button class="toolbar-btn" @click="showCustomizeDialog = false">取消</button>
                 <button class="toolbar-btn primary" @click="saveCustomizedSig">保存签名</button>
@@ -77,13 +81,29 @@
 
           <!-- 编辑用户签名对话框（内嵌） -->
           <div v-if="showEditUserSigDialog && showSignaturePanel" class="modal-overlay" @click.self="showEditUserSigDialog = false">
-            <div class="modal-content sig-customize-modal">
-              <h3>编辑签名：{{ editingUserSig?.name }}</h3>
-              <input v-model="editingUserSigName" placeholder="签名名称" class="sig-save-input" />
-              <textarea v-model="editingUserSigHtml" class="sig-customize-textarea" spellcheck="false"></textarea>
+            <div class="modal-content sig-customize-modal sig-manager-modal">
+              <h3>{{ editingUserSig ? `编辑签名：${editingUserSig.name}` : '新建签名' }}</h3>
+              <div class="signature-settings-grid">
+                <label>
+                  <span>签名名称</span>
+                  <input v-model="editingUserSigName" placeholder="例如：工作签名" class="sig-save-input" />
+                </label>
+                <label>
+                  <span>适用邮箱</span>
+                  <select v-model="editingUserSigAccountId" class="sig-save-input">
+                    <option value="">全部邮箱</option>
+                    <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.email }}</option>
+                  </select>
+                </label>
+              </div>
+              <div class="signature-default-options">
+                <UiCheckbox v-model="editingUserSigIsDefault" label="新邮件默认">新邮件默认</UiCheckbox>
+                <UiCheckbox v-model="editingUserSigIsReplyDefault" label="回复/转发默认">回复/转发默认</UiCheckbox>
+              </div>
+              <TiptapEditor v-model="editingUserSigHtml" class="signature-editor" />
               <div class="modal-actions">
                 <button class="toolbar-btn" @click="showEditUserSigDialog = false">取消</button>
-                <button class="toolbar-btn danger" @click="deleteEditingUserSig">删除</button>
+                <button v-if="editingUserSig" class="toolbar-btn danger" @click="deleteEditingUserSig">删除</button>
                 <button class="toolbar-btn primary" @click="saveEditedUserSig">保存</button>
               </div>
             </div>
@@ -93,15 +113,16 @@
           <!-- 我的签名 -->
           <div class="sig-section">
             <div class="sig-section-label">我的签名</div>
-            <template v-if="userSigs.length > 0">
+            <template v-if="availableUserSigs.length > 0">
               <div class="sig-preset-grid">
                 <div
-                  v-for="sig in userSigs"
+                  v-for="sig in availableUserSigs"
                   :key="'u'+sig.id"
                   class="sig-preset-card sig-user-card"
                 >
                   <!-- 标记：默认 / 操作按钮 -->
-                  <span v-if="sig.is_default" class="sig-default-badge-inline">默认</span>
+                  <span v-if="sig.is_default" class="sig-default-badge-inline">新邮件默认</span>
+                  <span v-if="sig.is_reply_default" class="sig-default-badge-inline reply">回复默认</span>
                   <button class="sig-delete-btn" type="button" @click.stop="deleteUserSig(sig.id)" title="删除">×</button>
                   <button
                     class="sig-customize-btn"
@@ -112,9 +133,10 @@
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                   </button>
                   <!-- 点击区域：插入签名 -->
-                  <div class="sig-preset-click-area" @click="insertSigToEditor(sig.content_html)">
+                  <div class="sig-preset-click-area" @click="insertSigToEditor(sig.content_html, sig.id)">
                     <div class="sig-preset-preview sig-user-preview" v-html="sig.content_html"></div>
                     <span class="sig-preset-name">{{ sig.name }}</span>
+                    <small class="sig-account-label">{{ signatureAccountLabel(sig.account_id) }}</small>
                   </div>
                 </div>
               </div>
@@ -122,20 +144,9 @@
             <div v-else class="sig-empty-hint">暂无自定义签名</div>
           </div>
           <div class="sig-panel-divider"></div>
-          <button class="sig-save-current-btn" type="button" @click="showSaveSigDialog = true">
-            + 保存签名
+          <button class="sig-save-current-btn" type="button" @click="openSignatureManager">
+            + 管理签名
           </button>
-        </div>
-      </div>
-
-      <!-- 保存签名的内嵌对话框 -->
-      <div v-if="showSaveSigDialog && showSignaturePanel" class="modal-overlay" @click.self="showSaveSigDialog = false">
-        <div class="modal-content sig-save-dialog">
-          <input v-model="newSigName" placeholder="输入签名名称" class="sig-save-input" @keyup.enter="saveCurrentAsSig" />
-          <div class="modal-actions">
-            <button class="toolbar-btn" @click="showSaveSigDialog = false">取消</button>
-            <button class="toolbar-btn primary" @click="saveCurrentAsSig" :disabled="!newSigName.trim()">保存</button>
-          </div>
         </div>
       </div>
 
@@ -363,12 +374,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import api from '../utils/api';
 import { useMailStore } from '../stores/mail';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import UiButton from '../components/ui/UiButton.vue';
+import UiCheckbox from '../components/ui/UiCheckbox.vue';
 import UiField from '../components/ui/UiField.vue';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { useContactAutocomplete } from '../composables/useContactAutocomplete';
@@ -541,8 +553,6 @@ const attachmentOverLimit = computed(() => totalAttachmentBytes.value > attachme
 
 // ==================== 签名模板（内置 + 用户自定义） ====================
 const showSignaturePanel = ref(false);
-const showSaveSigDialog = ref(false);
-const newSigName = ref('');
 const editorRef = ref<InstanceType<typeof import('../components/TiptapEditor.vue').default> | null>(null);
 
 /** 内置预设签名模板（4款精美常用签名） */
@@ -573,9 +583,20 @@ const builtinSignatures = [
   },
 ];
 
-/** 用户自定义签名 */
-interface UserSig { id: number; name: string; content_html: string; is_default: boolean; }
+/** 用户自定义签名：可按邮箱配置新邮件与回复/转发默认项。 */
+interface UserSig {
+  id: number;
+  name: string;
+  content_html: string;
+  is_default: boolean;
+  is_reply_default: boolean;
+  account_id: string;
+}
 const userSigs = ref<UserSig[]>([]);
+const composeKind = ref<'new' | 'reply' | 'forward' | 'draft'>('new');
+const availableUserSigs = computed(() => userSigs.value.filter(
+  (sig) => !sig.account_id || sig.account_id === fromAccountId.value,
+));
 
 async function loadUserSigs() {
   try {
@@ -584,29 +605,28 @@ async function loadUserSigs() {
   } catch { userSigs.value = []; }
 }
 
-/** 通过编辑器 ref 插入签名到光标位置 */
-function insertSigToEditor(contentHtml: string) {
-  if (editorRef.value) {
-    editorRef.value.insertText(contentHtml);
-  }
+/** 使用可替换的签名块，切换签名时不会重复追加。 */
+function insertSigToEditor(contentHtml: string, signatureId = -1) {
+  editorRef.value?.setManagedSignature(
+    signatureId,
+    contentHtml,
+    composeKind.value === 'reply' || composeKind.value === 'forward' ? 'start' : 'end',
+  );
   showSignaturePanel.value = false;
 }
 
-/** 保存当前编辑器内容为用户签名 */
-async function saveCurrentAsSig() {
-  const name = newSigName.value.trim();
-  if (!name || !editorRef.value) return;
-  try {
-    const htmlContent = editorRef.value.getHTML?.() || '';
-    await api.post('/signatures', {
-      name,
-      content_html: htmlContent,
-      is_default: userSigs.value.length === 0 ? true : undefined,
-    });
-    newSigName.value = '';
-    showSaveSigDialog.value = false;
-    await loadUserSigs();
-  } catch (e: any) { console.error('保存签名失败:', e); }
+function selectSignature(sig: UserSig | null) {
+  if (!sig) {
+    editorRef.value?.setManagedSignature(null);
+    showSignaturePanel.value = false;
+    return;
+  }
+  insertSigToEditor(sig.content_html, sig.id);
+}
+
+function signatureAccountLabel(accountId: string) {
+  if (!accountId) return '全部邮箱';
+  return accounts.value.find((account: any) => account.id === accountId)?.email || '指定邮箱';
 }
 
 /** 删除用户签名 */
@@ -630,17 +650,9 @@ function openCustomizeDialog(preset: { id: string; name: string; content_html: s
   showCustomizeDialog.value = true;
 }
 
-/** 将压缩的 HTML 格式化为可读多行文本 */
+/** 富文本编辑器直接接收 HTML，避免格式化空白被当成签名正文。 */
 function formatHtmlForEdit(html: string): string {
-  // 简单格式化：在 > 后换行，缩进子标签
-  return html
-    .replace(/></g, '>\n<')
-    .split('\n')
-    .map((line, i) => {
-      if (line.match(/^<\//)) return '  '.repeat(Math.max(0, i > 0 ? 1 : 0)) + line;
-      return line;
-    })
-    .join('\n');
+  return html;
 }
 
 /** 保存自定义后的签名到"我的签名"列表 */
@@ -665,76 +677,131 @@ const showEditUserSigDialog = ref(false);
 const editingUserSig = ref<UserSig | null>(null);
 const editingUserSigName = ref('');
 const editingUserSigHtml = ref('');
+const editingUserSigAccountId = ref('');
+const editingUserSigIsDefault = ref(false);
+const editingUserSigIsReplyDefault = ref(false);
+let applyingComposeDraft = false;
 
-/** 打开编辑用户签名对话框 */
-function openEditUserSigDialog(sig: UserSig) {
+function resetSignatureEditor(sig: UserSig | null) {
   editingUserSig.value = sig;
-  editingUserSigName.value = sig.name;
-  editingUserSigHtml.value = formatHtmlForEdit(sig.content_html);
+  editingUserSigName.value = sig?.name || '';
+  editingUserSigHtml.value = formatHtmlForEdit(sig?.content_html || '<p><br></p>');
+  editingUserSigAccountId.value = sig ? sig.account_id : (fromAccountId.value || '');
+  editingUserSigIsDefault.value = Boolean(sig?.is_default);
+  editingUserSigIsReplyDefault.value = Boolean(sig?.is_reply_default);
+}
+
+function openSignatureManager() {
+  showSignaturePanel.value = true;
+  resetSignatureEditor(null);
   showEditUserSigDialog.value = true;
 }
 
-/** 保存修改后的用户签名（PUT 更新） */
-async function saveEditedUserSig() {
-  if (!editingUserSig.value) return;
-  try {
-    await api.put(`/signatures/${editingUserSig.value.id}`, {
-      name: editingUserSigName.value.trim(),
-      content_html: editingUserSigHtml.value,
-      is_default: editingUserSig.value.is_default,
-    });
-    showEditUserSigDialog.value = false;
-    await loadUserSigs();
-  } catch (e: any) { console.error('保存签名失败:', e); }
+/** 打开编辑用户签名对话框。 */
+function openEditUserSigDialog(sig: UserSig) {
+  resetSignatureEditor(sig);
+  showEditUserSigDialog.value = true;
 }
 
-/** 在编辑对话框中直接删除当前签名 */
+/** 解析当前发件邮箱与写信场景应使用的默认签名，账号专属优先于全局。 */
+function resolveDefaultSignature(): UserSig | null {
+  if (composeKind.value === 'draft') return null;
+  const useReplyDefault = composeKind.value === 'reply' || composeKind.value === 'forward';
+  const defaults = userSigs.value.filter((sig) => (
+    useReplyDefault ? sig.is_reply_default : sig.is_default
+  ));
+  return defaults.find((sig) => sig.account_id === fromAccountId.value)
+    || defaults.find((sig) => !sig.account_id)
+    || null;
+}
+
+async function applyDefaultSignature() {
+  if (composeKind.value === 'draft') return;
+  const defaultSig = resolveDefaultSignature();
+  await nextTick();
+  if (!editorRef.value) return;
+  if (!defaultSig) {
+    editorRef.value.setManagedSignature(null);
+    return;
+  }
+  editorRef.value.setManagedSignature(
+    defaultSig.id,
+    defaultSig.content_html,
+    composeKind.value === 'reply' || composeKind.value === 'forward' ? 'start' : 'end',
+  );
+}
+
+/** 新建或修改签名，并持久化邮箱范围和两类默认规则。 */
+async function saveEditedUserSig() {
+  const name = editingUserSigName.value.trim();
+  if (!name) {
+    showToast('请输入签名名称', 'info');
+    return;
+  }
+  const payload = {
+    name,
+    content_html: editingUserSigHtml.value,
+    account_id: editingUserSigAccountId.value,
+    is_default: editingUserSigIsDefault.value,
+    is_reply_default: editingUserSigIsReplyDefault.value,
+  };
+  try {
+    if (editingUserSig.value) {
+      await api.put(`/signatures/${editingUserSig.value.id}`, payload);
+    } else {
+      await api.post('/signatures', payload);
+    }
+    showEditUserSigDialog.value = false;
+    await loadUserSigs();
+    await applyDefaultSignature();
+    showToast('签名已保存', 'success');
+  } catch (e: any) {
+    showToast('保存签名失败: ' + getErrorMessage(e), 'error');
+  }
+}
+
+/** 在编辑对话框中直接删除当前签名。 */
 async function deleteEditingUserSig() {
   if (!editingUserSig.value) return;
   try {
     await api.delete(`/signatures/${editingUserSig.value.id}`);
     showEditUserSigDialog.value = false;
     await loadUserSigs();
-  } catch (e: any) { console.error('删除签名失败:', e); }
-}
-
-async function loadDefaultSignatureIfEmpty() {
-  if (bodyHtml.value) return;
-  try {
-    const data = await api.get('/signatures') as any;
-    // 找到 is_default=1 的签名模板
-    const defaultSig = data.signatures?.find((s: any) => s.is_default);
-    if (defaultSig?.content_html) {
-      bodyHtml.value = '<p><br></p>' + defaultSig.content_html;
-    }
-  } catch {
-    // 签名加载失败不影响写邮件
+    await applyDefaultSignature();
+    showToast('签名已删除', 'success');
+  } catch (e: any) {
+    showToast('删除签名失败: ' + getErrorMessage(e), 'error');
   }
 }
 
 async function applyComposeDraft(draft: any = null) {
-  clearComposeForm();
-  toList.value = draft?.to || [];
-  ccList.value = draft?.cc || [];
-  bccList.value = draft?.bcc || [];
-  subject.value = draft?.subject || '';
-  bodyHtml.value = draft?.body_html || '';
-  draftMessageId.value = draft?.draft_message_id || '';
-  draftFolder.value = draft?.draft_folder || '';
-  fromAccountId.value = draft?.account_id || mailStore.currentAccountId || accounts.value[0]?.id || '';
-  showCc.value = ccList.value.length > 0;
-  showBcc.value = bccList.value.length > 0;
-  if (!draft?.body_html) {
-    await loadDefaultSignatureIfEmpty();
+  applyingComposeDraft = true;
+  try {
+    clearComposeForm();
+    composeKind.value = draft?.compose_kind || (draft?.draft_message_id ? 'draft' : 'new');
+    toList.value = draft?.to || [];
+    ccList.value = draft?.cc || [];
+    bccList.value = draft?.bcc || [];
+    subject.value = draft?.subject || '';
+    bodyHtml.value = draft?.body_html || '<p><br></p>';
+    draftMessageId.value = draft?.draft_message_id || '';
+    draftFolder.value = draft?.draft_folder || '';
+    fromAccountId.value = draft?.account_id || mailStore.currentAccountId || accounts.value[0]?.id || '';
+    showCc.value = ccList.value.length > 0;
+    showBcc.value = bccList.value.length > 0;
+    if (composeKind.value !== 'draft') {
+      await applyDefaultSignature();
+    }
+    markSavedSnapshot();
+  } finally {
+    applyingComposeDraft = false;
   }
-  markSavedSnapshot();
 }
 
-// 初始化：选择当前账号，加载签名，消费草稿数据
+// 初始化：先加载签名规则，再按新邮件/回复/转发/草稿场景建立编辑器。
 onMounted(async () => {
+  await loadUserSigs();
   await applyComposeDraft(mailStore.consumeComposeDraft());
-  // 加载用户自定义签名列表（用于签名面板）
-  loadUserSigs();
 });
 
 watch(
@@ -745,6 +812,16 @@ watch(
     }
   },
 );
+
+watch(fromAccountId, async (nextAccountId, previousAccountId) => {
+  if (
+    applyingComposeDraft
+    || !previousAccountId
+    || nextAccountId === previousAccountId
+    || composeKind.value === 'draft'
+  ) return;
+  await applyDefaultSignature();
+});
 
 type RecipientField = 'to' | 'cc' | 'bcc';
 
@@ -832,6 +909,8 @@ function clearComposeForm() {
 
 function currentSnapshot() {
   return JSON.stringify({
+    account_id: fromAccountId.value,
+    compose_kind: composeKind.value,
     to: toList.value,
     cc: ccList.value,
     bcc: bccList.value,
@@ -1126,7 +1205,8 @@ function formatSize(bytes: number): string {
 }
 
 .form-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 8px 0;
@@ -1134,12 +1214,29 @@ function formatSize(bytes: number): string {
   min-width: 0;
 }
 
-.form-row label {
-  flex-shrink: 0;
-  width: 56px;
+.compose-field-label {
+  width: 100%;
   font-size: 13px;
+  font-weight: 600;
   color: var(--text-secondary);
   text-align: right;
+}
+
+.compose-field-control {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.compose-from-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.compose-field-control > .form-input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-input {

@@ -10,6 +10,7 @@ from errors import AppError
 from db import (
     get_contacts,
     get_contact_by_id,
+    get_contact_candidates,
     create_contact,
     update_contact,
     delete_contact,
@@ -20,6 +21,9 @@ from deps import get_uid
 from schemas import (
     ContactItem,
     ContactEmailItem,
+    ContactCandidateListResponse,
+    ContactImportRequest,
+    ContactImportResponse,
     ContactListResponse,
     ContactSearchResponse,
     ContactCreateRequest,
@@ -55,6 +59,50 @@ async def search_contacts_api(
     uid = await get_uid(request)
     rows = await get_contacts(uid, q)
     return {"results": [_row_to_item(r) for r in rows[:10]]}
+
+
+@router.get("/api/contacts/candidates", response_model=ContactCandidateListResponse, summary="从指定邮箱预览联系人候选")
+async def get_contact_candidates_api(
+    request: Request,
+    account_id: str = Query(min_length=1, description="要扫描的邮箱账号ID"),
+    search: str = Query(default="", max_length=255, description="按姓名或邮箱过滤候选"),
+):
+    """仅扫描当前用户指定邮箱已经同步到本地的邮件头，不连接远端邮箱。"""
+    uid = await get_uid(request)
+    candidates = await get_contact_candidates(uid, account_id, search)
+    if candidates is None:
+        raise AppError(404, "邮箱账号不存在")
+    return {"candidates": candidates}
+
+
+@router.post("/api/contacts/import", response_model=ContactImportResponse, summary="批量导入邮件联系人候选")
+async def import_contact_candidates_api(
+    request: Request,
+    body: ContactImportRequest = Body(..., description="选中的候选联系人"),
+):
+    """批量导入用户勾选的候选项；已有联系人不会被覆盖。"""
+    uid = await get_uid(request)
+    candidates = await get_contact_candidates(uid, body.account_id, limit=1000)
+    if candidates is None:
+        raise AppError(404, "邮箱账号不存在")
+    allowed = {item["email"].lower(): item for item in candidates}
+    imported = 0
+    skipped = 0
+    seen: set[str] = set()
+    for requested in body.contacts:
+        email = requested.email.strip().lower()
+        if not email or email in seen or email not in allowed:
+            skipped += 1
+            continue
+        seen.add(email)
+        candidate = allowed[email]
+        name = requested.name.strip() or candidate.get("name", "")
+        _row, is_new = await upsert_contact_by_email(uid, name, email)
+        if is_new:
+            imported += 1
+        else:
+            skipped += 1
+    return {"imported": imported, "skipped": skipped}
 
 
 @router.get("/api/contacts/{contact_id}/stats", response_model=ContactStatsResponse, summary="获取联系人往来邮件统计")

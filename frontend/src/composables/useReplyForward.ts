@@ -50,7 +50,7 @@ export function buildReplyDraft(msg: Message, myEmail: string, accountId: string
 
   const subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject || ''}`
   const safeBody = renderMailBody(msg.body_html, msg.body_text)
-  const quoteHtml = `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:10px;color:#666;">${safeBody}</blockquote>`
+  const quoteHtml = `<p><br></p><blockquote style="border-left:3px solid #ccc;padding-left:10px;color:#666;">${safeBody}</blockquote>`
 
   // 线程头必须用 RFC Message-ID，不能用 IMAP UID（msg.id）
   const rfcMessageId = (msg.message_id || '').trim()
@@ -62,6 +62,7 @@ export function buildReplyDraft(msg: Message, myEmail: string, accountId: string
     // 无 message_id 时传空，避免错误地把 UID 当成 In-Reply-To
     in_reply_to: rfcMessageId,
     account_id: accountId,
+    compose_kind: 'reply' as const,
   }
 }
 
@@ -81,11 +82,12 @@ export function buildForwardDraft(msg: Message, accountId: string) {
   const safeSubject = escapeHtml(msg.subject || '')
   const safeDate = escapeHtml(msg.date || '')
   const safeBody = renderMailBody(msg.body_html, msg.body_text)
-  const fwdHtml = `<br><br><p>---------- 转发的邮件 ----------</p><p>发件人: ${safeFrom}</p><p>主题: ${safeSubject}</p><p>日期: ${safeDate}</p><hr/><div>${safeBody}</div>`
+  const fwdHtml = `<p><br></p><p>---------- 转发的邮件 ----------</p><p>发件人: ${safeFrom}</p><p>主题: ${safeSubject}</p><p>日期: ${safeDate}</p><hr/><div>${safeBody}</div>`
   return {
     to: [] as string[],
     subject,
     body_html: fwdHtml,
     account_id: accountId,
+    compose_kind: 'forward' as const,
   }
 }

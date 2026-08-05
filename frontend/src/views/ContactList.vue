@@ -13,6 +13,14 @@
   <input id="contact-search" v-model="searchKeyword" placeholder="搜索姓名或邮箱" class="ui-input search-input" />
   </div>
   </UiField>
+  <UiButton variant="secondary" size="sm" :disabled="mailAccounts.length === 0" @click="openImportDialog">
+  <template #leading>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/><path d="m14 16 2 2 4-4"/>
+  </svg>
+  </template>
+  从邮件导入
+  </UiButton>
   <UiButton variant="primary" size="sm" @click="openAddDialog()">
   <template #leading>
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -208,6 +216,92 @@
   </section>
   </div>
 
+  <!-- ============ 从邮件导入联系人 ============ -->
+  <transition name="fade">
+  <div v-if="showImportDialog" class="dialog-backdrop" @click.self="closeImportDialog">
+  <div class="dialog contact-import-dialog" role="dialog" aria-modal="true" aria-labelledby="contact-import-title">
+  <div class="import-dialog-header">
+  <div>
+  <h3 id="contact-import-title" class="dialog-title">从邮件导入联系人</h3>
+  <p>候选联系人只来自已同步到本地的邮件头。FlyMail 不会自动写入通讯录，请勾选后导入。</p>
+  </div>
+  <button class="import-close-button" type="button" aria-label="关闭" @click="closeImportDialog">×</button>
+  </div>
+
+  <div class="import-controls">
+  <label>
+  <span>选择邮箱</span>
+  <select v-model="candidateAccountId" class="form-input" @change="loadContactCandidatesForDialog">
+  <option value="" disabled>请选择邮箱</option>
+  <option v-for="account in mailAccounts" :key="account.id" :value="account.id">{{ account.email }}</option>
+  </select>
+  </label>
+  <label>
+  <span>搜索候选联系人</span>
+  <div class="import-search-row">
+  <input v-model="candidateSearch" class="form-input" placeholder="姓名或邮箱" @keyup.enter="loadContactCandidatesForDialog" />
+  <UiButton variant="secondary" size="sm" :loading="candidateLoading" @click="loadContactCandidatesForDialog">搜索</UiButton>
+  </div>
+  </label>
+  </div>
+
+  <div class="candidate-toolbar">
+  <label class="candidate-select-all">
+  <input
+  type="checkbox"
+  :checked="allCandidatesSelected"
+  :disabled="contactCandidates.length === 0"
+  @change="toggleAllCandidates"
+  />
+  <span>全选当前候选</span>
+  </label>
+  <span>已选 {{ selectedCandidateEmails.size }} / {{ contactCandidates.length }}</span>
+  </div>
+
+  <div class="candidate-list" aria-label="候选联系人">
+  <UiLoadingState v-if="candidateLoading" compact label="正在整理候选联系人…" />
+  <UiEmptyState
+  v-else-if="contactCandidates.length === 0"
+  compact
+  title="没有可导入的候选联系人"
+  description="请确认该邮箱已完成邮件同步，或尝试其他搜索词。"
+  />
+  <label v-for="candidate in contactCandidates" v-else :key="candidate.email" class="candidate-row">
+  <input
+  type="checkbox"
+  :checked="selectedCandidateEmails.has(candidate.email)"
+  @change="toggleCandidate(candidate.email)"
+  />
+  <span class="candidate-avatar" :style="{ background: getAvatarColor(candidate.name || candidate.email) }">
+  {{ (candidate.name || candidate.email)[0]?.toUpperCase() || '?' }}
+  </span>
+  <span class="candidate-identity">
+  <strong>{{ candidate.name || '(未命名)' }}</strong>
+  <small>{{ candidate.email }}</small>
+  </span>
+  <span class="candidate-activity">
+  <strong>{{ candidate.total_count }} 封</strong>
+  <small>发出 {{ candidate.sent_count }} · 收到 {{ candidate.received_count }}</small>
+  </span>
+  <span class="candidate-last-date">{{ candidate.last_date ? formatRelativeDate(candidate.last_date) : '—' }}</span>
+  </label>
+  </div>
+
+  <div class="dialog-footer">
+  <button class="btn btn-cancel" type="button" @click="closeImportDialog">取消</button>
+  <button
+  class="btn btn-save"
+  type="button"
+  :disabled="selectedCandidateEmails.size === 0 || candidateImporting"
+  @click="importSelectedCandidates"
+  >
+  {{ candidateImporting ? '导入中...' : `导入 ${selectedCandidateEmails.size} 位联系人` }}
+  </button>
+  </div>
+  </div>
+  </div>
+  </transition>
+
   <!-- ============ 新增/编辑弹窗 ============ -->
   <transition name="fade">
   <div v-if="showDialog" class="dialog-backdrop" @click.self="closeDialog">
@@ -284,12 +378,29 @@ import UiButton from '../components/ui/UiButton.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiField from '../components/ui/UiField.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
-import { useContacts, type ContactItem, type ContactStats } from '../composables/useContacts';
+import {
+  useContacts,
+  type ContactCandidate,
+  type ContactItem,
+  type ContactStats,
+} from '../composables/useContacts';
+import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import { getAvatarColor } from '../utils/mail-helpers';
 
 const ui = useUIStore();
-const { contacts, loading, loadContacts, addContact, editContact, removeContact, getContactStats } = useContacts();
+const mailStore = useMailStore();
+const {
+  contacts,
+  loading,
+  loadContacts,
+  addContact,
+  editContact,
+  removeContact,
+  getContactStats,
+  loadContactCandidates,
+  importContactCandidates,
+} = useContacts();
 
 // ============ 状态 ============
 const searchKeyword = ref('');
@@ -298,6 +409,20 @@ const showDialog = ref(false);
 const editingContact = ref<ContactItem | null>(null);
 const saving = ref(false);
 const isMobile = ref(window.innerWidth < 768);
+
+// 从邮件导入联系人
+const showImportDialog = ref(false);
+const candidateAccountId = ref('');
+const candidateSearch = ref('');
+const contactCandidates = ref<ContactCandidate[]>([]);
+const candidateLoading = ref(false);
+const candidateImporting = ref(false);
+const selectedCandidateEmails = ref<Set<string>>(new Set());
+const mailAccounts = computed(() => mailStore.accounts.filter((account: any) => !account.disabled));
+const allCandidatesSelected = computed(() => (
+  contactCandidates.value.length > 0
+  && contactCandidates.value.every((candidate) => selectedCandidateEmails.value.has(candidate.email))
+));
 
 // 往来邮件统计
 const statsData = ref<ContactStats>({ count: 0, last_date: '' });
@@ -358,6 +483,74 @@ function formatRelativeDate(dateStr: string): string {
   if (days < 7) return `${days} 天前`;
   if (days < 30) return `${Math.floor(days / 7)} 周前`;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function openImportDialog() {
+  const currentAccount = mailAccounts.value.find((account: any) => account.id === mailStore.currentAccountId);
+  candidateAccountId.value = currentAccount?.id || mailAccounts.value[0]?.id || '';
+  candidateSearch.value = '';
+  contactCandidates.value = [];
+  selectedCandidateEmails.value = new Set();
+  showImportDialog.value = true;
+  await loadContactCandidatesForDialog();
+}
+
+function closeImportDialog() {
+  showImportDialog.value = false;
+  candidateSearch.value = '';
+  contactCandidates.value = [];
+  selectedCandidateEmails.value = new Set();
+}
+
+let candidateLoadVersion = 0;
+async function loadContactCandidatesForDialog() {
+  if (!candidateAccountId.value) return;
+  const version = ++candidateLoadVersion;
+  candidateLoading.value = true;
+  selectedCandidateEmails.value = new Set();
+  try {
+    const candidates = await loadContactCandidates(candidateAccountId.value, candidateSearch.value);
+    if (version !== candidateLoadVersion) return;
+    contactCandidates.value = candidates;
+  } catch (error: any) {
+    if (version !== candidateLoadVersion) return;
+    contactCandidates.value = [];
+    ui.error(error?.error || error?.message || '读取候选联系人失败');
+  } finally {
+    if (version === candidateLoadVersion) candidateLoading.value = false;
+  }
+}
+
+function toggleCandidate(email: string) {
+  const next = new Set(selectedCandidateEmails.value);
+  if (next.has(email)) next.delete(email);
+  else next.add(email);
+  selectedCandidateEmails.value = next;
+}
+
+function toggleAllCandidates() {
+  selectedCandidateEmails.value = allCandidatesSelected.value
+    ? new Set()
+    : new Set(contactCandidates.value.map((candidate) => candidate.email));
+}
+
+async function importSelectedCandidates() {
+  if (!candidateAccountId.value || selectedCandidateEmails.value.size === 0) return;
+  const selected = contactCandidates.value
+    .filter((candidate) => selectedCandidateEmails.value.has(candidate.email))
+    .map((candidate) => ({ name: candidate.name, email: candidate.email }));
+  candidateImporting.value = true;
+  try {
+    const result = await importContactCandidates(candidateAccountId.value, selected);
+    const skippedText = result.skipped ? `，跳过 ${result.skipped} 个已有或无效地址` : '';
+    ui.success(`已导入 ${result.imported} 位联系人${skippedText}`);
+    await loadContacts();
+    await loadContactCandidatesForDialog();
+  } catch (error: any) {
+    ui.error(error?.error || error?.message || '导入联系人失败');
+  } finally {
+    candidateImporting.value = false;
+  }
 }
 
 // ============ 列表交互 ============
@@ -1199,6 +1392,167 @@ onUnmounted(() => {
   background: var(--color-accent-lighter);
 }
 
+/* 邮件联系人候选导入 */
+.contact-import-dialog {
+  width: min(920px, calc(100vw - 32px));
+  max-width: 920px;
+  min-height: min(680px, calc(100vh - 48px));
+}
+
+.import-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.import-dialog-header .dialog-title {
+  padding: 0;
+  border: 0;
+}
+
+.import-dialog-header p {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.import-close-button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.import-close-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.import-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr);
+  gap: 16px;
+  padding: 16px 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.import-controls label {
+  display: grid;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.import-search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.candidate-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 8px 24px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.candidate-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.candidate-list {
+  flex: 1;
+  min-height: 260px;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.candidate-row {
+  display: grid;
+  grid-template-columns: 22px 38px minmax(180px, 1fr) minmax(145px, auto) 82px;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.candidate-row:hover {
+  background: var(--bg-hover);
+}
+
+.candidate-row input,
+.candidate-select-all input {
+  accent-color: var(--color-accent);
+}
+
+.candidate-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ui-text-inverse);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.candidate-identity,
+.candidate-activity {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.candidate-identity strong,
+.candidate-activity strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-identity small,
+.candidate-activity small,
+.candidate-last-date {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-activity {
+  text-align: right;
+}
+
+.candidate-last-date {
+  text-align: right;
+}
+
 /* 弹窗底部按钮 */
 .dialog-footer {
   display: flex;
@@ -1334,6 +1688,44 @@ onUnmounted(() => {
   .stats-grid,
   .sections-row {
   grid-template-columns: 1fr;
+  }
+
+  .contact-toolbar {
+  flex-wrap: wrap;
+  }
+
+  .contact-search-field {
+  flex-basis: 100%;
+  }
+
+  .contact-import-dialog {
+  width: calc(100vw - 16px);
+  min-height: calc(100vh - 16px);
+  max-height: calc(100vh - 16px);
+  }
+
+  .import-dialog-header,
+  .import-controls,
+  .candidate-toolbar,
+  .dialog-footer {
+  padding-left: 16px;
+  padding-right: 16px;
+  }
+
+  .import-controls {
+  grid-template-columns: 1fr;
+  }
+
+  .candidate-row {
+  grid-template-columns: 22px 34px minmax(0, 1fr) auto;
+  }
+
+  .candidate-activity {
+  display: none;
+  }
+
+  .candidate-last-date {
+  max-width: 62px;
   }
 }
 </style>

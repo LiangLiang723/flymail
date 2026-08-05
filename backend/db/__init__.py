@@ -5,6 +5,7 @@ import os
 import json
 import re
 import time
+from email.utils import getaddresses
 from typing import Any, List, Optional
 from urllib.parse import unquote, urlparse
 
@@ -553,6 +554,7 @@ async def init_db():
                 name VARCHAR(255) NOT NULL,
                 content_html LONGTEXT,
                 is_default INTEGER DEFAULT 0,
+                is_reply_default INTEGER DEFAULT 0,
                 account_id VARCHAR(191) DEFAULT '',
                 user_uid VARCHAR(191) DEFAULT '',
                 created_at REAL DEFAULT 0,
@@ -700,6 +702,10 @@ async def init_db():
         await db.execute("ALTER TABLE signatures ADD COLUMN user_uid VARCHAR(191) DEFAULT ''")
     except Exception as e:
         logger.debug("migration add signatures.user_uid ignored: %s", e)
+    try:
+        await db.execute("ALTER TABLE signatures ADD COLUMN is_reply_default INTEGER DEFAULT 0")
+    except Exception as e:
+        logger.debug("migration add signatures.is_reply_default ignored: %s", e)
 
     for table, column, declaration in (
         ("accounts", "sort_order", "INTEGER DEFAULT 0"),
@@ -1182,19 +1188,42 @@ async def get_signature_by_id(sig_id: int, user_uid: str = "") -> Optional[Signa
     return Signature(**_row_to_dict(cursor, row))
 
 
+async def _clear_signature_defaults(db, sig: Signature) -> None:
+    """Keep default flags unique inside one user and account scope."""
+    scope = (sig.user_uid or "", sig.account_id or "", int(sig.id or 0))
+    if sig.is_default:
+        await db.execute(
+            "UPDATE signatures SET is_default = 0 WHERE user_uid = ? AND account_id = ? AND id <> ?",
+            scope,
+        )
+    if sig.is_reply_default:
+        await db.execute(
+            "UPDATE signatures SET is_reply_default = 0 WHERE user_uid = ? AND account_id = ? AND id <> ?",
+            scope,
+        )
+
+
 async def update_signature(sig: Signature) -> bool:
-    """Update a signature and keep the default flag unique per user."""
+    """Update a signature and keep each default flag unique in its account scope."""
     db = await get_db()
     now = time.time()
     await db.execute("BEGIN")
     try:
-        if sig.is_default:
-            await db.execute("UPDATE signatures SET is_default = 0 WHERE user_uid = ?", (sig.user_uid or "",))
+        await _clear_signature_defaults(db, sig)
         cursor = await db.execute(
             """UPDATE signatures SET name = ?, content_html = ?, is_default = ?,
-               account_id = ?, updated_at = ?
-               WHERE id = ?""",
-            (sig.name, sig.content_html, 1 if sig.is_default else 0, sig.account_id or "", now, sig.id)
+               is_reply_default = ?, account_id = ?, updated_at = ?
+               WHERE id = ? AND user_uid = ?""",
+            (
+                sig.name,
+                sig.content_html,
+                1 if sig.is_default else 0,
+                1 if sig.is_reply_default else 0,
+                sig.account_id or "",
+                now,
+                sig.id,
+                sig.user_uid or "",
+            ),
         )
         await db.execute("COMMIT")
     except Exception:
@@ -2785,9 +2814,22 @@ async def create_signature(sig: Signature) -> Signature:
     now = time.time()
     await db.execute('BEGIN')
     try:
-        if sig.is_default:
-            await db.execute('UPDATE signatures SET is_default = 0 WHERE user_uid = ?', (sig.user_uid or '',))
-        cursor = await db.execute('''INSERT INTO signatures (name, content_html, is_default, account_id, user_uid, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)''', (sig.name, sig.content_html, 1 if sig.is_default else 0, sig.account_id or '', sig.user_uid or '', now, now))
+        await _clear_signature_defaults(db, sig)
+        cursor = await db.execute(
+            '''INSERT INTO signatures
+               (name, content_html, is_default, is_reply_default, account_id, user_uid, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            (
+                sig.name,
+                sig.content_html,
+                1 if sig.is_default else 0,
+                1 if sig.is_reply_default else 0,
+                sig.account_id or '',
+                sig.user_uid or '',
+                now,
+                now,
+            ),
+        )
         await db.execute('COMMIT')
     except Exception:
         await db.execute('ROLLBACK')
@@ -2936,6 +2978,114 @@ async def deactivate_account(
 
 
 # ==================== Upstream contacts ====================
+
+
+def _aggregate_contact_candidates(
+    rows,
+    *,
+    own_email: str,
+    existing_emails: set[str],
+    search: str = "",
+    limit: int = 500,
+) -> list[dict]:
+    """Aggregate local cached mail headers into importable contact candidates."""
+    own = (own_email or "").strip().lower()
+    existing = {(email or "").strip().lower() for email in existing_emails if email}
+    candidates: dict[str, dict] = {}
+
+    def parsed(value: str) -> list[tuple[str, str]]:
+        result: list[tuple[str, str]] = []
+        for name, address in getaddresses([value or ""]):
+            normalized = (address or "").strip().lower()
+            if not normalized or "@" not in normalized:
+                continue
+            result.append(((name or "").strip().strip('"'), normalized))
+        return result
+
+    for row in rows or []:
+        from_addr, to_addr, cc_addr, mail_date = (list(row) + ["", "", "", ""])[:4]
+        from_entries = parsed(from_addr)
+        outgoing = any(address == own for _name, address in from_entries)
+        entries = parsed(to_addr) + parsed(cc_addr) if outgoing else from_entries
+        direction = "sent_count" if outgoing else "received_count"
+        seen_in_message: set[str] = set()
+        for name, address in entries:
+            if address in seen_in_message or address == own or address in existing:
+                continue
+            seen_in_message.add(address)
+            item = candidates.setdefault(
+                address,
+                {
+                    "name": name,
+                    "email": address,
+                    "sent_count": 0,
+                    "received_count": 0,
+                    "total_count": 0,
+                    "last_date": "",
+                },
+            )
+            if name and not item["name"]:
+                item["name"] = name
+            item[direction] += 1
+            item["total_count"] += 1
+            date_value = str(mail_date or "")
+            if date_value > item["last_date"]:
+                item["last_date"] = date_value
+
+    keyword = (search or "").strip().lower()
+    items = [
+        item for item in candidates.values()
+        if not keyword or keyword in item["email"] or keyword in item["name"].lower()
+    ]
+    items.sort(key=lambda item: item["email"])
+    items.sort(key=lambda item: item["last_date"], reverse=True)
+    items.sort(key=lambda item: item["total_count"], reverse=True)
+    return items[:max(1, min(int(limit or 500), 1000))]
+
+
+async def get_contact_candidates(
+    user_uid: str,
+    account_id: str,
+    search: str = "",
+    limit: int = 500,
+) -> Optional[list[dict]]:
+    """Return candidates from one owned mailbox's locally cached message headers."""
+    db = await get_db()
+    account_cursor = await db.execute(
+        "SELECT email FROM accounts WHERE id = ? AND user_uid = ? LIMIT 1",
+        (account_id, user_uid),
+    )
+    account_row = await account_cursor.fetchone()
+    if not account_row:
+        return None
+
+    existing_cursor = await db.execute(
+        """SELECT ce.email
+           FROM contact_emails ce
+           INNER JOIN contacts c ON c.id = ce.contact_id
+           WHERE c.user_uid = ?""",
+        (user_uid,),
+    )
+    existing_rows = await existing_cursor.fetchall()
+    existing_emails = {str(row[0] or "").strip().lower() for row in existing_rows}
+
+    messages_cursor = await db.execute(
+        """SELECT from_addr, to_addr, cc, date
+           FROM cached_messages
+           WHERE user_uid = ? AND account_id = ?
+           ORDER BY cached_at DESC
+           LIMIT 20000""",
+        (user_uid, account_id),
+    )
+    message_rows = await messages_cursor.fetchall()
+    return _aggregate_contact_candidates(
+        message_rows,
+        own_email=str(account_row[0] or ""),
+        existing_emails=existing_emails,
+        search=search,
+        limit=limit,
+    )
+
 
 async def _fetch_emails_for_contacts(db, contact_ids: list[int]) -> dict[int, list[dict]]:
     if not contact_ids:

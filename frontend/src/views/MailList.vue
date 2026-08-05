@@ -997,6 +997,7 @@ function navigateToCompose() {
 function openCompose() {
   mailStore.setComposeDraft({
     account_id: mailStore.currentAccountId,
+    compose_kind: 'new',
   });
   navigateToCompose();
 }
@@ -1170,6 +1171,7 @@ async function selectMessage(msg: Message) {
         account_id: mailStore.currentAccountId,
         draft_message_id: msg.id,
         draft_folder: mailStore.currentFolder,
+        compose_kind: 'draft',
       });
       navigateToCompose();
     } catch (e) {

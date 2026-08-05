@@ -122,6 +122,7 @@ class Signature(BaseModel):
     name: str = ""
     content_html: str = ""
     is_default: int = 0
+    is_reply_default: int = 0
     account_id: str = ""
     user_uid: str = ""
     created_at: float = 0.0

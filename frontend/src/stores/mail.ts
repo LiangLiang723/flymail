@@ -460,6 +460,7 @@ export const useMailStore = defineStore('mail', () => {
     account_id?: string;
     draft_message_id?: string;
     draft_folder?: string;
+    compose_kind?: 'new' | 'reply' | 'forward' | 'draft';
   }) {
     composeDraft.value = draft;
   }

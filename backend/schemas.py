@@ -384,25 +384,28 @@ class SignatureSettingsResponse(BaseModel):
 
 
 class SignatureTemplateRequest(BaseModel):
-    name: str = Field(default="", description="签名模板名称")
-    content_html: str = Field(default="", description="签名 HTML 内容")
-    is_default: bool = Field(default=False, description="是否默认签名")
-    account_id: str = Field(default="", description="关联账号ID")
+    name: str = Field(default="", max_length=255, description="签名模板名称")
+    content_html: str = Field(default="", max_length=10000, description="签名 HTML 内容")
+    is_default: bool = Field(default=False, description="是否为新邮件默认签名")
+    is_reply_default: bool = Field(default=False, description="是否为回复和转发默认签名")
+    account_id: str = Field(default="", max_length=191, description="关联账号ID，留空表示全部邮箱")
 
 
 class SignatureTemplateUpdateRequest(BaseModel):
-    name: Optional[str] = Field(default=None, description="签名模板名称")
-    content_html: Optional[str] = Field(default=None, description="签名 HTML 内容")
-    is_default: Optional[bool] = Field(default=None, description="是否默认签名")
-    account_id: Optional[str] = Field(default=None, description="关联账号ID")
+    name: Optional[str] = Field(default=None, max_length=255, description="签名模板名称")
+    content_html: Optional[str] = Field(default=None, max_length=10000, description="签名 HTML 内容")
+    is_default: Optional[bool] = Field(default=None, description="是否为新邮件默认签名")
+    is_reply_default: Optional[bool] = Field(default=None, description="是否为回复和转发默认签名")
+    account_id: Optional[str] = Field(default=None, max_length=191, description="关联账号ID，留空表示全部邮箱")
 
 
 class SignatureTemplateItem(BaseModel):
     id: int = Field(description="签名模板ID")
     name: str = Field(description="签名模板名称")
     content_html: str = Field(default="", description="签名 HTML 内容")
-    is_default: bool = Field(default=False, description="是否默认签名")
-    account_id: str = Field(default="", description="关联账号ID")
+    is_default: bool = Field(default=False, description="是否为新邮件默认签名")
+    is_reply_default: bool = Field(default=False, description="是否为回复和转发默认签名")
+    account_id: str = Field(default="", description="关联账号ID，留空表示全部邮箱")
 
 
 class SignatureListResponse(BaseModel):
@@ -524,3 +527,31 @@ class QuickAddContactRequest(BaseModel):
 class ContactStatsResponse(BaseModel):
     count: int = Field(default=0)
     last_date: str = Field(default="")
+
+
+class ContactCandidateItem(BaseModel):
+    name: str = Field(default="")
+    email: str
+    sent_count: int = Field(default=0)
+    received_count: int = Field(default=0)
+    total_count: int = Field(default=0)
+    last_date: str = Field(default="")
+
+
+class ContactCandidateListResponse(BaseModel):
+    candidates: List[ContactCandidateItem] = Field(default=[])
+
+
+class ContactImportItem(BaseModel):
+    name: str = Field(default="", max_length=255)
+    email: str = Field(min_length=3, max_length=320)
+
+
+class ContactImportRequest(BaseModel):
+    account_id: str = Field(min_length=1, max_length=191)
+    contacts: List[ContactImportItem] = Field(default=[], max_length=500)
+
+
+class ContactImportResponse(BaseModel):
+    imported: int = Field(default=0)
+    skipped: int = Field(default=0)

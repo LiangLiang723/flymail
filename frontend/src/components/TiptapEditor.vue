@@ -124,6 +124,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import Paragraph from '@tiptap/extension-paragraph';
+import { Node, mergeAttributes } from '@tiptap/core';
 import { watch, onBeforeUnmount, computed, ref, onMounted } from 'vue';
 
 const props = defineProps<{
@@ -198,6 +199,31 @@ const CustomParagraph = Paragraph.extend({
   },
 });
 
+const SignatureBlock = Node.create({
+  name: 'signatureBlock',
+  group: 'block',
+  content: 'block+',
+  defining: true,
+  isolating: true,
+  addAttributes() {
+    return {
+      signatureId: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-flymail-signature') || '',
+        renderHTML: (attributes: Record<string, any>) => ({
+          'data-flymail-signature': String(attributes.signatureId || ''),
+        }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-flymail-signature]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes({ class: 'flymail-signature-block' }, HTMLAttributes), 0];
+  },
+});
+
 // 保存编辑器失焦时的 storedMarks，用于下拉菜单操作后恢复样式状态
 let savedStoredMarks: any[] | null = null;
 
@@ -208,6 +234,7 @@ const editor = useEditor({
   paragraph: false,
   }),
   CustomParagraph,
+  SignatureBlock,
   Underline,
   CustomTextStyle,
   Color,
@@ -267,7 +294,44 @@ function insertText(text: string) {
   editor.value.chain().focus().insertContent(text).run();
 }
 
-defineExpose({ insertText, getHTML: () => editor.value?.getHTML() || '' });
+/** 替换由 FlyMail 管理的签名块；传 null 时只移除签名。 */
+function setManagedSignature(
+  signatureId: number | null,
+  html = '',
+  placement: 'start' | 'end' = 'end',
+) {
+  const currentEditor = editor.value;
+  if (!currentEditor) return;
+
+  const ranges: Array<{ from: number; to: number }> = [];
+  currentEditor.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'signatureBlock') {
+      ranges.push({ from: pos, to: pos + node.nodeSize });
+    }
+  });
+  if (ranges.length) {
+    let transaction = currentEditor.state.tr;
+    for (const range of ranges.reverse()) {
+      transaction = transaction.delete(range.from, range.to);
+    }
+    currentEditor.view.dispatch(transaction);
+  }
+
+  if (signatureId !== null && html.trim()) {
+    const signatureHtml = `<div data-flymail-signature="${signatureId}">${html}</div>`;
+    const firstNode = currentEditor.state.doc.firstChild;
+    const position = placement === 'start'
+      ? (firstNode?.type.name === 'paragraph' ? firstNode.nodeSize : 0)
+      : currentEditor.state.doc.content.size;
+    currentEditor.chain().focus().insertContentAt(position, signatureHtml).run();
+  }
+}
+
+defineExpose({
+  insertText,
+  setManagedSignature,
+  getHTML: () => editor.value?.getHTML() || '',
+});
 
 // ---- Emoji 选择器 ----
 const showEmojiPicker = ref(false);
