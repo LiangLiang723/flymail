@@ -494,14 +494,17 @@ onUnmounted(() => {
   min-width: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
   background: var(--ui-surface-1);
 }
 
 .signature-editor-content {
   width: min(100%, 1040px);
+  min-height: 0;
   margin: 0 auto;
   display: grid;
   gap: 20px;
+  overflow-y: auto;
   padding: 28px clamp(20px, 4vw, 48px) 32px;
 }
 
@@ -613,8 +616,6 @@ onUnmounted(() => {
 }
 
 .signature-action-bar {
-  position: sticky;
-  bottom: 0;
   padding: 14px 20px;
   border-top: 1px solid var(--ui-border);
   background: color-mix(in srgb, var(--ui-surface-1) 92%, transparent);
@@ -664,6 +665,7 @@ onUnmounted(() => {
 
   .signature-editor-pane.mobile-show {
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .signature-mobile-toolbar {

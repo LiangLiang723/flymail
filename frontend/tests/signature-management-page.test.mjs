@@ -31,6 +31,9 @@ test('signature management protects unsaved work and supports mobile editing', a
   assert.match(source, /返回列表/);
   assert.doesNotMatch(source, /modal-overlay/);
   assert.doesNotMatch(source, /bottom-sheet/);
+  assert.match(source, /\.signature-editor-pane\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.match(source, /\.signature-editor-content\s*\{[^}]*overflow-y:\s*auto;/s);
+  assert.doesNotMatch(source, /\.signature-action-bar\s*\{[^}]*position:\s*sticky;/s);
 });
 
 test('signature creation offers five persisted starting templates', async () => {
