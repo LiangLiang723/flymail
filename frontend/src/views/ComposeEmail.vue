@@ -29,123 +29,48 @@
         草稿
       </UiButton>
 
-      <!-- 签名模板选择器 -->
+      <!-- 签名快速选择 -->
       <div class="toolbar-dropdown sig-dropdown">
         <button class="toolbar-btn" title="签名" type="button" @click="showSignaturePanel = !showSignaturePanel">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
           <span>签名</span>
         </button>
         <div v-if="showSignaturePanel" class="sig-panel">
-          <div class="sig-panel-actions">
-            <button class="sig-action-btn" type="button" @click="selectSignature(null)">无签名</button>
-            <button class="sig-action-btn primary" type="button" @click="openSignatureManager">管理签名</button>
+          <div class="sig-current-summary">
+            <span>当前签名</span>
+            <strong>{{ activeSignatureName }}</strong>
           </div>
-          <!-- 内置预设模板 -->
-          <div class="sig-section">
-            <div class="sig-section-label">内置模板</div>
-            <div class="sig-preset-grid">
-              <div
-                v-for="preset in builtinSignatures"
-                :key="preset.id"
-                class="sig-preset-card"
-              >
-                <!-- 点击预览区域直接插入 -->
-                <div class="sig-preset-click-area" @click="insertSigToEditor(preset.content_html)">
-                  <div class="sig-preset-preview" v-html="preset.preview"></div>
-                  <span class="sig-preset-name">{{ preset.name }}</span>
-                </div>
-                <!-- 自定义按钮：点击打开编辑对话框 -->
-                <button
-                  class="sig-customize-btn"
-                  type="button"
-                  title="自定义此模板"
-                  @click.stop="openCustomizeDialog(preset)"
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 自定义编辑对话框（内嵌） -->
-          <div v-if="showCustomizeDialog && showSignaturePanel" class="modal-overlay" @click.self="showCustomizeDialog = false">
-            <div class="modal-content sig-customize-modal">
-              <h3>自定义签名：{{ customizingPreset?.name }}</h3>
-              <TiptapEditor v-model="editingSigHtml" class="signature-editor" />
-              <div class="modal-actions">
-                <button class="toolbar-btn" @click="showCustomizeDialog = false">取消</button>
-                <button class="toolbar-btn primary" @click="saveCustomizedSig">保存签名</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 编辑用户签名对话框（内嵌） -->
-          <div v-if="showEditUserSigDialog && showSignaturePanel" class="modal-overlay" @click.self="showEditUserSigDialog = false">
-            <div class="modal-content sig-customize-modal sig-manager-modal">
-              <h3>{{ editingUserSig ? `编辑签名：${editingUserSig.name}` : '新建签名' }}</h3>
-              <div class="signature-settings-grid">
-                <label>
-                  <span>签名名称</span>
-                  <input v-model="editingUserSigName" placeholder="例如：工作签名" class="sig-save-input" />
-                </label>
-                <label>
-                  <span>适用邮箱</span>
-                  <select v-model="editingUserSigAccountId" class="sig-save-input">
-                    <option value="">全部邮箱</option>
-                    <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.email }}</option>
-                  </select>
-                </label>
-              </div>
-              <div class="signature-default-options">
-                <UiCheckbox v-model="editingUserSigIsDefault" label="新邮件默认">新邮件默认</UiCheckbox>
-                <UiCheckbox v-model="editingUserSigIsReplyDefault" label="回复/转发默认">回复/转发默认</UiCheckbox>
-              </div>
-              <TiptapEditor v-model="editingUserSigHtml" class="signature-editor" />
-              <div class="modal-actions">
-                <button class="toolbar-btn" @click="showEditUserSigDialog = false">取消</button>
-                <button v-if="editingUserSig" class="toolbar-btn danger" @click="deleteEditingUserSig">删除</button>
-                <button class="toolbar-btn primary" @click="saveEditedUserSig">保存</button>
-              </div>
-            </div>
-          </div>
-
+          <button
+            class="sig-quick-item"
+            :class="{ active: activeSignatureId === null }"
+            type="button"
+            @click="selectSignature(null)"
+          >
+            <span class="sig-quick-copy"><strong>无签名</strong><small>移除当前签名块</small></span>
+            <span v-if="activeSignatureId === null" class="sig-quick-check">✓</span>
+          </button>
+          <button
+            v-for="sig in availableUserSigs"
+            :key="sig.id"
+            class="sig-quick-item"
+            :class="{ active: activeSignatureId === sig.id }"
+            type="button"
+            @click="selectSignature(sig)"
+          >
+            <span class="sig-quick-copy">
+              <strong>{{ sig.name }}</strong>
+              <small>{{ signatureAccountLabel(sig.account_id) }}</small>
+            </span>
+            <span class="sig-quick-badges">
+              <span v-if="signatureDefaultLabel(sig)" class="sig-quick-badge">{{ signatureDefaultLabel(sig) }}</span>
+              <span v-if="activeSignatureId === sig.id" class="sig-quick-check">✓</span>
+            </span>
+          </button>
+          <div v-if="availableUserSigs.length === 0" class="sig-empty-hint">当前邮箱暂无可用签名</div>
           <div class="sig-panel-divider"></div>
-          <!-- 我的签名 -->
-          <div class="sig-section">
-            <div class="sig-section-label">我的签名</div>
-            <template v-if="availableUserSigs.length > 0">
-              <div class="sig-preset-grid">
-                <div
-                  v-for="sig in availableUserSigs"
-                  :key="'u'+sig.id"
-                  class="sig-preset-card sig-user-card"
-                >
-                  <!-- 标记：默认 / 操作按钮 -->
-                  <span v-if="sig.is_default" class="sig-default-badge-inline">新邮件默认</span>
-                  <span v-if="sig.is_reply_default" class="sig-default-badge-inline reply">回复默认</span>
-                  <button class="sig-delete-btn" type="button" @click.stop="deleteUserSig(sig.id)" title="删除">×</button>
-                  <button
-                    class="sig-customize-btn"
-                    type="button"
-                    title="编辑此签名"
-                    @click.stop="openEditUserSigDialog(sig)"
-                  >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                  </button>
-                  <!-- 点击区域：插入签名 -->
-                  <div class="sig-preset-click-area" @click="insertSigToEditor(sig.content_html, sig.id)">
-                    <div class="sig-preset-preview sig-user-preview" v-html="sig.content_html"></div>
-                    <span class="sig-preset-name">{{ sig.name }}</span>
-                    <small class="sig-account-label">{{ signatureAccountLabel(sig.account_id) }}</small>
-                  </div>
-                </div>
-              </div>
-            </template>
-            <div v-else class="sig-empty-hint">暂无自定义签名</div>
-          </div>
-          <div class="sig-panel-divider"></div>
-          <button class="sig-save-current-btn" type="button" @click="openSignatureManager">
-            + 管理签名
+          <button class="sig-manage-button" type="button" @click="openSignatureManager">
+            管理签名
+            <span aria-hidden="true">→</span>
           </button>
         </div>
       </div>
@@ -381,7 +306,6 @@ import { useSignatureStore } from '../stores/signatures';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import UiButton from '../components/ui/UiButton.vue';
-import UiCheckbox from '../components/ui/UiCheckbox.vue';
 import UiField from '../components/ui/UiField.vue';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { useContactAutocomplete } from '../composables/useContactAutocomplete';
@@ -555,51 +479,34 @@ const attachmentLimitMb = computed(() => attachmentLimits[selectedAccount.value?
 const totalAttachmentBytes = computed(() => attachments.value.reduce((total, item) => total + Number(item.size || 0), 0));
 const attachmentOverLimit = computed(() => totalAttachmentBytes.value > attachmentLimitMb.value * 1024 * 1024);
 
-// ==================== 签名模板（内置 + 用户自定义） ====================
+// ==================== 签名快速选择 ====================
 const showSignaturePanel = ref(false);
 const editorRef = ref<InstanceType<typeof import('../components/TiptapEditor.vue').default> | null>(null);
 const activeSignatureId = ref<number | null>(null);
-
-/** 内置预设签名模板（4款精美常用签名） */
-const builtinSignatures = [
-  {
-    id: 'business',
-    name: '商务正式',
-    content_html: '<div style="border-top: 2px solid #333; padding-top: 10px; margin-top: 16px; font-family: -apple-system, sans-serif;"><strong style="font-size: 14px; color: #1a1a1a;">张三</strong><br><span style="font-size: 12px; color: #666;">产品经理 | 飞邮科技</span><br><span style="font-size: 11px; color: #999;">📧 zhangsan@flymail.com &nbsp; 📱 138-xxxx-xxxx</span></div>',
-    preview: '<div style="padding:6px 0;font-size:9px;line-height:1.5;color:#666"><b>张三</b><br>产品经理 | 飞邮科技<br>📧 zhangsan@flymail.com</div>',
-  },
-  {
-    id: 'minimal',
-    name: '简洁现代',
-    content_html: '<div style="margin-top: 18px; font-family: -apple-system, sans-serif; color: #555; font-size: 13px; line-height: 1.8;"><span style="color: #007AFF; font-weight: 600;">张三</span>&nbsp;&nbsp;<span style="color: #999;">|</span>&nbsp;&nbsp;<em style="color: #888;">用心做好每一封邮件</em></div>',
-    preview: '<div style="padding:6px 0;font-size:9px;line-height:1.5"><b style="color:#007AFF">张三</b> <span style="color:#ccc">|</span> <i style="color:#999">用心做好每一封邮件</i></div>',
-  },
-  {
-    id: 'creative',
-    name: '创意个性',
-    content_html: '<div style="margin-top: 16px; font-family: -apple-system, sans-serif; border-left: 3px solid #ff6b35; padding-left: 12px;"><span style="font-size: 15px; font-weight: 700; color: #1a1a1a;">张三</span><br><span style="font-size: 12px; color: #888;">保持好奇，保持热爱 ✨</span><br><a href="mailto:zhangsan@flymail.com" style="font-size: 11px; color: #ff6b35; text-decoration: none;">zhangsan@flymail.com →</a></div>',
-    preview: '<div style="padding:6px 0;font-size:9px;line-height:1.5;border-left:2px solid #ff6b35;padding-left:6px"><b>张三</b><br><span style="color:#999">保持好奇，保持热爱 ✨</span></div>',
-  },
-  {
-    id: 'english',
-    name: '英文正式',
-    content_html: '<div style="margin-top: 16px; font-family: Georgia, serif; border-top: 1px solid #ccc; padding-top: 10px;"><span style="font-size: 14px; color: #222; font-style: italic;">Zhang San</span><br><span style="font-size: 11px; color: #777;">Product Manager, FlyMail Inc.</span><br><span style="font-size: 10px; color: #aaa;">Tel: +86-138-xxxx-xxxx &nbsp; Email: zhangsan@flymail.com</span></div>',
-    preview: '<div style="padding:6px 0;font-size:9px;line-height:1.5;color:#555;font-family:Georgia,serif"><i>Zhang San</i><br>Product Manager, FlyMail Inc.</div>',
-  },
-];
-
-/** 用户自定义签名：可按邮箱配置新邮件与回复/转发默认项。 */
-const userSigs = ref<SignatureTemplate[]>([]);
 const composeKind = ref<ComposeKind>('new');
+const userSigs = computed(() => signatureStore.signatures);
 const availableUserSigs = computed(() => userSigs.value.filter(
-  (sig) => !sig.account_id || sig.account_id === fromAccountId.value,
+  (signature) => !signature.account_id || signature.account_id === fromAccountId.value,
+));
+const activeSignatureName = computed(() => (
+  activeSignatureId.value === null
+    ? '无签名'
+    : userSigs.value.find((signature) => signature.id === activeSignatureId.value)?.name || '已插入的签名'
 ));
 
-async function loadUserSigs() {
-  try {
-    const data = await api.get('/signatures') as any;
-    userSigs.value = data.signatures || [];
-  } catch { userSigs.value = []; }
+function signatureDefaultLabel(signature: SignatureTemplate) {
+  if (signature.is_default && signature.is_reply_default) return '双默认';
+  if (signature.is_default) return '新邮件默认';
+  if (signature.is_reply_default) return '回复默认';
+  return '';
+}
+
+function isSignatureBodyEmpty(html: string) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;|\s/gi, '')
+    .length === 0;
 }
 
 /** 使用可替换的签名块，切换签名时不会重复追加。 */
@@ -614,10 +521,11 @@ function insertSigToEditor(contentHtml: string, signatureId = -1) {
 }
 
 function selectSignature(sig: SignatureTemplate | null) {
-  if (!sig) {
+  if (!sig || isSignatureBodyEmpty(sig.content_html)) {
     editorRef.value?.setManagedSignature(null);
     activeSignatureId.value = null;
     showSignaturePanel.value = false;
+    if (sig) showToast('该签名没有正文', 'info');
     return;
   }
   insertSigToEditor(sig.content_html, sig.id);
@@ -628,67 +536,7 @@ function signatureAccountLabel(accountId: string) {
   return accounts.value.find((account: any) => account.id === accountId)?.email || '指定邮箱';
 }
 
-/** 删除用户签名 */
-async function deleteUserSig(sigId: number) {
-  try {
-    await api.delete(`/signatures/${sigId}`);
-    await loadUserSigs();
-  } catch (e: any) { console.error('删除签名失败:', e); }
-}
-
-// ==================== 内置模板自定义编辑 ====================
-const showCustomizeDialog = ref(false);
-const customizingPreset = ref<{ id: string; name: string; content_html: string } | null>(null);
-const editingSigHtml = ref('');
-
-/** 打开自定义编辑对话框，加载内置模板的原始 HTML */
-function openCustomizeDialog(preset: { id: string; name: string; content_html: string }) {
-  customizingPreset.value = preset;
-  // 将单行 HTML 格式化为可读的多行形式
-  editingSigHtml.value = formatHtmlForEdit(preset.content_html);
-  showCustomizeDialog.value = true;
-}
-
-/** 富文本编辑器直接接收 HTML，避免格式化空白被当成签名正文。 */
-function formatHtmlForEdit(html: string): string {
-  return html;
-}
-
-/** 保存自定义后的签名到"我的签名"列表 */
-async function saveCustomizedSig() {
-  if (!customizingPreset.value) return;
-  try {
-    // 名称：基于原模板名 + "(自定义)"
-    const baseName = customizingPreset.value.name;
-    const name = `${baseName}(自定义)`;
-    await api.post('/signatures', {
-      name,
-      content_html: editingSigHtml.value,
-      is_default: userSigs.value.length === 0 ? true : undefined,
-    });
-    showCustomizeDialog.value = false;
-    await loadUserSigs();
-  } catch (e: any) { console.error('保存自定义签名失败:', e); }
-}
-
-// ==================== 编辑用户签名 ====================
-const showEditUserSigDialog = ref(false);
-const editingUserSig = ref<SignatureTemplate | null>(null);
-const editingUserSigName = ref('');
-const editingUserSigHtml = ref('');
-const editingUserSigAccountId = ref('');
-const editingUserSigIsDefault = ref(false);
-const editingUserSigIsReplyDefault = ref(false);
 let applyingComposeDraft = false;
-
-function resetSignatureEditor(sig: SignatureTemplate | null) {
-  editingUserSig.value = sig;
-  editingUserSigName.value = sig?.name || '';
-  editingUserSigHtml.value = formatHtmlForEdit(sig?.content_html || '<p><br></p>');
-  editingUserSigAccountId.value = sig ? sig.account_id : (fromAccountId.value || '');
-  editingUserSigIsDefault.value = Boolean(sig?.is_default);
-  editingUserSigIsReplyDefault.value = Boolean(sig?.is_reply_default);
-}
 
 function buildComposeWorkspaceSnapshot(): ComposeWorkspaceSnapshot {
   commitRecipientInputs();
@@ -716,12 +564,6 @@ function openSignatureManager() {
   window.dispatchEvent(new CustomEvent('flymail-navigate', { detail: 'signatures' }));
 }
 
-/** 打开编辑用户签名对话框。 */
-function openEditUserSigDialog(sig: SignatureTemplate) {
-  resetSignatureEditor(sig);
-  showEditUserSigDialog.value = true;
-}
-
 async function applyDefaultSignature() {
   if (composeKind.value === 'draft') return;
   const defaultSig = resolveDefaultSignature(userSigs.value, fromAccountId.value, composeKind.value);
@@ -738,49 +580,6 @@ async function applyDefaultSignature() {
     composeKind.value === 'reply' || composeKind.value === 'forward' ? 'start' : 'end',
   );
   activeSignatureId.value = defaultSig.id;
-}
-
-/** 新建或修改签名，并持久化邮箱范围和两类默认规则。 */
-async function saveEditedUserSig() {
-  const name = editingUserSigName.value.trim();
-  if (!name) {
-    showToast('请输入签名名称', 'info');
-    return;
-  }
-  const payload = {
-    name,
-    content_html: editingUserSigHtml.value,
-    account_id: editingUserSigAccountId.value,
-    is_default: editingUserSigIsDefault.value,
-    is_reply_default: editingUserSigIsReplyDefault.value,
-  };
-  try {
-    if (editingUserSig.value) {
-      await api.put(`/signatures/${editingUserSig.value.id}`, payload);
-    } else {
-      await api.post('/signatures', payload);
-    }
-    showEditUserSigDialog.value = false;
-    await loadUserSigs();
-    await applyDefaultSignature();
-    showToast('签名已保存', 'success');
-  } catch (e: any) {
-    showToast('保存签名失败: ' + getErrorMessage(e), 'error');
-  }
-}
-
-/** 在编辑对话框中直接删除当前签名。 */
-async function deleteEditingUserSig() {
-  if (!editingUserSig.value) return;
-  try {
-    await api.delete(`/signatures/${editingUserSig.value.id}`);
-    showEditUserSigDialog.value = false;
-    await loadUserSigs();
-    await applyDefaultSignature();
-    showToast('签名已删除', 'success');
-  } catch (e: any) {
-    showToast('删除签名失败: ' + getErrorMessage(e), 'error');
-  }
 }
 
 async function applyComposeDraft(
@@ -814,7 +613,7 @@ async function applyComposeDraft(
 
 // 初始化：先加载签名规则，再按新邮件/回复/转发/草稿场景建立编辑器。
 onMounted(async () => {
-  await loadUserSigs();
+  await signatureStore.ensureLoaded();
   if (mailStore.composeWorkspace) {
     await applyComposeDraft(mailStore.composeWorkspace, { applyDefaultSignature: false });
   } else {
@@ -1900,7 +1699,7 @@ function formatSize(bytes: number): string {
   }
 }
 
-/* ==================== 签名模板选择器（工具栏内嵌） ==================== */
+/* ==================== 签名快速选择 ==================== */
 .sig-dropdown {
   position: relative;
   display: inline-flex;
@@ -1910,239 +1709,135 @@ function formatSize(bytes: number): string {
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 4px;
-  width: min(320px, calc(100vw - 24px));
-  max-height: min(460px, calc(100vh - 120px));
-  overflow-y: auto;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: var(--ui-shadow-md);
   z-index: 200;
-  padding: 10px;
+  width: min(310px, calc(100vw - 24px));
+  max-height: min(440px, calc(100vh - 120px));
+  margin-top: 6px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-floating);
+  box-shadow: var(--ui-shadow-md);
 }
 
-.sig-section-label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  padding: 2px 4px 6px;
-  margin-bottom: 2px;
-  letter-spacing: 0.5px;
-}
-
-.sig-preset-grid {
+.sig-current-summary {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 3px;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--ui-border);
 }
 
-.sig-preset-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 7px;
-  background: var(--bg-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.sig-preset-card:hover {
-  border-color: var(--ui-accent);
-  background: var(--ui-fill-selected);
-  transform: translateY(-1px);
-}
-
-.sig-preset-preview {
-  width: 100%;
-  min-height: 48px;
-  max-height: 56px;
-  overflow: hidden;
-  opacity: 0.85;
-  line-height: 1.3;
-}
-
-.sig-preset-name {
+.sig-current-summary span {
+  color: var(--ui-text-3);
   font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 500;
 }
 
-/* 预设卡片：点击区域 + 自定义按钮 */
-.sig-preset-click-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  min-width: 0;
-}
-
-.sig-customize-btn {
-  position: absolute;
-  top: 4px; right: 4px;
-  width: 28px; height: 28px;
-  border: none; border-radius: 50%;
-  background: var(--ui-fill-muted); color: var(--ui-text-2);
-  font-size: 10px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: all 0.15s;
-  flex-shrink: 0;
-}
-.sig-preset-card:hover .sig-customize-btn,
-.sig-customize-btn:focus-visible { opacity: 1; }
-.sig-customize-btn:hover {
-  background: var(--ui-accent);
-  color: var(--ui-text-inverse);
-}
-
-/* 自定义编辑对话框 */
-.sig-customize-modal {
-  width: min(420px, calc(100vw - 32px));
-  text-align: left;
-}
-.sig-customize-modal h3 { margin-bottom: 8px; font-size: 14px; }
-.sig-customize-textarea {
-  width: 100%; height: 180px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color); border-radius: 6px;
-  background: var(--bg-secondary); color: var(--text-primary);
-  font-family: 'Courier New', Consolas, monospace;
-  font-size: 12px; line-height: 1.5;
-  resize: vertical; outline: none;
-  box-sizing: border-box;
-}
-.sig-customize-textarea:focus { border-color: var(--ui-accent); }
-
-/* 我的签名：复用预设卡片样式 + 额外标记 */
-.sig-user-card {
-  position: relative;
-}
-
-/* 用户签名预览：限制高度，避免内容过长撑开卡片 */
-.sig-user-preview {
-  max-height: 56px;
+.sig-current-summary strong {
   overflow: hidden;
-  font-size: 9px !important;
-  line-height: 1.3 !important;
+  color: var(--ui-text-1);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 缩小用户签名预览内的文字 */
-.sig-user-preview :deep(*) {
-  font-size: inherit !important;
-}
-
-.sig-default-badge-inline {
-  position: absolute;
-  top: 4px; left: 6px;
-  padding: 1px 7px;
-  font-size: 10px;
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent);
-  border-radius: 3px;
-  line-height: 1.2;
-}
-
-.sig-panel-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 8px 0;
-}
-
-.sig-user-item {
+.sig-quick-item,
+.sig-manage-button {
+  width: 100%;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 7px 10px;
-  border: none;
-  background: none;
-  color: var(--text-primary);
-  font-size: 13px;
-  cursor: pointer;
-  border-radius: 5px;
-  transition: all 0.12s;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+  color: var(--ui-text-1);
   text-align: left;
+  cursor: pointer;
 }
 
-.sig-user-item:hover { background: var(--bg-hover); }
-.sig-user-item.active .sig-user-name { color: var(--ui-accent); font-weight: 500; }
+.sig-quick-item:hover,
+.sig-manage-button:hover {
+  background: var(--ui-fill-hover);
+}
 
-.sig-user-name {
-  flex: 1;
+.sig-quick-item.active {
+  background: var(--ui-fill-selected);
+  color: var(--ui-accent);
+}
+
+.sig-quick-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.sig-quick-copy strong,
+.sig-quick-copy small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sig-default-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--ui-accent);
-  flex-shrink: 0;
+.sig-quick-copy strong {
+  font-size: 13px;
 }
 
-.sig-delete-btn {
-  width: 28px; height: 28px;
-  border: none; border-radius: 50%;
-  background: transparent; color: var(--text-tertiary);
-  font-size: 14px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; opacity: 0; transition: all 0.12s;
+.sig-quick-copy small {
+  color: var(--ui-text-3);
+  font-size: 11px;
 }
-.sig-user-item:hover .sig-delete-btn,
-.sig-delete-btn:focus-visible { opacity: 1; }
-.sig-delete-btn:hover { background: var(--ui-danger-soft); color: var(--ui-danger); }
+
+.sig-quick-badges {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sig-quick-badge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-size: 10px;
+}
+
+.sig-quick-check {
+  color: var(--ui-accent);
+  font-weight: 700;
+}
+
+.sig-panel-divider {
+  height: 1px;
+  margin: 6px 2px;
+  background: var(--ui-border);
+}
+
+.sig-manage-button {
+  color: var(--ui-accent);
+  font-weight: 650;
+}
 
 .sig-empty-hint {
-  padding: 10px 8px; text-align: center;
-  font-size: 12px; color: var(--text-tertiary);
+  padding: 14px 10px;
+  color: var(--ui-text-3);
+  font-size: 12px;
+  text-align: center;
 }
 
-.sig-save-current-btn {
-  width: 100%; padding: 7px 10px;
-  border: 1px dashed var(--ui-accent);
-  border-radius: 6px; background: transparent;
-  color: var(--ui-accent); font-size: 12px;
-  cursor: pointer; transition: all 0.15s; text-align: left;
-}
-.sig-save-current-btn:hover { background: var(--ui-accent-soft); }
-
-/* 保存签名对话框 */
-.sig-save-dialog { text-align: center; }
-.sig-save-input {
-  width: 100%; padding: 9px 12px;
-  border: 1px solid var(--border-color); border-radius: 6px;
-  background: var(--bg-secondary); color: var(--text-primary);
-  font-size: 13px; outline: none; box-sizing: border-box;
-  margin-bottom: 12px;
-}
-.sig-save-input:focus { border-color: var(--ui-accent); }
-
-/* ==================== 手机端签名面板覆盖（必须在桌面端之后） ==================== */
 @media (max-width: 768px) {
-  /* 签名面板：底部抽屉，position:fixed 绕过祖先 overflow:hidden 裁剪 */
   .sig-panel {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    top: auto !important;
-    width: 100% !important;
-    max-height: 70vh !important;
-    margin-top: 0 !important;
-    border-radius: 12px 12px 0 0 !important;
-    z-index: 1000 !important;
-    padding: 12px 16px 20px !important;
-    box-shadow: var(--ui-shadow-md) !important;
-  }
-
-  /* 签名编辑对话框：手机端铺满 */
-  .sig-customize-modal {
-    width: 90vw !important;
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 62vh;
+    margin: 0;
+    padding: 12px 14px max(18px, env(safe-area-inset-bottom));
+    border-radius: 14px 14px 0 0;
+    z-index: 1000;
   }
 }
 </style>

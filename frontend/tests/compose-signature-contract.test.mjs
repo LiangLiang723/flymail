@@ -14,18 +14,19 @@ test('compose fields share one label and control grid', async () => {
   assert.match(source, /grid-template-columns:\s*72px minmax\(0,\s*1fr\)/);
 });
 
-test('signature manager persists account scope and separate defaults', async () => {
+test('compose keeps signature selection quick and delegates management', async () => {
   const source = await readSource('src/views/ComposeEmail.vue');
+  assert.match(source, /当前签名/);
   assert.match(source, /无签名/);
   assert.match(source, /管理签名/);
-  assert.match(source, /const editingUserSigAccountId = ref/);
-  assert.match(source, /const editingUserSigIsDefault = ref/);
-  assert.match(source, /const editingUserSigIsReplyDefault = ref/);
-  assert.match(source, /editingUserSigAccountId\.value = sig \? sig\.account_id/);
   assert.match(source, /function openSignatureManager/);
-  assert.match(source, /account_id:\s*editingUserSigAccountId\.value/);
-  assert.match(source, /is_default:\s*editingUserSigIsDefault\.value/);
-  assert.match(source, /is_reply_default:\s*editingUserSigIsReplyDefault\.value/);
+  assert.match(source, /signatureStore\.signatures/);
+  assert.doesNotMatch(source, /内置模板/);
+  assert.doesNotMatch(source, /showCustomizeDialog/);
+  assert.doesNotMatch(source, /showEditUserSigDialog/);
+  assert.doesNotMatch(source, /editingUserSigHtml/);
+  assert.doesNotMatch(source, /<TiptapEditor[^>]*class="signature-editor"/);
+  assert.doesNotMatch(source, /api\.(post|put|delete)\(`?\/signatures/);
 });
 
 test('compose context selects the correct account default signature', async () => {

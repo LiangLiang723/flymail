@@ -165,8 +165,8 @@ test('editor popovers preserve accessible names and compact touch targets', asyn
   assert.match(editorSource, /\.emoji-tab\s*\{[^}]*min-height:\s*32px;/s);
   assert.match(composeSource, /<UiButton[^>]*variant="primary"[^>]*:loading="sending"[^>]*@click="sendMail"/s);
   assert.match(composeSource, /<UiButton[^>]*:loading="savingDraft"[^>]*@click="saveDraft"/s);
-  assert.match(composeSource, /\.sig-customize-btn\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;/s);
-  assert.match(composeSource, /\.sig-customize-btn\s*\{[^}]*color:\s*var\(--ui-text-2\);/s);
+  assert.match(composeSource, /\.sig-quick-item,\s*\.sig-manage-button\s*\{[^}]*min-height:\s*44px;/s);
+  assert.match(composeSource, /class="sig-manage-button"[^>]*type="button"/s);
 });
 
 test('data-dependent remove and preview controls keep explicit names and usable sizes', async () => {
@@ -177,8 +177,8 @@ test('data-dependent remove and preview controls keep explicit names and usable 
   assert.match(composeSource, /class="tag-remove"[^>]*:aria-label="`移除抄送人 \$\{addr\}`"/s);
   assert.match(composeSource, /class="tag-remove"[^>]*:aria-label="`移除密送人 \$\{addr\}`"/s);
   assert.match(composeSource, /class="att-remove"[^>]*:aria-label="`移除附件 \$\{att\.filename\}`"/s);
-  assert.match(composeSource, /\.sig-delete-btn\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;/s);
-  assert.match(composeSource, /\.sig-delete-btn:focus-visible\s*\{\s*opacity:\s*1;/s);
+  assert.match(composeSource, /class="sig-quick-item"[^>]*type="button"/s);
+  assert.match(composeSource, /class="sig-manage-button"[^>]*type="button"/s);
   assert.match(settingsSource, /class="img-preview-close"[^>]*aria-label="关闭图片预览"/s);
 });
 
