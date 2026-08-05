@@ -88,7 +88,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.35` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.36` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -131,7 +131,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.35 .
+docker build -t benxianyu/flymail:0.0.36 .
 ```
 
 登录 Docker Hub：
@@ -143,7 +143,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.35
+docker push benxianyu/flymail:0.0.36
 ```
 
 ## 数据存储
@@ -170,6 +170,7 @@ docker push benxianyu/flymail:0.0.35
 - `/data/flymail/files/uploads/`: 写信时上传的临时附件，默认每周一 02:00 自动清理
 - `/data/flymail/files/avatars/`: 用户头像，统一裁剪并保存为 256 × 256 WebP
 - `/data/flymail/files/account-icons/`: 自定义邮箱账号图标，按用户和账号隔离保存为 256 × 256 WebP
+- `/data/flymail/files/signature-images/`: 用户上传的签名图片，规范化为最长边不超过 1200 像素的 WebP
 - `/data/flymail/files/objects/sha256/`: 普通附件与内嵌图片的 SHA-256 共享对象
 - `/data/flymail/files/download/`: 仅用于升级迁移的旧版附件目录；迁移完成后不会继续写入
 - `/data/flymail/logs/`: 运行日志
@@ -221,6 +222,8 @@ Gmail 的用户级代理仅支持 `http://` HTTP CONNECT 代理，可在设置�
 ## 写信、签名与联系人导入
 
 签名通过独立的“签名管理”页面维护，可从“设置 → 邮件签名”、用户菜单或写信页的“管理签名”进入。页面支持搜索、按邮箱筛选、新建、编辑、复制和删除富文本签名，并分别设置“新邮件默认”和“回复/转发默认”；同一用户、同一邮箱范围内每类默认签名只保留一个。富文本工具栏的字体、字号、颜色、行距、表格和表情菜单使用单一点击状态，任意时刻只展开一个菜单，点击外部、滚动或按 `Escape` 会关闭。
+
+签名编辑器的图片按钮会从本地选择 JPG、PNG 或 WebP 文件，不再要求手动填写图片链接。单张图片最大 5 MB，服务端会校正方向并保存为最长边不超过 1200 像素的 WebP，文件位于 `/data/flymail/files/signature-images/`，容器替换或重启后仍会保留。签名 HTML 使用 FlyMail 返回的公开图片地址供收件客户端加载，因此部署域名需要能被收件人的网络访问；删除签名不会立即删除已经上传的图片，以免复制签名或历史邮件中的图片失效。
 
 写信页只保留当前发件邮箱可用签名、“无签名”和“管理签名”的快速菜单。账号专属默认签名优先于全部邮箱默认签名，切换发件邮箱会替换受 FlyMail 管理的签名块，不会重复追加；回复和转发会把默认签名放在新输入区域与原邮件引用之间，草稿保留已保存正文，不自动覆盖签名。从写信页进入签名管理时，当前浏览器会话会暂存发件邮箱、收件人、抄送、密送、主题、正文、附件和草稿标识，返回后原样恢复且不会再次插入默认签名；该临时快照不会跨页面刷新持久化，需要跨刷新保留时仍应使用“保存草稿”。
 

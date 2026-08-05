@@ -76,9 +76,11 @@
   <button
   v-else
   class="toolbar-btn"
-  :class="{ active: btn.isActive?.() }"
+  :class="{ active: btn.isActive?.(), loading: btn.name === 'image' && uploadingImage }"
+  :disabled="btn.name === 'image' && uploadingImage"
   @click="btn.action"
-  :title="btn.title"
+  :title="btn.name === 'image' && uploadingImage ? '正在上传图片' : btn.title"
+  :aria-busy="btn.name === 'image' && uploadingImage"
   type="button"
   >
   <span v-html="btn.icon"></span>
@@ -122,6 +124,14 @@
   </div>
   </div>
   </div>
+  <input
+    ref="imageInput"
+    class="editor-image-input"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    @change="handleImageUpload"
+  />
+  <div v-if="imageUploadError" class="editor-upload-error" role="alert">{{ imageUploadError }}</div>
   <!-- 编辑区域 -->
   <editor-content :editor="editor" class="editor-content" />
   </div>
@@ -144,6 +154,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import Paragraph from '@tiptap/extension-paragraph';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { watch, onBeforeUnmount, computed, ref, onMounted } from 'vue';
+import api from '../utils/api';
 
 const props = defineProps<{
   modelValue?: string;
@@ -156,7 +167,12 @@ const emit = defineEmits<{
 type ToolbarDropdown = 'fontFamily' | 'fontSize' | 'lineHeight' | 'color' | 'table' | 'emoji' | null;
 
 const editorRoot = ref<HTMLElement | null>(null);
+const imageInput = ref<HTMLInputElement | null>(null);
+const uploadingImage = ref(false);
+const imageUploadError = ref('');
 const activeDropdown = ref<ToolbarDropdown>(null);
+const MAX_SIGNATURE_IMAGE_BYTES = 5 * 1024 * 1024;
+const SIGNATURE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const toolbarDropdownNames = new Set<Exclude<ToolbarDropdown, null>>([
   'fontFamily',
   'fontSize',
@@ -185,6 +201,43 @@ function runDropdownAction(action: () => unknown) {
 function handleDropdownPointerDown(event: PointerEvent) {
   if (!(event.target instanceof globalThis.Node)) return;
   if (editorRoot.value && !editorRoot.value.contains(event.target)) closeDropdown();
+}
+
+function openImagePicker() {
+  if (uploadingImage.value) return;
+  imageUploadError.value = '';
+  imageInput.value?.click();
+}
+
+async function handleImageUpload(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!SIGNATURE_IMAGE_TYPES.has(file.type)) {
+    imageUploadError.value = '仅支持 JPG、PNG 或 WebP 图片';
+    return;
+  }
+  if (file.size > MAX_SIGNATURE_IMAGE_BYTES) {
+    imageUploadError.value = '图片不能超过 5 MB';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('image', file);
+  uploadingImage.value = true;
+  imageUploadError.value = '';
+  try {
+    const data = await api.post('/signatures/images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }) as any;
+    if (!data?.url) throw new Error('图片上传成功但未返回地址');
+    editor.value?.chain().focus().setImage({ src: data.url }).run();
+  } catch (error: any) {
+    imageUploadError.value = error?.detail || error?.message || '图片上传失败，请稍后重试';
+  } finally {
+    uploadingImage.value = false;
+  }
 }
 
 // 自定义 TextStyle：扩展 fontSize 和 lineHeight 属性
@@ -661,14 +714,9 @@ const toolbarButtons = [
   },
   {
   name: 'image',
-  title: '插入图片',
+  title: '上传图片',
   icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
-  action: () => {
-  const url = window.prompt('输入图片地址:', 'https://');
-  if (url) {
-  editor.value?.chain().focus().setImage({ src: url }).run();
-  }
-  },
+  action: openImagePicker,
   isActive: () => false,
   },
 ];
@@ -680,6 +728,18 @@ const toolbarButtons = [
   border-radius: var(--border-radius-lg, 8px);
   overflow: hidden;
   background: var(--bg-primary);
+}
+
+.editor-image-input {
+  display: none;
+}
+
+.editor-upload-error {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--ui-danger);
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+  font-size: 12px;
 }
 
 .editor-toolbar {

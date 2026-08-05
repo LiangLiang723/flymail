@@ -412,6 +412,10 @@ class SignatureListResponse(BaseModel):
     signatures: List[SignatureTemplateItem] = Field(description="签名模板列表")
 
 
+class SignatureImageUploadResponse(BaseModel):
+    url: str = Field(description="可插入签名 HTML 的图片地址")
+
+
 class UnifiedSettingsRequest(BaseModel):
     account_ids: Optional[List[str]] = Field(default=None, max_length=100, description="参与聚合的账号ID")
     enabled: Optional[bool] = Field(default=None, description="是否启用聚合收件箱")

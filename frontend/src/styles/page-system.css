@@ -444,9 +444,20 @@
 .tiptap-editor .emoji-picker {
   border: 1px solid var(--ui-border-strong) !important;
   border-radius: var(--ui-radius-lg) !important;
-  background: var(--ui-surface-floating) !important;
   color: var(--ui-text-1) !important;
   box-shadow: var(--ui-shadow-md) !important;
+}
+
+.compose-page .sig-panel {
+  background: var(--ui-surface-1) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.compose-page .contact-suggestions,
+.tiptap-editor .dropdown-menu,
+.tiptap-editor .emoji-picker {
+  background: var(--ui-surface-floating) !important;
   backdrop-filter: blur(22px) saturate(145%);
   -webkit-backdrop-filter: blur(22px) saturate(145%);
 }

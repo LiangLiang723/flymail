@@ -2,7 +2,10 @@
 
 处理邮件签名的查询、保存，以及多签名模板的增删改查。
 """
-from fastapi import APIRouter, Request, Body
+import asyncio
+
+from fastapi import APIRouter, Request, Body, File, UploadFile
+from fastapi.responses import FileResponse
 
 from errors import AppError
 
@@ -19,6 +22,7 @@ from db import (
 from deps import get_uid
 from models import Signature
 from schemas import (
+    SignatureImageUploadResponse,
     SignatureListResponse,
     SignatureSettingsRequest,
     SignatureSettingsResponse,
@@ -26,6 +30,11 @@ from schemas import (
     SignatureTemplateRequest,
     SignatureTemplateUpdateRequest,
     StatusResponse,
+)
+from services.signature_images import (
+    MAX_SIGNATURE_IMAGE_BYTES,
+    resolve_signature_image,
+    save_signature_image,
 )
 
 router = APIRouter(tags=["签名"])
@@ -62,6 +71,45 @@ async def save_signature(request: Request, body: SignatureSettingsRequest = Body
         "signature_enabled": 1 if body.signature_enabled else 0,
     })
     return {"success": True}
+
+
+# ==================== 签名图片 ====================
+
+
+@router.post(
+    "/api/signatures/images",
+    response_model=SignatureImageUploadResponse,
+    summary="上传签名图片",
+)
+async def upload_signature_image(request: Request, image: UploadFile = File(...)):
+    uid = await get_uid(request)
+    content = await image.read(MAX_SIGNATURE_IMAGE_BYTES + 1)
+    try:
+        stored = await asyncio.to_thread(save_signature_image, uid, content)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 413 if "不能超过" in message else 400
+        raise AppError(status_code, message)
+    return {
+        "url": str(request.url_for("get_signature_image", image_id=stored.image_id)),
+    }
+
+
+@router.get(
+    "/api/signature-images/{image_id}",
+    name="get_signature_image",
+    response_class=FileResponse,
+    summary="读取签名图片",
+)
+async def get_signature_image(image_id: str):
+    image_path = resolve_signature_image(image_id)
+    if not image_path or not image_path.is_file():
+        raise AppError(404, "签名图片不存在")
+    return FileResponse(
+        image_path,
+        media_type="image/webp",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 # ==================== 签名模板接口（多模板管理） ====================
