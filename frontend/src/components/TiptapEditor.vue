@@ -1,11 +1,18 @@
 <template>
-  <div class="tiptap-editor">
+  <div ref="editorRoot" class="tiptap-editor" @keydown.escape="closeDropdown">
   <!-- 工具栏 -->
   <div class="editor-toolbar" v-if="editor">
   <template v-for="btn in toolbarButtons" :key="btn.name">
   <!-- 下拉菜单按钮：字号/字体/颜色 -->
   <div v-if="btn.isDropdown" class="toolbar-dropdown">
-  <button class="toolbar-btn" :title="btn.title" type="button">
+  <button
+  class="toolbar-btn"
+  :title="btn.title"
+  type="button"
+  :aria-expanded="activeDropdown === btn.dropdownType"
+  :aria-controls="`tiptap-${btn.dropdownType}-menu`"
+  @click="toggleDropdown(btn.dropdownType)"
+  >
   <span v-if="btn.dropdownType === 'fontFamily'">{{ currentFontLabel }} <small>▼</small></span>
   <span v-else-if="btn.dropdownType === 'fontSize'">{{ currentSizeLabel }} <small>▼</small></span>
   <span v-else-if="btn.dropdownType === 'lineHeight'" class="dropdown-icon-label"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/><path d="M1 6h1M1 12h1M1 18h1" stroke-width="3"/></svg><small>▼</small></span>
@@ -15,49 +22,53 @@
   <span class="color-indicator" :style="{ background: currentColor }"></span>
   </span>
   </button>
-  <div class="dropdown-menu">
+  <div
+  v-if="activeDropdown === btn.dropdownType"
+  :id="`tiptap-${btn.dropdownType}-menu`"
+  class="dropdown-menu"
+  >
   <!-- 字号下拉 -->
   <template v-if="btn.dropdownType === 'fontSize'">
-  <button v-for="size in fontSizes" :key="size" class="dropdown-item" @click="applyFontSize(size)">
+  <button v-for="size in fontSizes" :key="size" class="dropdown-item" @click="runDropdownAction(() => applyFontSize(size))">
   <span :style="{ fontSize: size }">{{ size }}</span>
   </button>
-  <button class="dropdown-item" @click="applyFontSize(null)">默认</button>
+  <button class="dropdown-item" @click="runDropdownAction(() => applyFontSize(null))">默认</button>
   </template>
   <!-- 字体下拉 -->
   <template v-if="btn.dropdownType === 'fontFamily'">
-  <button v-for="f in fontFamilies" :key="f.value" class="dropdown-item" :style="{ fontFamily: f.value || 'inherit' }" @click="applyFontFamily(f.value)">
+  <button v-for="f in fontFamilies" :key="f.value" class="dropdown-item" :style="{ fontFamily: f.value || 'inherit' }" @click="runDropdownAction(() => applyFontFamily(f.value))">
   {{ f.label }}
   </button>
   </template>
   <!-- 行间距下拉 -->
   <template v-if="btn.dropdownType === 'lineHeight'">
-  <button v-for="h in lineHeightOptions" :key="h.value" class="dropdown-item" @click="applyLineHeight(h.value)">
+  <button v-for="h in lineHeightOptions" :key="h.value" class="dropdown-item" @click="runDropdownAction(() => applyLineHeight(h.value))">
   {{ h.label }}
   </button>
-  <button class="dropdown-item" @click="applyLineHeight(null)">默认</button>
+  <button class="dropdown-item" @click="runDropdownAction(() => applyLineHeight(null))">默认</button>
   </template>
   <!-- 颜色下拉 -->
   <template v-if="btn.dropdownType === 'color'">
   <div class="color-grid">
-  <button v-for="c in presetColors" :key="c" class="color-swatch" :aria-label="`使用颜色 ${c}`" :title="`使用颜色 ${c}`" :style="{ background: c }" type="button" @click="applyColor(c)"></button>
+  <button v-for="c in presetColors" :key="c" class="color-swatch" :aria-label="`使用颜色 ${c}`" :title="`使用颜色 ${c}`" :style="{ background: c }" type="button" @click="runDropdownAction(() => applyColor(c))"></button>
   </div>
-  <button class="dropdown-item" @click="applyColor(null)">默认颜色</button>
+  <button class="dropdown-item" @click="runDropdownAction(() => applyColor(null))">默认颜色</button>
   </template>
   <!-- 表格操作下拉 -->
   <template v-if="btn.dropdownType === 'table'">
-  <button class="dropdown-item" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()">插入表格</button>
+  <button class="dropdown-item" @click="runDropdownAction(() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())">插入表格</button>
   <div class="dropdown-divider"></div>
-  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().addRowBefore().run()">上方插入行</button>
-  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().addRowAfter().run()">下方插入行</button>
-  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().addColumnBefore().run()">左侧插入列</button>
-  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().addColumnAfter().run()">右侧插入列</button>
+  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().addRowBefore().run())">上方插入行</button>
+  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().addRowAfter().run())">下方插入行</button>
+  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().addColumnBefore().run())">左侧插入列</button>
+  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().addColumnAfter().run())">右侧插入列</button>
   <div class="dropdown-divider"></div>
-  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().mergeCells().run()">合并单元格</button>
-  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().splitCell().run()">拆分单元格</button>
+  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().mergeCells().run())">合并单元格</button>
+  <button class="dropdown-item" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().splitCell().run())">拆分单元格</button>
   <div class="dropdown-divider"></div>
-  <button class="dropdown-item danger" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().deleteRow().run()">删除行</button>
-  <button class="dropdown-item danger" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().deleteColumn().run()">删除列</button>
-  <button class="dropdown-item danger" :disabled="!editor?.isActive('table')" @click="editor?.chain().focus().deleteTable().run()">删除表格</button>
+  <button class="dropdown-item danger" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().deleteRow().run())">删除行</button>
+  <button class="dropdown-item danger" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().deleteColumn().run())">删除列</button>
+  <button class="dropdown-item danger" :disabled="!editor?.isActive('table')" @click="runDropdownAction(() => editor?.chain().focus().deleteTable().run())">删除表格</button>
   </template>
   </div>
   </div>
@@ -76,10 +87,17 @@
 
   <!-- Emoji 选择器 -->
   <div class="toolbar-dropdown emoji-dropdown">
-  <button class="toolbar-btn" title="表情" type="button" @click="showEmojiPicker = !showEmojiPicker">
+  <button
+  class="toolbar-btn"
+  title="表情"
+  type="button"
+  aria-controls="tiptap-emoji-menu"
+  :aria-expanded="activeDropdown === 'emoji'"
+  @click="toggleDropdown('emoji')"
+  >
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
   </button>
-  <div v-if="showEmojiPicker" class="emoji-picker">
+  <div v-if="activeDropdown === 'emoji'" id="tiptap-emoji-menu" class="emoji-picker">
   <!-- 分类标签 -->
   <div class="emoji-tabs">
   <button
@@ -134,6 +152,40 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string];
 }>();
+
+type ToolbarDropdown = 'fontFamily' | 'fontSize' | 'lineHeight' | 'color' | 'table' | 'emoji' | null;
+
+const editorRoot = ref<HTMLElement | null>(null);
+const activeDropdown = ref<ToolbarDropdown>(null);
+const toolbarDropdownNames = new Set<Exclude<ToolbarDropdown, null>>([
+  'fontFamily',
+  'fontSize',
+  'lineHeight',
+  'color',
+  'table',
+  'emoji',
+]);
+
+function toggleDropdown(name?: string) {
+  if (!name || !toolbarDropdownNames.has(name as Exclude<ToolbarDropdown, null>)) return;
+  const dropdown = name as Exclude<ToolbarDropdown, null>;
+  activeDropdown.value = activeDropdown.value === dropdown ? null : dropdown;
+}
+
+function closeDropdown() {
+  activeDropdown.value = null;
+}
+
+function runDropdownAction(action: () => unknown) {
+  action();
+  closeDropdown();
+  editor.value?.commands.focus();
+}
+
+function handleDropdownPointerDown(event: PointerEvent) {
+  if (!(event.target instanceof globalThis.Node)) return;
+  if (editorRoot.value && !editorRoot.value.contains(event.target)) closeDropdown();
+}
 
 // 自定义 TextStyle：扩展 fontSize 和 lineHeight 属性
 // 注意：只能扩展一次 TextStyle，否则多个扩展操作同一个 mark 会冲突
@@ -334,7 +386,6 @@ defineExpose({
 });
 
 // ---- Emoji 选择器 ----
-const showEmojiPicker = ref(false);
 const activeEmojiCategory = ref(0);
 
 /** Emoji 分类数据 */
@@ -350,25 +401,17 @@ const emojiCategories = [
 
 /** 插入 emoji 到编辑器光标位置 */
 function insertEmoji(emoji: string) {
-  if (!editor.value) return;
-  editor.value.chain().focus().insertContent(emoji).run();
-  showEmojiPicker.value = false;
-}
-
-/** 点击外部关闭 emoji 选择器 */
-function handleClickOutside(e: MouseEvent) {
-  const target = e.target as HTMLElement;
-  if (!target.closest('.emoji-dropdown')) {
-  showEmojiPicker.value = false;
-  }
+  runDropdownAction(() => editor.value?.chain().focus().insertContent(emoji).run());
 }
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
+  window.addEventListener('pointerdown', handleDropdownPointerDown);
+  window.addEventListener('scroll', closeDropdown, true);
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleClickOutside);
+  window.removeEventListener('pointerdown', handleDropdownPointerDown);
+  window.removeEventListener('scroll', closeDropdown, true);
 });
 
 // 工具栏按钮配置
@@ -697,22 +740,19 @@ const toolbarButtons = [
 }
 
 .dropdown-menu {
-  display: none;
   position: absolute;
   top: 100%;
   left: 0;
   z-index: 50;
   min-width: 120px;
+  max-width: min(320px, calc(100vw - 24px));
+  max-height: min(360px, calc(100vh - 96px));
+  overflow-y: auto;
   padding: 4px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--ui-shadow-md);
-}
-
-.toolbar-dropdown:hover .dropdown-menu,
-.toolbar-dropdown:focus-within .dropdown-menu {
-  display: block;
 }
 
 .dropdown-item {
