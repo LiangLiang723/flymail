@@ -28,20 +28,20 @@ test('unified inbox navigation is disabled until the saved user preference enabl
   assert.match(source, /currentView\.value === 'unified'/);
 });
 
-test('settings page exposes a native unified inbox switch with touch and async feedback', async () => {
+test('settings page uses the shared unified inbox switch with async feedback', async () => {
   const source = await readSource('src/views/Settings.vue');
+  const switchSource = await readSource('src/components/ui/UiSwitch.vue');
+  const styles = await readSource('src/styles/components.css');
 
   assert.match(source, /聚合收件箱/);
-  assert.match(source, /class="settings-toggle-input"/);
-  assert.match(source, /type="checkbox"/);
-  assert.match(source, /role="switch"/);
-  assert.match(source, /:checked="unifiedInboxEnabled"/);
-  assert.match(source, /aria-labelledby="unified-inbox-title"/);
-  assert.match(source, /aria-describedby="unified-inbox-description unified-inbox-feedback"/);
+  assert.match(source, /<UiSwitch[\s\S]*:model-value="unifiedInboxEnabled"/);
+  assert.match(source, /described-by="unified-inbox-description unified-inbox-feedback"/);
+  assert.match(source, /@update:model-value="toggleUnifiedInbox"/);
   assert.match(source, /aria-live="polite"/);
   assert.doesNotMatch(source, /aria-pressed/);
-  assert.match(source, /\.settings-toggle-control\s*\{[^}]*min-height:\s*var\(--touch-target\);/s);
-  assert.match(source, /const nextEnabled = input\.checked/);
+  assert.match(switchSource, /role="switch"/);
+  assert.match(styles, /\.ui-switch\s*\{[^}]*min-height:\s*var\(--touch-target\);/s);
+  assert.match(source, /async function toggleUnifiedInbox\(nextEnabled: boolean\)/);
   assert.match(source, /api\.put\('\/settings\/unified', \{ enabled: nextEnabled \}\)/);
   assert.match(source, /flymail-unified-inbox-setting-changed/);
 });

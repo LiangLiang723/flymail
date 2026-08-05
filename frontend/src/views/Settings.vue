@@ -53,25 +53,14 @@
             <h3 id="unified-inbox-title" class="storage-title">聚合收件箱</h3>
             <p id="unified-inbox-description" class="storage-desc">开启后在侧栏显示聚合收件箱入口；默认关闭，不影响各邮箱独立收信。</p>
           </div>
-          <label
-            class="settings-toggle-control"
-            :class="{ 'is-saving': unifiedInboxSaving }"
-          >
-            <input
-              class="settings-toggle-input"
-              type="checkbox"
-              role="switch"
-              :checked="unifiedInboxEnabled"
-              :disabled="unifiedInboxSaving"
-              aria-labelledby="unified-inbox-title"
-              aria-describedby="unified-inbox-description unified-inbox-feedback"
-              :aria-busy="unifiedInboxSaving"
-              @change="toggleUnifiedInbox"
-            />
-            <span class="settings-toggle-switch" aria-hidden="true">
-              <span class="settings-toggle-knob"></span>
-            </span>
-          </label>
+          <UiSwitch
+            :model-value="unifiedInboxEnabled"
+            label="聚合收件箱"
+            :disabled="unifiedInboxSaving"
+            :busy="unifiedInboxSaving"
+            described-by="unified-inbox-description unified-inbox-feedback"
+            @update:model-value="toggleUnifiedInbox"
+          />
         </div>
         <p
           id="unified-inbox-feedback"
@@ -196,10 +185,9 @@
           </div>
         </div>
         <div class="proxy-config-row">
-          <label class="proxy-toggle-row">
-            <input v-model="form.gmail_proxy_enabled" type="checkbox" />
-            <span>启用 HTTP 代理</span>
-          </label>
+          <UiSwitch v-model="form.gmail_proxy_enabled" class="proxy-toggle-row" label="启用 HTTP 代理">
+            启用 HTTP 代理
+          </UiSwitch>
           <div v-if="form.gmail_proxy_enabled" class="proxy-url-row">
             <input v-model.trim="form.gmail_proxy_url" class="input" type="text" autocomplete="off" placeholder="http://user:password@proxy.example.com:8080" />
             <button class="btn btn-secondary" type="button" :disabled="proxyTesting || !form.gmail_proxy_url" @click="testProxy">
@@ -659,6 +647,7 @@ import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
 import UiCard from '../components/ui/UiCard.vue';
 import UiField from '../components/ui/UiField.vue';
+import UiSwitch from '../components/ui/UiSwitch.vue';
 import About from './About.vue';
 import api from '../utils/api';
 import { formatStorageBytes, isValidAttachmentCacheLimit } from '../utils/attachment-cache';
@@ -906,12 +895,10 @@ onMounted(() => {
   loadUnifiedInboxSetting();
 });
 
-async function toggleUnifiedInbox(event: Event) {
+async function toggleUnifiedInbox(nextEnabled: boolean) {
   if (unifiedInboxSaving.value) return;
 
-  const input = event.currentTarget as HTMLInputElement;
   const previous = unifiedInboxEnabled.value;
-  const nextEnabled = input.checked;
   unifiedInboxEnabled.value = nextEnabled;
   unifiedInboxSaving.value = true;
   unifiedInboxError.value = '';
@@ -1245,75 +1232,6 @@ async function saveSettings() {
   min-width: 0;
 }
 
-.settings-toggle-control {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-width: 48px;
-  min-height: var(--touch-target);
-  flex: 0 0 48px;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.settings-toggle-control.is-saving {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.settings-toggle-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-
-.settings-toggle-switch {
-  position: relative;
-  width: 48px;
-  height: 28px;
-  border-radius: var(--ui-radius-round);
-  background: var(--border-color-strong);
-  pointer-events: none;
-  transition:
-    background var(--transition-fast),
-    box-shadow var(--transition-fast),
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
-}
-
-.settings-toggle-input:checked + .settings-toggle-switch {
-  background: var(--color-accent);
-}
-
-.settings-toggle-input:focus-visible + .settings-toggle-switch {
-  box-shadow: 0 0 0 3px var(--ui-focus-ring);
-}
-
-.settings-toggle-input:active + .settings-toggle-switch {
-  transform: scale(0.97);
-}
-
-.settings-toggle-knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--ui-text-inverse);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-fast);
-}
-
-.settings-toggle-input:checked + .settings-toggle-switch .settings-toggle-knob {
-  transform: translateX(20px);
-}
-
 .preference-toggle-feedback {
   min-height: 18px;
   margin: var(--space-2) 0 0;
@@ -1324,16 +1242,6 @@ async function saveSettings() {
 
 .preference-toggle-feedback.error {
   color: var(--color-danger);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .settings-toggle-control:hover .settings-toggle-switch {
-    background: var(--ui-fill-pressed);
-  }
-
-  .settings-toggle-control:hover .settings-toggle-input:checked + .settings-toggle-switch {
-    background: var(--color-accent-hover);
-  }
 }
 
 .appearance-options {

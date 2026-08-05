@@ -29,8 +29,14 @@
             </div>
 
             <div v-if="availableAccounts.length" class="account-options">
-              <label v-for="account in availableAccounts" :key="account.id" class="account-option ui-checkbox">
-                <input v-model="selectedAccountIds" type="checkbox" :value="account.id" />
+              <UiCheckbox
+                v-for="account in availableAccounts"
+                :key="account.id"
+                v-model="selectedAccountIds"
+                :value="account.id"
+                class="account-option"
+                :label="`选择邮箱 ${account.email}`"
+              >
                 <span class="account-option__identity">
                   <AccountIcon :account="account" :size="30" decorative />
                   <span class="account-option__copy">
@@ -39,7 +45,7 @@
                   </span>
                 </span>
                 <UiBadge>{{ providerName(account.provider) }}</UiBadge>
-              </label>
+              </UiCheckbox>
             </div>
             <UiEmptyState
               v-else
@@ -144,6 +150,7 @@ import PageHeader from '../components/layout/PageHeader.vue';
 import UiBadge from '../components/ui/UiBadge.vue';
 import UiButton from '../components/ui/UiButton.vue';
 import UiCard from '../components/ui/UiCard.vue';
+import UiCheckbox from '../components/ui/UiCheckbox.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import UiSegmentedControl from '../components/ui/UiSegmentedControl.vue';
@@ -369,6 +376,10 @@ onMounted(async () => {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface-2);
+}
+
+.account-option :deep(.ui-checkbox__label) {
+  display: contents;
 }
 
 .account-option__identity {

@@ -12,10 +12,10 @@
     <UiLoadingState v-if="loading" panel label="正在加载通知设置…" />
     <template v-else>
       <UiCard class="overview-card" padding="lg">
-        <label class="toggle-row ui-checkbox">
+        <div class="toggle-row">
           <span><strong>启用第三方通知</strong><small>应用内通知不受此开关影响。</small></span>
-          <input v-model="form.enabled" type="checkbox" />
-        </label>
+          <UiSwitch v-model="form.enabled" label="启用第三方通知" />
+        </div>
         <div class="grid three">
           <UiField label="通知模式" for-id="notify-mode">
             <select id="notify-mode" v-model="form.mode" class="ui-select"><option value="text">文本</option><option value="image">图片卡片</option></select>
@@ -30,7 +30,7 @@
       </UiCard>
 
       <div class="card">
-        <div class="card-title"><div><strong>Bark</strong><small>适用于 iPhone / iPad 的 Bark 推送。</small></div><input v-model="form.bark.enabled" type="checkbox" /></div>
+        <div class="card-title"><div><strong>Bark</strong><small>适用于 iPhone / iPad 的 Bark 推送。</small></div><UiSwitch v-model="form.bark.enabled" label="启用 Bark 通知" /></div>
         <div class="grid two">
           <label class="field"><span>Bark 服务地址</span><input v-model.trim="form.bark.server" placeholder="https://api.day.app" /></label>
           <label class="field"><span>Device Key</span><input v-model.trim="form.bark.device_key" type="password" autocomplete="new-password" /></label>
@@ -39,22 +39,26 @@
       </div>
 
       <div class="card">
-        <div class="card-title"><div><strong>Telegram</strong><small>通过机器人向指定 Chat ID 推送。</small></div><input v-model="form.telegram.enabled" type="checkbox" /></div>
+        <div class="card-title"><div><strong>Telegram</strong><small>通过机器人向指定 Chat ID 推送。</small></div><UiSwitch v-model="form.telegram.enabled" label="启用 Telegram 通知" /></div>
         <div class="grid two">
           <label class="field"><span>Bot Token</span><input v-model.trim="form.telegram.bot_token" type="password" autocomplete="new-password" /></label>
           <label class="field"><span>Chat ID</span><input v-model.trim="form.telegram.chat_id" /></label>
         </div>
-        <label class="check-row"><input v-model="form.telegram.use_gmail_proxy" type="checkbox" /> 使用 Gmail 代理配置访问 Telegram</label>
+        <UiSwitch v-model="form.telegram.use_gmail_proxy" class="check-row" label="使用 Gmail 代理配置访问 Telegram">
+          使用 Gmail 代理配置访问 Telegram
+        </UiSwitch>
         <button class="btn btn-secondary" type="button" :disabled="testing === 'telegram'" @click="testChannel('telegram')">测试 Telegram</button>
       </div>
 
       <div class="card">
-        <div class="card-title"><div><strong>Webhook</strong><small>自动适配企业微信、钉钉、飞书和通用 JSON Webhook。</small></div><input v-model="form.webhook.enabled" type="checkbox" /></div>
+        <div class="card-title"><div><strong>Webhook</strong><small>自动适配企业微信、钉钉、飞书和通用 JSON Webhook。</small></div><UiSwitch v-model="form.webhook.enabled" label="启用 Webhook 通知" /></div>
         <div class="grid two">
           <label class="field"><span>Webhook URL</span><input v-model.trim="form.webhook.url" placeholder="https://..." /></label>
           <label class="field"><span>密钥 / Secret（可选）</span><input v-model.trim="form.webhook.secret" type="password" autocomplete="new-password" /></label>
         </div>
-        <label class="check-row"><input v-model="form.webhook.use_gmail_proxy" type="checkbox" /> 使用 Gmail 代理配置访问 Webhook</label>
+        <UiSwitch v-model="form.webhook.use_gmail_proxy" class="check-row" label="使用 Gmail 代理配置访问 Webhook">
+          使用 Gmail 代理配置访问 Webhook
+        </UiSwitch>
         <button class="btn btn-secondary" type="button" :disabled="testing === 'webhook'" @click="testChannel('webhook')">测试 Webhook</button>
       </div>
 
@@ -83,6 +87,7 @@ import UiButton from '../components/ui/UiButton.vue';
 import UiCard from '../components/ui/UiCard.vue';
 import UiField from '../components/ui/UiField.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
+import UiSwitch from '../components/ui/UiSwitch.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 
@@ -186,6 +191,6 @@ onMounted(load);
 .notify-page { background: var(--ui-canvas); }
 .notify-document { align-content: start; }
 .card { width: 100%; max-width: none; margin: 0; padding: 18px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); background: var(--ui-surface-1); }
-.overview-card { margin-top: 0; }.card-title, .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.card-title div, .toggle-row span { display: flex; flex-direction: column; gap: 4px; }.card small, .toggle-row small { color: var(--ui-text-3); font-weight: 400; }.grid { display: grid; gap: 14px; margin-bottom: 14px; }.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.field { display: flex; flex-direction: column; gap: 6px; }.field span { font-size: 13px; font-weight: 600; }.field input, .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--ui-border-strong); border-radius: var(--ui-radius-sm); background: var(--ui-surface-1); color: var(--ui-text-1); box-sizing: border-box; }.check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-2); }.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }.deploy-link { color: var(--ui-accent); text-decoration: none; }
+.overview-card { margin-top: 0; }.card-title, .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.card-title div, .toggle-row > span { display: flex; flex-direction: column; gap: 4px; }.card small, .toggle-row small { color: var(--ui-text-3); font-weight: 400; }.grid { display: grid; gap: 14px; margin-bottom: 14px; }.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.field { display: flex; flex-direction: column; gap: 6px; }.field span { font-size: 13px; font-weight: 600; }.field input, .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--ui-border-strong); border-radius: var(--ui-radius-sm); background: var(--ui-surface-1); color: var(--ui-text-1); box-sizing: border-box; }.check-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-2); }.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }.deploy-link { color: var(--ui-accent); text-decoration: none; }
 @media (max-width: 760px) { .grid.two, .grid.three { grid-template-columns: 1fr; } }
 </style>

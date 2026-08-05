@@ -117,9 +117,7 @@
         </div>
         <div class="form-field toggle-field">
           <span class="toggle-label">获取历史邮件</span>
-          <button class="toggle-switch" :class="{ active: fetchHistory }" type="button" aria-label="获取历史邮件" :aria-pressed="fetchHistory" @click="fetchHistory = !fetchHistory">
-            <span class="toggle-knob"></span>
-          </button>
+          <UiSwitch v-model="fetchHistory" label="获取历史邮件" />
         </div>
         <div class="dialog-actions">
           <button class="btn btn-secondary" @click="showAddDialog = false">取消</button>
@@ -363,9 +361,7 @@
           </div>
           <div class="form-field toggle-field">
             <span class="toggle-label">隐藏邮箱地址</span>
-            <button class="toggle-switch" :class="{ active: editForm.hide_email }" type="button" aria-label="隐藏邮箱地址" :aria-pressed="editForm.hide_email" @click="editForm.hide_email = !editForm.hide_email">
-              <span class="toggle-knob"></span>
-            </button>
+            <UiSwitch v-model="editForm.hide_email" label="隐藏邮箱地址" />
           </div>
         </div>
         <div class="dialog-actions">
@@ -407,6 +403,7 @@ import UiButton from '../components/ui/UiButton.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import UiSegmentedControl from '../components/ui/UiSegmentedControl.vue';
+import UiSwitch from '../components/ui/UiSwitch.vue';
 import api from '../utils/api';
 import { useUIStore } from '../stores/ui';
 import { useMailStore } from '../stores/mail';
@@ -1603,7 +1600,7 @@ async function reconnectAccount(account: any) {
 .account-icon-preset > span :deep(svg) { width: 32px; height: 32px; display: block; }
 .account-icon-preset small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
-/* 隐藏邮箱 toggle */
+/* 布尔偏好使用共享 UiSwitch，页面只负责行布局。 */
 .toggle-field {
   display: flex !important;
   flex-direction: row !important;
@@ -1616,34 +1613,6 @@ async function reconnectAccount(account: any) {
   font-size: var(--text-sm);
   color: var(--text-primary);
 }
-
-.toggle-switch {
-  width: 48px;
-  height: 28px;
-  border-radius: 14px;
-  border: none;
-  background: var(--bg-tertiary);
-  position: relative;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.toggle-switch.active { background: var(--color-accent); }
-
-.toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--ui-text-inverse);
-  transition: transform var(--transition-fast);
-  box-shadow: var(--ui-shadow-xs);
-}
-
-.toggle-switch.active .toggle-knob { transform: translateX(20px); }
 
 /* 授权码与通用邮箱表单 */
 .qq-form { display: flex; flex-direction: column; gap: var(--space-4); }

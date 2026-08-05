@@ -150,9 +150,9 @@ test('audited compact controls keep readable colors, labels and usable hit areas
   assert.match(backupSource, /class="btn-icon mobile-filter-toggle"[^>]*aria-label="筛选备份邮件"/s);
   assert.match(composeSource, /\.text-btn\s*\{[^}]*min-width:\s*var\(--ui-control-md\);/s);
   assert.match(composeSource, /\.text-btn\s*\{[^}]*padding:\s*0 6px;/s);
-  assert.match(accountSource, /class="toggle-switch"[^>]*aria-label="获取历史邮件"[^>]*:aria-pressed="fetchHistory"/s);
-  assert.match(accountSource, /class="toggle-switch"[^>]*aria-label="隐藏邮箱地址"[^>]*:aria-pressed="editForm\.hide_email"/s);
-  assert.match(accountSource, /\.toggle-switch\s*\{[^}]*width:\s*48px;[^}]*height:\s*28px;/s);
+  assert.match(accountSource, /<UiSwitch[^>]*v-model="fetchHistory"[^>]*label="获取历史邮件"/s);
+  assert.match(accountSource, /<UiSwitch[^>]*v-model="editForm\.hide_email"[^>]*label="隐藏邮箱地址"/s);
+  assert.doesNotMatch(accountSource, /class="toggle-switch"/);
 });
 
 test('editor popovers preserve accessible names and compact touch targets', async () => {

@@ -148,70 +148,84 @@
     <!-- 邮件表单 -->
     <div class="compose-form">
       <!-- 发件人 -->
-      <UiField class="form-row" label="发件人" for-id="compose-from">
-        <select id="compose-from" v-model="fromAccountId" class="ui-select form-select">
-          <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.email }}</option>
-        </select>
-        <span class="cc-links">
-          <button v-if="!showCc" class="text-btn" @click="showCc = true">抄送</button>
-          <button v-if="!showBcc" class="text-btn" @click="showBcc = true">密送</button>
-        </span>
-      </UiField>
+      <div class="form-row">
+        <label for="compose-from" class="compose-field-label">发件人</label>
+        <div class="compose-field-control">
+          <div class="compose-from-control">
+            <select id="compose-from" v-model="fromAccountId" class="ui-select form-select">
+              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.email }}</option>
+            </select>
+            <span class="cc-links">
+              <button v-if="!showCc" class="text-btn" @click="showCc = true">抄送</button>
+              <button v-if="!showBcc" class="text-btn" @click="showBcc = true">密送</button>
+            </span>
+          </div>
+        </div>
+      </div>
 
       <!-- 收件人 -->
       <div class="form-row">
-        <label>收件人</label>
-        <div class="tag-input">
-          <span v-for="(addr, i) in toList" :key="'to'+i" class="tag">
-            {{ addr }}
-            <button class="tag-remove" type="button" :aria-label="`移除收件人 ${addr}`" @click="toList.splice(i, 1)">&times;</button>
-          </span>
-          <input v-model="toInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="toField.onInput" @keydown="handleRecipientKeydown('to', $event)" @keydown.comma.prevent="addRecipient('to')" @change="addRecipient('to')" @blur="closeRecipientSuggestions('to')" placeholder="输入姓名或邮箱" class="tag-input-field" />
-          <div v-if="toField.showSuggestions.value" class="contact-suggestions">
-            <button v-for="(item, index) in toField.suggestions.value" :key="`to-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === toField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('to', item)">
-              <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
-            </button>
+        <label class="compose-field-label">收件人</label>
+        <div class="compose-field-control">
+          <div class="tag-input">
+            <span v-for="(addr, i) in toList" :key="'to'+i" class="tag">
+              {{ addr }}
+              <button class="tag-remove" type="button" :aria-label="`移除收件人 ${addr}`" @click="toList.splice(i, 1)">&times;</button>
+            </span>
+            <input v-model="toInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="toField.onInput" @keydown="handleRecipientKeydown('to', $event)" @keydown.comma.prevent="addRecipient('to')" @change="addRecipient('to')" @blur="closeRecipientSuggestions('to')" placeholder="输入姓名或邮箱" class="tag-input-field" />
+            <div v-if="toField.showSuggestions.value" class="contact-suggestions">
+              <button v-for="(item, index) in toField.suggestions.value" :key="`to-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === toField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('to', item)">
+                <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- 抄送（点击后显示） -->
       <div v-if="showCc" class="form-row">
-        <label>抄送</label>
-        <div class="tag-input">
-          <span v-for="(addr, i) in ccList" :key="'cc'+i" class="tag">
-            {{ addr }}
-            <button class="tag-remove" type="button" :aria-label="`移除抄送人 ${addr}`" @click="ccList.splice(i, 1)">&times;</button>
-          </span>
-          <input v-model="ccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="ccField.onInput" @keydown="handleRecipientKeydown('cc', $event)" @keydown.comma.prevent="addRecipient('cc')" @change="addRecipient('cc')" @blur="closeRecipientSuggestions('cc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
-          <div v-if="ccField.showSuggestions.value" class="contact-suggestions">
-            <button v-for="(item, index) in ccField.suggestions.value" :key="`cc-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === ccField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('cc', item)">
-              <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
-            </button>
+        <label class="compose-field-label">抄送</label>
+        <div class="compose-field-control">
+          <div class="tag-input">
+            <span v-for="(addr, i) in ccList" :key="'cc'+i" class="tag">
+              {{ addr }}
+              <button class="tag-remove" type="button" :aria-label="`移除抄送人 ${addr}`" @click="ccList.splice(i, 1)">&times;</button>
+            </span>
+            <input v-model="ccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="ccField.onInput" @keydown="handleRecipientKeydown('cc', $event)" @keydown.comma.prevent="addRecipient('cc')" @change="addRecipient('cc')" @blur="closeRecipientSuggestions('cc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
+            <div v-if="ccField.showSuggestions.value" class="contact-suggestions">
+              <button v-for="(item, index) in ccField.suggestions.value" :key="`cc-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === ccField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('cc', item)">
+                <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- 密送（点击后显示） -->
       <div v-if="showBcc" class="form-row">
-        <label>密送</label>
-        <div class="tag-input">
-          <span v-for="(addr, i) in bccList" :key="'bcc'+i" class="tag">
-            {{ addr }}
-            <button class="tag-remove" type="button" :aria-label="`移除密送人 ${addr}`" @click="bccList.splice(i, 1)">&times;</button>
-          </span>
-          <input v-model="bccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="bccField.onInput" @keydown="handleRecipientKeydown('bcc', $event)" @keydown.comma.prevent="addRecipient('bcc')" @change="addRecipient('bcc')" @blur="closeRecipientSuggestions('bcc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
-          <div v-if="bccField.showSuggestions.value" class="contact-suggestions">
-            <button v-for="(item, index) in bccField.suggestions.value" :key="`bcc-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === bccField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('bcc', item)">
-              <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
-            </button>
+        <label class="compose-field-label">密送</label>
+        <div class="compose-field-control">
+          <div class="tag-input">
+            <span v-for="(addr, i) in bccList" :key="'bcc'+i" class="tag">
+              {{ addr }}
+              <button class="tag-remove" type="button" :aria-label="`移除密送人 ${addr}`" @click="bccList.splice(i, 1)">&times;</button>
+            </span>
+            <input v-model="bccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="bccField.onInput" @keydown="handleRecipientKeydown('bcc', $event)" @keydown.comma.prevent="addRecipient('bcc')" @change="addRecipient('bcc')" @blur="closeRecipientSuggestions('bcc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
+            <div v-if="bccField.showSuggestions.value" class="contact-suggestions">
+              <button v-for="(item, index) in bccField.suggestions.value" :key="`bcc-${item.contact_id}-${item.email}`" type="button" :class="{ active: index === bccField.activeIndex.value }" @mousedown.prevent="chooseSuggestion('bcc', item)">
+                <strong>{{ item.name || item.email }}</strong><small>{{ item.email }}</small>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- 主题 -->
-      <UiField class="form-row" label="主题" for-id="compose-subject">
-        <input id="compose-subject" v-model="subject" placeholder="邮件主题" class="ui-input form-input" />
+      <UiField class="form-row" for-id="compose-subject">
+        <span class="compose-field-label">主题</span>
+        <div class="compose-field-control">
+          <input id="compose-subject" v-model="subject" placeholder="邮件主题" class="ui-input form-input" />
+        </div>
       </UiField>
 
       <!-- 富文本编辑器 -->
