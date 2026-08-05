@@ -5,6 +5,7 @@ import {
   toHex,
   type RgbaColor,
 } from './mail-color-contrast';
+import { isNegativeCssLength } from './mail-body-layout';
 
 export const MAX_ADAPTED_MAIL_NODES = 8000;
 
@@ -13,6 +14,7 @@ const DEFAULT_DARK_BACKGROUND: RgbaColor = { r: 23, g: 24, b: 29, a: 1 };
 const DEFAULT_LIGHT_TEXT: RgbaColor = { r: 23, g: 24, b: 29, a: 1 };
 const DEFAULT_DARK_TEXT: RgbaColor = { r: 245, g: 245, b: 247, a: 1 };
 const MEDIA_ELEMENTS = new Set(['IMG', 'PICTURE', 'SOURCE', 'SVG', 'CANVAS']);
+const HORIZONTAL_START_MARGIN_PROPERTIES = ['margin-left', 'margin-inline-start'] as const;
 
 export interface MailThemeOptions {
   lightBackground?: RgbaColor;
@@ -67,6 +69,13 @@ function removeBackground(element: HTMLElement) {
   element.removeAttribute('bgcolor');
 }
 
+export function clampNegativeHorizontalMargins(element: HTMLElement): void {
+  HORIZONTAL_START_MARGIN_PROPERTIES.forEach((property) => {
+    const value = element.style.getPropertyValue(property);
+    if (isNegativeCssLength(value)) element.style.setProperty(property, '0');
+  });
+}
+
 function backgroundForElement(
   element: HTMLElement,
   backgrounds: WeakMap<HTMLElement, ThemeBackgrounds>,
@@ -102,6 +111,7 @@ export function adaptMailBodyColors(sanitizedHtml: string, options: MailThemeOpt
     const backgrounds = new WeakMap<HTMLElement, ThemeBackgrounds>();
 
     elements.forEach((element, index) => {
+      clampNegativeHorizontalMargins(element);
       if (MEDIA_ELEMENTS.has(element.tagName)) return;
       const inherited = backgroundForElement(element, backgrounds, rootBackgrounds);
       const rawBackground = explicitBackground(element);

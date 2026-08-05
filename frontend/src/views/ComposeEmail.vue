@@ -1043,6 +1043,8 @@ function formatSize(bytes: number): string {
 
 /* 工具栏 */
 .compose-toolbar {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1051,6 +1053,7 @@ function formatSize(bytes: number): string {
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-secondary);
   min-width: 0;
+  overflow: visible;
 }
 
 .toolbar-btn {

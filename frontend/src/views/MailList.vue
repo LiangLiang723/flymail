@@ -2408,18 +2408,13 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
 .detail-content-wrap {
   min-width: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
 /* 正文内容区域 */
 .detail-content {
   padding: var(--space-5);
   min-width: min-content;
-}
-
-.detail-content :deep(*) {
-  max-width: 100%;
 }
 
 .detail-content :deep(table) {
