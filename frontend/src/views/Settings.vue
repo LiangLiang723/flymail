@@ -73,6 +73,24 @@
       </div>
     </UiCard>
 
+    <UiCard class="provider-card signature-settings-card" padding="none">
+      <div class="storage-card-body">
+        <div class="preference-toggle-row">
+          <div class="preference-toggle-copy">
+            <h3 class="storage-title">邮件签名</h3>
+            <p class="storage-desc">按邮箱管理新邮件和回复/转发默认签名。</p>
+            <p class="preference-toggle-feedback">已创建 {{ signatureStore.signatureCount }} 个签名</p>
+          </div>
+          <UiButton variant="secondary" @click="openSignatureManagement">
+            <template #leading>
+              <AppIcon name="signature" :size="17" />
+            </template>
+            管理签名
+          </UiButton>
+        </div>
+      </div>
+    </UiCard>
+
     <div class="provider-card">
       <div class="storage-card-body">
         <div class="storage-heading">
@@ -643,12 +661,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import AppIcon from '../components/AppIcon.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import PageHeader from '../components/layout/PageHeader.vue';
+import UiButton from '../components/ui/UiButton.vue';
 import UiCard from '../components/ui/UiCard.vue';
 import UiField from '../components/ui/UiField.vue';
 import UiSwitch from '../components/ui/UiSwitch.vue';
 import About from './About.vue';
+import { useSignatureStore } from '../stores/signatures';
 import api from '../utils/api';
 import { formatStorageBytes, isValidAttachmentCacheLimit } from '../utils/attachment-cache';
 import { themeController, type ThemePreference } from '../utils/theme';
@@ -664,6 +685,7 @@ const showAbout = ref(false);
 const unifiedInboxEnabled = ref(false);
 const unifiedInboxSaving = ref(false);
 const unifiedInboxError = ref('');
+const signatureStore = useSignatureStore();
 
 // 图片基础路径：Vite 构建时 base 为 /app/flymail/，需要拼接前缀才能正确访问
 const guideBase = import.meta.env.BASE_URL + 'guide/';
@@ -893,7 +915,15 @@ async function loadSettingsData() {
 onMounted(() => {
   loadSettingsData();
   loadUnifiedInboxSetting();
+  signatureStore.ensureLoaded().catch((error) => {
+    console.error('加载签名数量失败:', error);
+  });
 });
+
+function openSignatureManagement() {
+  signatureStore.setEntrySource('settings');
+  window.dispatchEvent(new CustomEvent('flymail-navigate', { detail: 'signatures' }));
+}
 
 async function toggleUnifiedInbox(nextEnabled: boolean) {
   if (unifiedInboxSaving.value) return;

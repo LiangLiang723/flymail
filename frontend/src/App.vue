@@ -54,6 +54,10 @@
             <Backup v-else-if="currentView === 'backup'" />
             <Profile v-else-if="currentView === 'profile'" :user="currentUser" @updated="currentUser = $event" />
             <UserManagement v-else-if="currentView === 'users' && isAdmin" />
+            <SignatureManagement
+              v-else-if="currentView === 'signatures'"
+              @back="returnFromSignatureManagement"
+            />
             <Settings v-else-if="currentView === 'settings'" />
             <NotificationSettings v-else-if="currentView === 'notifications'" />
             <About v-else-if="currentView === 'about'" />
@@ -112,7 +116,9 @@ import AuthGate from './components/app/AuthGate.vue';
 import NotificationDrawer from './components/app/NotificationDrawer.vue';
 import { useWebSocket } from './composables/useWebSocket';
 import { useMailStore } from './stores/mail';
+import { useSignatureStore } from './stores/signatures';
 import { useUIStore } from './stores/ui';
+import type { SignatureEntrySource } from './types/signature';
 import api from './utils/api';
 import { classifyAuthError, normalizeApiError, type AuthState } from './utils/auth-state';
 import About from './views/About.vue';
@@ -126,6 +132,7 @@ import MailList from './views/MailList.vue';
 import NotificationSettings from './views/NotificationSettings.vue';
 import Profile from './views/Profile.vue';
 import Settings from './views/Settings.vue';
+import SignatureManagement from './views/SignatureManagement.vue';
 import UnifiedInbox from './views/UnifiedInbox.vue';
 import UserManagement from './views/UserManagement.vue';
 
@@ -145,6 +152,7 @@ type MailNavigation =
   | { type: 'folder'; path: string };
 
 const mailStore = useMailStore();
+const signatureStore = useSignatureStore();
 const uiStore = useUIStore();
 const currentUser = ref<CurrentUser | null>(null);
 const authState = ref<AuthState>('booting');
@@ -208,9 +216,30 @@ const navItems = computed(() => [
   { key: 'backup', label: '邮件备份', icon: 'backup' },
 ]);
 
-function navigateFromSidebar(key: string) {
-  currentView.value = key;
+async function requestNavigation(target: string, source?: SignatureEntrySource): Promise<boolean> {
+  if (
+    currentView.value === 'signatures'
+    && target !== 'signatures'
+    && signatureStore.hasUnsavedChanges
+  ) {
+    const confirmed = await uiStore.showConfirm({
+      title: '放弃未保存的签名更改？',
+      message: '当前签名尚未保存，离开后这些更改将丢失。',
+      confirmText: '放弃更改',
+      danger: true,
+    });
+    if (!confirmed) return false;
+    signatureStore.discardDraft();
+  }
+
+  if (target === 'signatures' && source) signatureStore.setEntrySource(source);
+  currentView.value = target;
   mobileSidebarOpen.value = false;
+  return true;
+}
+
+async function navigateFromSidebar(key: string) {
+  await requestNavigation(key, key === 'signatures' ? 'menu' : undefined);
 }
 
 function selectMobileMailNavigation(detail: MailNavigation) {
@@ -326,20 +355,27 @@ async function changePassword() {
   uiStore.success('密码已更新');
 }
 
-function returnToMail(payload?: { account_id?: string }) {
-  currentView.value = 'mail';
+async function returnToMail(payload?: { account_id?: string }) {
+  if (!await requestNavigation('mail')) return;
   if (!payload?.account_id) return;
   nextTick(() => {
     window.dispatchEvent(new CustomEvent('flymail-sent-message', { detail: payload }));
   });
 }
 
-function handleNavigate(event: Event) {
+async function returnFromSignatureManagement() {
+  const target = signatureStore.entrySource === 'compose' ? 'compose' : 'settings';
+  await requestNavigation(target);
+}
+
+async function handleNavigate(event: Event) {
   const detail = (event as CustomEvent).detail;
-  if (detail === 'compose') {
-    currentView.value = 'compose';
-  } else if (typeof detail === 'string') {
-    currentView.value = detail;
+  if (typeof detail === 'string') {
+    await requestNavigation(detail);
+    return;
+  }
+  if (detail && typeof detail.view === 'string') {
+    await requestNavigation(detail.view, detail.source);
   }
 }
 
@@ -367,6 +403,7 @@ async function openNotification(item: any) {
   await mailStore.markNotificationRead(item.id);
   showNotifications.value = false;
   if (!item.account_id || (!item.message_cache_id && !item.message_uid)) return;
+  if (!await requestNavigation('mail')) return;
 
   mailStore.setAccount(item.account_id);
   mailStore.setFolder(item.folder || 'INBOX');
@@ -376,7 +413,6 @@ async function openNotification(item: any) {
     id: item.message_cache_id || String(item.message_uid),
     uid: item.message_uid || undefined,
   }));
-  currentView.value = 'mail';
 }
 
 onMounted(() => {
@@ -403,7 +439,7 @@ watch(currentView, (value) => {
     currentView.value = 'mail';
     return;
   }
-  const menuViews = ['profile', 'notifications', 'settings', 'about'];
+  const menuViews = ['profile', 'notifications', 'settings', 'signatures', 'about'];
   if (isAdmin.value) menuViews.push('users');
   if (value !== 'compose' && !navItems.value.some((item) => item.key === value) && !menuViews.includes(value)) {
     currentView.value = 'mail';

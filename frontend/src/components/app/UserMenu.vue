@@ -43,6 +43,10 @@
           <AppIcon name="notifications" :size="18" />
           <span>第三方通知</span>
         </button>
+        <button type="button" role="menuitem" @click="navigate('signatures')">
+          <AppIcon name="signature" :size="18" />
+          <span>签名管理</span>
+        </button>
         <button type="button" role="menuitem" @click="navigate('settings')">
           <AppIcon name="settings" :size="18" />
           <span>设置</span>
