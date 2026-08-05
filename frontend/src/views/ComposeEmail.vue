@@ -376,7 +376,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import api from '../utils/api';
-import { useMailStore } from '../stores/mail';
+import { useMailStore, type ComposeWorkspaceSnapshot } from '../stores/mail';
+import { useSignatureStore } from '../stores/signatures';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import UiButton from '../components/ui/UiButton.vue';
@@ -394,6 +395,7 @@ const emit = defineEmits<{
 }>();
 
 const mailStore = useMailStore();
+const signatureStore = useSignatureStore();
 
 // 表单数据
 const fromAccountId = ref('');
@@ -556,6 +558,7 @@ const attachmentOverLimit = computed(() => totalAttachmentBytes.value > attachme
 // ==================== 签名模板（内置 + 用户自定义） ====================
 const showSignaturePanel = ref(false);
 const editorRef = ref<InstanceType<typeof import('../components/TiptapEditor.vue').default> | null>(null);
+const activeSignatureId = ref<number | null>(null);
 
 /** 内置预设签名模板（4款精美常用签名） */
 const builtinSignatures = [
@@ -606,12 +609,14 @@ function insertSigToEditor(contentHtml: string, signatureId = -1) {
     contentHtml,
     composeKind.value === 'reply' || composeKind.value === 'forward' ? 'start' : 'end',
   );
+  activeSignatureId.value = signatureId >= 0 ? signatureId : null;
   showSignaturePanel.value = false;
 }
 
 function selectSignature(sig: SignatureTemplate | null) {
   if (!sig) {
     editorRef.value?.setManagedSignature(null);
+    activeSignatureId.value = null;
     showSignaturePanel.value = false;
     return;
   }
@@ -685,10 +690,30 @@ function resetSignatureEditor(sig: SignatureTemplate | null) {
   editingUserSigIsReplyDefault.value = Boolean(sig?.is_reply_default);
 }
 
+function buildComposeWorkspaceSnapshot(): ComposeWorkspaceSnapshot {
+  commitRecipientInputs();
+  return {
+    account_id: fromAccountId.value,
+    to: [...toList.value],
+    cc: [...ccList.value],
+    bcc: [...bccList.value],
+    subject: subject.value,
+    body_html: bodyHtml.value,
+    attachments: attachments.value.map((item) => ({ ...item })),
+    draft_message_id: draftMessageId.value,
+    draft_folder: draftFolder.value,
+    compose_kind: composeKind.value,
+    show_cc: showCc.value,
+    show_bcc: showBcc.value,
+    active_signature_id: activeSignatureId.value,
+  };
+}
+
 function openSignatureManager() {
-  showSignaturePanel.value = true;
-  resetSignatureEditor(null);
-  showEditUserSigDialog.value = true;
+  mailStore.saveComposeWorkspace(buildComposeWorkspaceSnapshot());
+  signatureStore.setEntrySource('compose');
+  showSignaturePanel.value = false;
+  window.dispatchEvent(new CustomEvent('flymail-navigate', { detail: 'signatures' }));
 }
 
 /** 打开编辑用户签名对话框。 */
@@ -704,6 +729,7 @@ async function applyDefaultSignature() {
   if (!editorRef.value) return;
   if (!defaultSig) {
     editorRef.value.setManagedSignature(null);
+    activeSignatureId.value = null;
     return;
   }
   editorRef.value.setManagedSignature(
@@ -711,6 +737,7 @@ async function applyDefaultSignature() {
     defaultSig.content_html,
     composeKind.value === 'reply' || composeKind.value === 'forward' ? 'start' : 'end',
   );
+  activeSignatureId.value = defaultSig.id;
 }
 
 /** 新建或修改签名，并持久化邮箱范围和两类默认规则。 */
@@ -756,22 +783,27 @@ async function deleteEditingUserSig() {
   }
 }
 
-async function applyComposeDraft(draft: any = null) {
+async function applyComposeDraft(
+  draft: Partial<ComposeWorkspaceSnapshot> | null = null,
+  options: { applyDefaultSignature?: boolean } = {},
+) {
   applyingComposeDraft = true;
   try {
     clearComposeForm();
     composeKind.value = draft?.compose_kind || (draft?.draft_message_id ? 'draft' : 'new');
-    toList.value = draft?.to || [];
-    ccList.value = draft?.cc || [];
-    bccList.value = draft?.bcc || [];
+    toList.value = [...(draft?.to || [])];
+    ccList.value = [...(draft?.cc || [])];
+    bccList.value = [...(draft?.bcc || [])];
     subject.value = draft?.subject || '';
     bodyHtml.value = draft?.body_html || '<p><br></p>';
     draftMessageId.value = draft?.draft_message_id || '';
     draftFolder.value = draft?.draft_folder || '';
     fromAccountId.value = draft?.account_id || mailStore.currentAccountId || accounts.value[0]?.id || '';
-    showCc.value = ccList.value.length > 0;
-    showBcc.value = bccList.value.length > 0;
-    if (composeKind.value !== 'draft') {
+    attachments.value = (draft?.attachments || []).map((item) => ({ ...item }));
+    showCc.value = Boolean(draft?.show_cc ?? ccList.value.length > 0);
+    showBcc.value = Boolean(draft?.show_bcc ?? bccList.value.length > 0);
+    activeSignatureId.value = draft?.active_signature_id ?? null;
+    if (options.applyDefaultSignature !== false && composeKind.value !== 'draft') {
       await applyDefaultSignature();
     }
     markSavedSnapshot();
@@ -783,13 +815,18 @@ async function applyComposeDraft(draft: any = null) {
 // 初始化：先加载签名规则，再按新邮件/回复/转发/草稿场景建立编辑器。
 onMounted(async () => {
   await loadUserSigs();
-  await applyComposeDraft(mailStore.consumeComposeDraft());
+  if (mailStore.composeWorkspace) {
+    await applyComposeDraft(mailStore.composeWorkspace, { applyDefaultSignature: false });
+  } else {
+    await applyComposeDraft(mailStore.consumeComposeDraft());
+  }
 });
 
 watch(
   () => mailStore.composeDraft,
   async (draft) => {
     if (draft) {
+      mailStore.clearComposeWorkspace();
       await applyComposeDraft(mailStore.consumeComposeDraft());
     }
   },
@@ -886,6 +923,7 @@ function clearComposeForm() {
   attachments.value = [];
   showCc.value = false;
   showBcc.value = false;
+  activeSignatureId.value = null;
   markSavedSnapshot();
 }
 
@@ -942,6 +980,7 @@ async function sendMail() {
       attachments: attachments.value.map(a => a.path),
     }) as any;
     showToast('发送成功', 'success');
+    mailStore.clearComposeWorkspace();
     clearComposeForm();
     emit('sent', { account_id: fromAccountId.value });
   } catch (e: any) {
@@ -1006,8 +1045,12 @@ async function scheduleMail() {
 // 关闭邮件
 function discardMail() {
   if (hasUnsavedChanges()) {
-    showConfirm('确定关闭写邮件？未保存的内容将丢失', () => { emit('discard'); });
+    showConfirm('确定关闭写邮件？未保存的内容将丢失', () => {
+      mailStore.clearComposeWorkspace();
+      emit('discard');
+    });
   } else {
+    mailStore.clearComposeWorkspace();
     emit('discard');
   }
 }

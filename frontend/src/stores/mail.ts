@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import api from '../utils/api';
 import type { AccountIconFields, MailAccount } from '../types/account';
+import type { ComposeKind } from '../types/signature';
 import { useUIStore } from './ui';
 
 const CORE_FOLDERS = [
@@ -11,6 +12,29 @@ const CORE_FOLDERS = [
   { name: '垃圾邮件', defaultPath: 'Junk', aliases: ['Junk', 'Junk Email', 'Spam', '[Gmail]/Spam', '[Google Mail]/Spam', '垃圾邮件'] },
   { name: '已删除', defaultPath: 'Trash', aliases: ['Trash', 'Deleted Items', 'Deleted', 'Deleted Messages', '[Gmail]/Trash', '[Google Mail]/Trash', '已删除'] },
 ];
+
+export interface ComposeAttachmentSnapshot {
+  filename: string;
+  size: number;
+  path: string;
+  source?: 'local' | 'nas';
+}
+
+export interface ComposeWorkspaceSnapshot {
+  account_id: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  body_html: string;
+  attachments: ComposeAttachmentSnapshot[];
+  draft_message_id: string;
+  draft_folder: string;
+  compose_kind: ComposeKind;
+  show_cc: boolean;
+  show_bcc: boolean;
+  active_signature_id: number | null;
+}
 
 interface MailNotification {
   id: string;
@@ -82,6 +106,7 @@ export const useMailStore = defineStore('mail', () => {
   const folderPaths = ref<FolderPaths>({ ...DEFAULT_FOLDER_PATHS });
   const notifications = ref<MailNotification[]>([]);
   const composeDraft = ref<any>(null);
+  const composeWorkspace = ref<ComposeWorkspaceSnapshot | null>(null);
   let folderCountRequestVersion = 0;
 
   const folders = computed(() => {
@@ -471,6 +496,20 @@ export const useMailStore = defineStore('mail', () => {
     return draft;
   }
 
+  function saveComposeWorkspace(snapshot: ComposeWorkspaceSnapshot) {
+    composeWorkspace.value = {
+      ...snapshot,
+      to: [...snapshot.to],
+      cc: [...snapshot.cc],
+      bcc: [...snapshot.bcc],
+      attachments: snapshot.attachments.map((item) => ({ ...item })),
+    };
+  }
+
+  function clearComposeWorkspace() {
+    composeWorkspace.value = null;
+  }
+
   return {
     user,
     loading,
@@ -502,5 +541,8 @@ export const useMailStore = defineStore('mail', () => {
     composeDraft,
     setComposeDraft,
     consumeComposeDraft,
+    composeWorkspace,
+    saveComposeWorkspace,
+    clearComposeWorkspace,
   };
 });
