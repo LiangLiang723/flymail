@@ -156,6 +156,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { watch, onBeforeUnmount, computed, ref, onMounted } from 'vue';
 import api from '../utils/api';
 import { parseImageWidth } from '../utils/editor-image-size';
+import { createResizableImageNodeView } from '../utils/resizable-image-node-view';
 
 const props = defineProps<{
   modelValue?: string;
@@ -320,6 +321,9 @@ const ResizableImage = Image.extend({
         ),
       },
     };
+  },
+  addNodeView() {
+    return createResizableImageNodeView;
   },
 });
 
@@ -925,6 +929,84 @@ const toolbarButtons = [
 }
 .editor-content :deep(.tiptap a) { color: var(--ui-accent); text-decoration: underline; }
 .editor-content :deep(.tiptap img) { max-width: 100%; border-radius: 4px; }
+
+.editor-content :deep(.resizable-image-node) {
+  position: relative;
+  display: table;
+  max-width: 100%;
+  margin: 6px 0;
+  border-radius: 6px;
+}
+
+.editor-content :deep(.resizable-image-element) {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.editor-content :deep(.resizable-image-node--selected) {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+.editor-content :deep(.image-resize-handle) {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  display: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid var(--ui-surface-1);
+  border-radius: 50%;
+  background: var(--ui-accent);
+  box-shadow: var(--ui-shadow-sm);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.editor-content :deep(.image-size-toolbar) {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 4;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 8px;
+  background: var(--ui-surface-1);
+  box-shadow: var(--ui-shadow-md);
+  white-space: nowrap;
+}
+
+.editor-content :deep(.image-size-toolbar button) {
+  min-width: 38px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-2);
+  cursor: pointer;
+}
+
+.editor-content :deep(.resizable-image-node--selected .image-resize-handle),
+.editor-content :deep(.resizable-image-node--selected .image-size-toolbar) {
+  display: flex;
+}
+
+.editor-content :deep(.image-size-toolbar button:hover) {
+  background: var(--ui-surface-2);
+  color: var(--ui-text-1);
+}
+
+.editor-content :deep(.image-size-toolbar button:focus-visible),
+.editor-content :deep(.image-resize-handle:focus-visible) {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
 
 /* 分割线样式 */
 .editor-content :deep(.tiptap hr) {
