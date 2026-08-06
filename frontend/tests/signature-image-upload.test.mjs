@@ -20,6 +20,16 @@ test('tiptap image button uploads a local image instead of asking for a URL', as
   assert.doesNotMatch(source, /输入图片地址/);
 });
 
+test('tiptap image node persists a sanitized width attribute', async () => {
+  const source = await readSource('src/components/TiptapEditor.vue');
+
+  assert.match(source, /const ResizableImage = Image\.extend/);
+  assert.match(source, /parseImageWidth/);
+  assert.match(source, /width:\s*\{/);
+  assert.match(source, /renderHTML:[\s\S]*width:\s*String\(Math\.round\(attributes\.width\)\)/);
+  assert.match(source, /ResizableImage,/);
+});
+
 test('compose signature menu uses a fully opaque surface', async () => {
   const source = await readSource('src/styles/page-system.css');
 

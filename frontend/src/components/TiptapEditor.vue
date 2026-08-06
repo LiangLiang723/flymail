@@ -155,6 +155,7 @@ import Paragraph from '@tiptap/extension-paragraph';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { watch, onBeforeUnmount, computed, ref, onMounted } from 'vue';
 import api from '../utils/api';
+import { parseImageWidth } from '../utils/editor-image-size';
 
 const props = defineProps<{
   modelValue?: string;
@@ -304,6 +305,24 @@ const CustomParagraph = Paragraph.extend({
   },
 });
 
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element: HTMLElement) => (
+          parseImageWidth(element.getAttribute('width'))
+          ?? parseImageWidth(element.style.width)
+        ),
+        renderHTML: (attributes: Record<string, any>) => (
+          attributes.width ? { width: String(Math.round(attributes.width)) } : {}
+        ),
+      },
+    };
+  },
+});
+
 const SignatureBlock = Node.create({
   name: 'signatureBlock',
   group: 'block',
@@ -352,7 +371,7 @@ const editor = useEditor({
   openOnClick: false,
   HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
   }),
-  Image,
+  ResizableImage,
   Placeholder.configure({
   placeholder: '写点什么...',
   }),
