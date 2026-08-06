@@ -51,4 +51,8 @@ test('tiptap exposes a replaceable managed signature block', async () => {
   assert.match(source, /data-flymail-signature/);
   assert.match(source, /function setManagedSignature/);
   assert.match(source, /defineExpose\([^)]*setManagedSignature/s);
+  assert.match(source, /atom:\s*true/);
+  assert.match(source, /data-flymail-signature-spacer/);
+  assert.match(source, /TextSelection/);
+  assert.doesNotMatch(source, /chain\(\)\.focus\(\)\.insertContentAt\(position, signatureHtml\)/);
 });

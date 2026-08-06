@@ -152,7 +152,8 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import Paragraph from '@tiptap/extension-paragraph';
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, generateJSON, mergeAttributes } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 import { watch, onBeforeUnmount, computed, ref, onMounted } from 'vue';
 import api from '../utils/api';
 import { parseImageWidth } from '../utils/editor-image-size';
@@ -302,6 +303,13 @@ const CustomParagraph = Paragraph.extend({
   return { style: `margin-left: ${attributes.indent * 40}px` };
   },
   },
+  signatureSpacer: {
+  default: false,
+  parseHTML: (element: HTMLElement) => element.hasAttribute('data-flymail-signature-spacer'),
+  renderHTML: (attributes: Record<string, any>) => (
+  attributes.signatureSpacer ? { 'data-flymail-signature-spacer': 'true' } : {}
+  ),
+  },
   };
   },
 });
@@ -327,10 +335,52 @@ const ResizableImage = Image.extend({
   },
 });
 
+const MailQuote = Node.create({
+  name: 'mailQuote',
+  group: 'block',
+  content: 'block+',
+  defining: true,
+  isolating: true,
+  addAttributes() {
+    return {
+      quoteKind: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-flymail-quote') || '',
+      },
+      tag: {
+        default: 'div',
+        parseHTML: (element: HTMLElement) => element.tagName.toLowerCase(),
+      },
+      style: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.getAttribute('style') || '',
+      },
+    };
+  },
+  parseHTML() {
+    return [
+      { tag: 'blockquote[data-flymail-quote]' },
+      { tag: 'div[data-flymail-quote]' },
+    ];
+  },
+  renderHTML({ node }) {
+    const tag = node.attrs.tag === 'blockquote' ? 'blockquote' : 'div';
+    return [
+      tag,
+      mergeAttributes(
+        { class: 'flymail-mail-quote', 'data-flymail-quote': String(node.attrs.quoteKind || '') },
+        node.attrs.style ? { style: String(node.attrs.style) } : {},
+      ),
+      0,
+    ];
+  },
+});
+
 const SignatureBlock = Node.create({
   name: 'signatureBlock',
   group: 'block',
   content: 'block+',
+  atom: true,
   defining: true,
   isolating: true,
   addAttributes() {
@@ -362,6 +412,7 @@ const editor = useEditor({
   paragraph: false,
   }),
   CustomParagraph,
+  MailQuote,
   SignatureBlock,
   Underline,
   CustomTextStyle,
@@ -422,6 +473,23 @@ function insertText(text: string) {
   editor.value.chain().focus().insertContent(text).run();
 }
 
+interface TopLevelNodeEntry {
+  node: any;
+  pos: number;
+}
+
+function topLevelNodeEntries(doc: any): TopLevelNodeEntry[] {
+  const entries: TopLevelNodeEntry[] = [];
+  doc.forEach((node: any, pos: number) => entries.push({ node, pos }));
+  return entries;
+}
+
+function isEmptyManagedSignatureSpacer(node: any): boolean {
+  return node.type.name === 'paragraph'
+    && node.content.size === 0
+    && Boolean(node.attrs.signatureSpacer);
+}
+
 /** 替换由 FlyMail 管理的签名块；传 null 时只移除签名。 */
 function setManagedSignature(
   signatureId: number | null,
@@ -431,28 +499,78 @@ function setManagedSignature(
   const currentEditor = editor.value;
   if (!currentEditor) return;
 
-  const ranges: Array<{ from: number; to: number }> = [];
+  const signatureRanges: Array<{ from: number; to: number }> = [];
   currentEditor.state.doc.descendants((node, pos) => {
     if (node.type.name === 'signatureBlock') {
-      ranges.push({ from: pos, to: pos + node.nodeSize });
+      signatureRanges.push({ from: pos, to: pos + node.nodeSize });
+      return false;
     }
+    return undefined;
   });
-  if (ranges.length) {
-    let transaction = currentEditor.state.tr;
-    for (const range of ranges.reverse()) {
-      transaction = transaction.delete(range.from, range.to);
-    }
-    currentEditor.view.dispatch(transaction);
+
+  const firstSignaturePos = signatureRanges[0]?.from ?? null;
+  const paragraphType = currentEditor.schema.nodes.paragraph;
+  const signatureType = currentEditor.schema.nodes.signatureBlock;
+  if (!paragraphType || !signatureType) return;
+
+  let transaction = currentEditor.state.tr;
+  for (const range of [...signatureRanges].reverse()) {
+    transaction = transaction.delete(range.from, range.to);
   }
 
-  if (signatureId !== null && html.trim()) {
-    const signatureHtml = `<div data-flymail-signature="${signatureId}">${html}</div>`;
-    const firstNode = currentEditor.state.doc.firstChild;
-    const position = placement === 'start'
-      ? (firstNode?.type.name === 'paragraph' ? firstNode.nodeSize : 0)
-      : currentEditor.state.doc.content.size;
-    currentEditor.chain().focus().insertContentAt(position, signatureHtml).run();
+  if (signatureId === null || !html.trim()) {
+    const emptySpacers = topLevelNodeEntries(transaction.doc)
+      .filter(({ node }) => isEmptyManagedSignatureSpacer(node));
+    for (const entry of emptySpacers.reverse()) {
+      transaction = transaction.delete(entry.pos, entry.pos + entry.node.nodeSize);
+    }
+    if (transaction.doc.firstChild?.type.name !== 'paragraph') {
+      transaction = transaction.insert(0, paragraphType.create());
+    }
+    transaction = transaction.setSelection(TextSelection.create(transaction.doc, 1));
+    currentEditor.view.dispatch(transaction.scrollIntoView());
+    currentEditor.view.focus();
+    return;
   }
+
+  if (transaction.doc.firstChild?.type.name !== 'paragraph') {
+    transaction = transaction.insert(0, paragraphType.create());
+  }
+
+  let insertionPos: number;
+  if (firstSignaturePos !== null) {
+    insertionPos = transaction.mapping.map(firstSignaturePos, 1);
+  } else if (placement === 'start') {
+    const quoteEntry = topLevelNodeEntries(transaction.doc)
+      .find(({ node }) => node.type.name === 'mailQuote');
+    insertionPos = quoteEntry?.pos ?? (transaction.doc.firstChild?.nodeSize || 0);
+  } else {
+    insertionPos = transaction.doc.content.size;
+  }
+  insertionPos = Math.max(0, Math.min(insertionPos, transaction.doc.content.size));
+
+  const previousEntry = topLevelNodeEntries(transaction.doc)
+    .find(({ node, pos }) => pos + node.nodeSize === insertionPos);
+  if (!previousEntry || !isEmptyManagedSignatureSpacer(previousEntry.node)) {
+    const spacer = paragraphType.create({ signatureSpacer: true });
+    transaction = transaction.insert(insertionPos, spacer);
+    insertionPos += spacer.nodeSize;
+  }
+
+  const signatureDocument = currentEditor.schema.nodeFromJSON(
+    generateJSON(html, currentEditor.extensionManager.extensions),
+  );
+  if (signatureDocument.content.size > 0) {
+    const signatureNode = signatureType.create(
+      { signatureId: String(signatureId) },
+      signatureDocument.content,
+    );
+    transaction = transaction.insert(insertionPos, signatureNode);
+  }
+
+  transaction = transaction.setSelection(TextSelection.create(transaction.doc, 1));
+  currentEditor.view.dispatch(transaction.scrollIntoView());
+  currentEditor.view.focus();
 }
 
 defineExpose({
