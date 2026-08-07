@@ -3270,15 +3270,15 @@ async def get_contact_stats(user_uid: str, email: str) -> dict:
     normalized = (email or "").strip().lower()
     if not normalized or "@" not in normalized:
         return {"count": 0, "last_date": ""}
-    escaped = normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    like = f"%{escaped}%"
     db = await get_db()
     cursor = await db.execute(
         """SELECT date, from_addr, to_addr, cc FROM cached_messages
            WHERE user_uid = ? AND (
-             LOWER(from_addr) LIKE ? ESCAPE '\\' OR LOWER(to_addr) LIKE ? ESCAPE '\\' OR LOWER(cc) LIKE ? ESCAPE '\\'
+             LOCATE(?, LOWER(from_addr)) > 0
+             OR LOCATE(?, LOWER(to_addr)) > 0
+             OR LOCATE(?, LOWER(cc)) > 0
            )""",
-        (user_uid, like, like, like),
+        (user_uid, normalized, normalized, normalized),
     )
     rows = await cursor.fetchall()
     matched_dates = [

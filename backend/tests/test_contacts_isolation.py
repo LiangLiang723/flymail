@@ -121,6 +121,33 @@ class ContactIsolationTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("contact_emails", sql.lower())
         fake.commit.assert_not_awaited()
 
+    async def test_contact_stats_uses_literal_mysql_prefilter_and_exact_address_match(self):
+        db = _load_db_module()
+        fake = _FakeDB([
+            _Cursor([
+                ("2026-08-07T10:00:00Z", "Neal <neal_chen@example.com>", "me@example.com", ""),
+                ("2026-08-07T11:00:00Z", "other@example.com", "neal_chen@example.com.invalid", ""),
+            ]),
+        ])
+
+        with patch.object(db, "get_db", AsyncMock(return_value=fake)):
+            result = await db.get_contact_stats("user-a", "Neal_Chen@Example.com")
+
+        self.assertEqual(result, {"count": 1, "last_date": "2026-08-07T10:00:00Z"})
+        sql, params = fake.calls[0]
+        self.assertIn("LOCATE", sql.upper())
+        self.assertNotIn(" ESCAPE ", sql.upper())
+        self.assertIn("user_uid", sql)
+        self.assertEqual(
+            tuple(params),
+            (
+                "user-a",
+                "neal_chen@example.com",
+                "neal_chen@example.com",
+                "neal_chen@example.com",
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
