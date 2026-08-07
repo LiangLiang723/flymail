@@ -28,6 +28,15 @@ test('unified inbox navigation is disabled until the saved user preference enabl
   assert.match(source, /currentView\.value === 'unified'/);
 });
 
+test('unified inbox supports local keyword search without changing selected account scope', async () => {
+  const source = await readSource('src/views/UnifiedInbox.vue');
+
+  assert.match(source, /v-model\.trim="searchKeyword"/);
+  assert.match(source, /placeholder="搜索主题\/发件人\/正文"/);
+  assert.match(source, /if \(searchKeyword\.value\) params\.keyword = searchKeyword\.value/);
+  assert.match(source, /function clearSearch\(\)/);
+});
+
 test('settings page uses the shared unified inbox switch with async feedback', async () => {
   const source = await readSource('src/views/Settings.vue');
   const switchSource = await readSource('src/components/ui/UiSwitch.vue');

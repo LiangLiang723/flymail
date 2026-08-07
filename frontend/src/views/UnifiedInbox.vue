@@ -68,6 +68,17 @@
 
       <UiCard class="unified-filter-card" padding="sm">
         <div class="unified-filter-row">
+          <div class="unified-search">
+            <input
+              v-model.trim="searchKeyword"
+              class="ui-input unified-search-input"
+              type="search"
+              placeholder="搜索主题/发件人/正文"
+              aria-label="搜索聚合邮件"
+              @keydown.enter.prevent="resetAndLoad"
+            />
+            <button v-if="searchKeyword" type="button" class="unified-search-clear" @click="clearSearch">清除</button>
+          </div>
           <select v-model="accountFilter" class="ui-select account-filter" aria-label="筛选邮箱" @change="resetAndLoad">
             <option value="">全部邮箱</option>
             <option v-for="account in selectedAccounts" :key="account.id" :value="account.id">
@@ -190,6 +201,7 @@ const pageSize = 40;
 const total = ref(0);
 const unreadTotal = ref(0);
 const accountFilter = ref('');
+const searchKeyword = ref('');
 const readFilter = ref('');
 const attachmentOnly = ref(false);
 const filterCounts = ref({ all: 0, unread: 0, read: 0, attachments: 0 });
@@ -245,6 +257,7 @@ async function loadMessages() {
       attachment_filter: attachmentOnly.value,
     };
     if (accountFilter.value) params.account_filter = accountFilter.value;
+    if (searchKeyword.value) params.keyword = searchKeyword.value;
     const data = await api.get('/messages/unified', { params }) as any;
     messages.value = data.messages || [];
     total.value = Number(data.total || 0);
@@ -292,6 +305,12 @@ function setFilter(read: string, attachments: boolean) {
 function resetAndLoad() {
   page.value = 1;
   loadMessages();
+}
+
+function clearSearch() {
+  if (!searchKeyword.value) return;
+  searchKeyword.value = '';
+  resetAndLoad();
 }
 
 function changePage(nextPage: number) {
@@ -450,6 +469,31 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: var(--ui-space-3);
+}
+
+.unified-search {
+  position: relative;
+  min-width: 220px;
+  flex: 1 1 280px;
+}
+
+.unified-search-input {
+  width: 100%;
+  min-height: 36px;
+  padding-right: 54px;
+}
+
+.unified-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-3);
+  font: inherit;
+  font-size: var(--ui-text-xs);
+  cursor: pointer;
 }
 
 .account-filter {

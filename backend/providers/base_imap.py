@@ -36,7 +36,7 @@ class BaseIMAPReceiver(MailReceiver):
 
     _LIST_FETCH_ITEMS = (
         '(FLAGS INTERNALDATE BODYSTRUCTURE '
-        'BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO CC REPLY-TO DATE MESSAGE-ID)])'
+        'BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO CC REPLY-TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES)])'
     )
 
     # 子类可覆盖：iCloud/Outlook 的 IMAP 服务器要求 flags 用括号包裹
@@ -226,6 +226,8 @@ class BaseIMAPReceiver(MailReceiver):
                         folder=folder,
                         has_attachments=has_attachments,
                         message_id=raw_message_id,
+                        in_reply_to=(msg.get("In-Reply-To") or "").strip(),
+                        references_header=(msg.get("References") or "").strip(),
                     ))
                 i = j  # 跳过已处理的 bytes 元素
             else:
@@ -350,6 +352,8 @@ class BaseIMAPReceiver(MailReceiver):
         raw_message_id = (msg.get("Message-ID") or msg.get("Message-Id") or "").strip()
         if raw_message_id and not raw_message_id.startswith("<"):
             raw_message_id = f"<{raw_message_id.strip('<>')}>"
+        in_reply_to = (msg.get("In-Reply-To") or "").strip()
+        references_header = (msg.get("References") or "").strip()
 
         body_text = ""
         body_html = ""
@@ -417,6 +421,8 @@ class BaseIMAPReceiver(MailReceiver):
             attachments=attachments,
             has_attachments=any(not attachment.is_inline for attachment in attachments),
             message_id=raw_message_id,
+            in_reply_to=in_reply_to,
+            references_header=references_header,
         )
 
     async def search_messages(self, folder: str, keyword: str, page: int = 1, page_size: int = 20) -> MessageList:

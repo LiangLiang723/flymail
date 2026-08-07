@@ -22,15 +22,34 @@ export interface Message {
   subject: string
   date: string
   is_read: boolean
+  is_starred?: boolean
   body_text?: string
   body_html?: string
   attachments?: Attachment[]
   has_attachments?: boolean
   message_id?: string
+  in_reply_to?: string
+  references_header?: string
+  thread_key?: string
+  message_count?: number
+  unread_count?: number
   account_id?: string
   account_email?: string
   account_provider?: string
   folder?: string
+}
+
+export interface MailSearchState {
+  keyword: string
+  fromAddr: string
+  toAddr: string
+  subject: string
+  body: string
+  after: string
+  before: string
+  readFilter: '' | 'unread' | 'read'
+  attachmentOnly: boolean
+  starredOnly: boolean
 }
 
 export interface BackupAccount {

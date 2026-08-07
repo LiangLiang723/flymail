@@ -70,6 +70,30 @@ class ImapDateParsingTest(unittest.TestCase):
         self.assertEqual(messages[0].uid, 42)
         self.assertEqual(messages[0].date, "2018-07-12T11:35:00Z")
 
+    def test_batch_fetch_preserves_thread_headers(self):
+        receiver = DummyReceiver()
+        msg_data = [
+            (
+                b'1 (UID 44 FLAGS () BODY[HEADER.FIELDS (SUBJECT FROM TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES)] {220}',
+                b"Subject: Re: Project\r\n"
+                b"From: a@example.com\r\n"
+                b"To: b@example.com\r\n"
+                b"Date: Fri, 13 Jul 2018 20:35:00 +0800\r\n"
+                b"Message-ID: <child@example.com>\r\n"
+                b"In-Reply-To: <parent@example.com>\r\n"
+                b"References: <root@example.com> <parent@example.com>\r\n\r\n",
+            ),
+            b")",
+        ]
+
+        messages = receiver._parse_batch_fetch_response(msg_data, "INBOX")
+
+        self.assertEqual(messages[0].message_id, "<child@example.com>")
+        self.assertEqual(messages[0].in_reply_to, "<parent@example.com>")
+        self.assertEqual(messages[0].references_header, "<root@example.com> <parent@example.com>")
+        self.assertIn("IN-REPLY-TO", receiver._LIST_FETCH_ITEMS)
+        self.assertIn("REFERENCES", receiver._LIST_FETCH_ITEMS)
+
     def test_batch_fetch_prefers_header_date_over_internaldate(self):
         receiver = DummyReceiver()
         msg_data = [

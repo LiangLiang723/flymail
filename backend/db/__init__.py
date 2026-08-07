@@ -442,6 +442,9 @@ async def init_db():
                 body_text LONGTEXT,
                 body_html LONGTEXT,
                 message_id VARCHAR(998) DEFAULT '',
+                in_reply_to VARCHAR(998) DEFAULT '',
+                references_header LONGTEXT,
+                thread_key VARCHAR(191) DEFAULT '',
                 body_checked INTEGER DEFAULT 0,
                 storage_path LONGTEXT,
                 cached_at REAL DEFAULT 0,
@@ -711,6 +714,9 @@ async def init_db():
         ("accounts", "sort_order", "INTEGER DEFAULT 0"),
         ("cached_messages", "cc", "LONGTEXT"),
         ("cached_messages", "message_id", "VARCHAR(998) DEFAULT ''"),
+        ("cached_messages", "in_reply_to", "VARCHAR(998) DEFAULT ''"),
+        ("cached_messages", "references_header", "LONGTEXT"),
+        ("cached_messages", "thread_key", "VARCHAR(191) DEFAULT ''"),
         ("notifications", "message_cache_id", "VARCHAR(191) DEFAULT ''"),
         ("notifications", "message_uid", "INTEGER DEFAULT 0"),
         ("notifications", "rfc_message_id", "VARCHAR(998) DEFAULT ''"),
@@ -729,6 +735,7 @@ async def init_db():
         except Exception as e:
             logger.debug("migration add %s.%s ignored: %s", table, column, e)
 
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_thread ON cached_messages(user_uid, account_id, thread_key)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_notifications_msg ON notifications(user_uid, message_cache_id)")
 
     await db.execute("""
@@ -2576,8 +2583,8 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
             '''INSERT INTO cached_messages
                (id, account_id, user_uid, uid, folder, subject, from_addr, to_addr, cc, date,
                 is_read, is_starred, has_attachments, body_text, body_html, message_id,
-                body_checked, storage_path, cached_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                in_reply_to, references_header, thread_key, body_checked, storage_path, cached_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                subject = VALUES(subject),
                from_addr = VALUES(from_addr),
@@ -2590,6 +2597,9 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
                body_text = COALESCE(VALUES(body_text), cached_messages.body_text),
                body_html = COALESCE(VALUES(body_html), cached_messages.body_html),
                message_id = CASE WHEN VALUES(message_id) <> '' THEN VALUES(message_id) ELSE cached_messages.message_id END,
+               in_reply_to = CASE WHEN VALUES(in_reply_to) <> '' THEN VALUES(in_reply_to) ELSE cached_messages.in_reply_to END,
+               references_header = CASE WHEN VALUES(references_header) <> '' THEN VALUES(references_header) ELSE cached_messages.references_header END,
+               thread_key = CASE WHEN VALUES(thread_key) <> '' THEN VALUES(thread_key) ELSE cached_messages.thread_key END,
                body_checked = GREATEST(VALUES(body_checked), COALESCE(cached_messages.body_checked, 0)),
                storage_path = COALESCE(VALUES(storage_path), cached_messages.storage_path),
                cached_at = VALUES(cached_at)''',
@@ -2597,7 +2607,8 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
                 message_id, msg.account_id, msg.user_uid, msg.uid, msg.folder, msg.subject,
                 msg.from_addr, msg.to_addr, msg.cc or '', msg.date, 1 if msg.is_read else 0,
                 1 if msg.is_starred else 0, 1 if msg.has_attachments else 0,
-                body_text, body_html, msg.message_id or '', 1 if body_checked else 0,
+                body_text, body_html, msg.message_id or '', msg.in_reply_to or '',
+                msg.references_header or '', msg.thread_key or '', 1 if body_checked else 0,
                 msg.storage_path or '', msg.cached_at or time.time(),
             ),
         )
@@ -2687,32 +2698,284 @@ async def get_cached_messages_by_folder(user_uid: str, account_id: str, folder: 
     return result
 
 
-async def search_cached_messages_by_folder(user_uid: str, account_id: str, folder: str, keyword: str, page: int = 1, page_size: int = 40, read_filter: str = '', attachment_filter: bool = False) -> dict:
-    trimmed = (keyword or '').strip()
-    if not trimmed:
-        return await get_cached_messages_by_folder(user_uid, account_id, folder, page, page_size, read_filter, attachment_filter)
+async def search_cached_messages_by_folder(
+    user_uid: str,
+    account_id: str,
+    folder: str,
+    keyword: str,
+    page: int = 1,
+    page_size: int = 40,
+    read_filter: str = '',
+    attachment_filter: bool = False,
+    *,
+    from_addr: str = '',
+    to_addr: str = '',
+    subject: str = '',
+    body: str = '',
+    after: str = '',
+    before: str = '',
+    starred_filter: bool = False,
+) -> dict:
     aliases = _expand_folder_aliases(folder)
     folder_placeholders = ','.join('?' * len(aliases))
-    conditions = ['user_uid = ?', 'account_id = ?', f'folder IN ({folder_placeholders})', '(subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ? OR body_text LIKE ? OR body_html LIKE ?)']
-    like = '%' + trimmed + '%'
-    params = [user_uid, account_id] + aliases + [like, like, like, like, like]
+    conditions = ['user_uid = ?', 'account_id = ?', f'folder IN ({folder_placeholders})']
+    params: list[Any] = [user_uid, account_id] + aliases
+
+    trimmed = (keyword or '').strip()
+    if trimmed:
+        like = '%' + trimmed + '%'
+        conditions.append(
+            '(subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ? OR cc LIKE ? OR body_text LIKE ? OR body_html LIKE ?)'
+        )
+        params.extend([like, like, like, like, like, like])
+    if from_addr.strip():
+        conditions.append('from_addr LIKE ?')
+        params.append('%' + from_addr.strip() + '%')
+    if to_addr.strip():
+        conditions.append('(to_addr LIKE ? OR cc LIKE ?)')
+        recipient_like = '%' + to_addr.strip() + '%'
+        params.extend([recipient_like, recipient_like])
+    if subject.strip():
+        conditions.append('subject LIKE ?')
+        params.append('%' + subject.strip() + '%')
+    if body.strip():
+        conditions.append('(body_text LIKE ? OR body_html LIKE ?)')
+        body_like = '%' + body.strip() + '%'
+        params.extend([body_like, body_like])
+    if after.strip():
+        conditions.append('date >= ?')
+        params.append(after.strip() + 'T00:00:00Z')
+    if before.strip():
+        conditions.append('date < ?')
+        params.append(before.strip() + 'T00:00:00Z')
     if read_filter == 'unread':
         conditions.append('is_read = 0')
     elif read_filter == 'read':
         conditions.append('is_read = 1')
     if attachment_filter:
         conditions.append('has_attachments = 1')
+    if starred_filter:
+        conditions.append('is_starred = 1')
+
     where_clause = ' AND '.join(conditions)
     db = await get_db()
-    cursor = await db.execute(f'''SELECT COUNT(*), SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) FROM cached_messages WHERE {where_clause}''', params)
+    cursor = await db.execute(
+        f'''SELECT COUNT(*), SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END)
+            FROM cached_messages WHERE {where_clause}''',
+        params,
+    )
     row = await cursor.fetchone()
     total = int(row[0] or 0) if row else 0
     unread_total = int(row[1] or 0) if row else 0
     offset = max(0, (page - 1) * page_size)
-    cursor = await db.execute(f'''SELECT id, uid, subject, from_addr, to_addr, date, is_read, is_starred, folder, has_attachments, account_id FROM cached_messages WHERE {where_clause} ORDER BY date DESC, uid DESC LIMIT ? OFFSET ?''', params + [page_size, offset])
+    cursor = await db.execute(
+        f'''SELECT id, uid, subject, from_addr, to_addr, date, is_read, is_starred, folder,
+                   has_attachments, account_id, thread_key
+            FROM cached_messages WHERE {where_clause}
+            ORDER BY date DESC, uid DESC LIMIT ? OFFSET ?''',
+        params + [page_size, offset],
+    )
     rows = await cursor.fetchall()
-    messages = [{'id': str(row[0]), 'uid': row[1], 'subject': row[2] or '', 'from_addr': row[3] or '', 'to_addr': row[4] or '', 'date': row[5] or '', 'is_read': bool(row[6]), 'is_starred': bool(row[7]), 'folder': row[8] or folder, 'has_attachments': bool(row[9]), 'account_id': row[10] or account_id} for row in rows]
+    messages = [
+        {
+            'id': str(row[0]), 'uid': row[1], 'subject': row[2] or '', 'from_addr': row[3] or '',
+            'to_addr': row[4] or '', 'date': row[5] or '', 'is_read': bool(row[6]),
+            'is_starred': bool(row[7]), 'folder': row[8] or folder, 'has_attachments': bool(row[9]),
+            'account_id': row[10] or account_id, 'thread_key': row[11] or '',
+        }
+        for row in rows
+    ]
     return {'messages': messages, 'total': total, 'unread_total': unread_total, 'page': page, 'page_size': page_size}
+
+
+async def ensure_cached_message_thread_keys(user_uid: str, account_id: str, folder: str) -> int:
+    """Backfill thread keys for legacy cached rows without destructive migration."""
+    from services.message_threads import build_thread_key
+
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''SELECT id, message_id, in_reply_to, references_header, subject
+            FROM cached_messages
+            WHERE user_uid = ? AND account_id = ? AND folder IN ({placeholders})
+              AND (thread_key IS NULL OR thread_key = '')''',
+        [user_uid, account_id] + aliases,
+    )
+    rows = await cursor.fetchall()
+    updated = 0
+    for row in rows:
+        cache_id = str(row[0])
+        message_id = row[1] or ''
+        in_reply_to = row[2] or ''
+        references_header = row[3] or ''
+        subject = row[4] or ''
+        if in_reply_to or references_header:
+            thread_key = build_thread_key(account_id, message_id, in_reply_to, references_header, subject)
+        elif subject:
+            # Legacy rows were cached before thread headers were persisted. Use the
+            # conservative subject fallback so existing mail is immediately useful.
+            thread_key = build_thread_key(account_id, '', '', '', subject)
+        else:
+            thread_key = build_thread_key(account_id, message_id, '', '', '')
+        if not thread_key:
+            continue
+        result = await db.execute(
+            '''UPDATE cached_messages SET thread_key = ?
+               WHERE id = ? AND user_uid = ? AND account_id = ?''',
+            [thread_key, cache_id, user_uid, account_id],
+        )
+        updated += int(result.rowcount or 0)
+    if rows:
+        await db.commit()
+    return updated
+
+
+async def get_message_conversations(
+    user_uid: str,
+    account_id: str,
+    folder: str,
+    page: int = 1,
+    page_size: int = 40,
+    keyword: str = '',
+    read_filter: str = '',
+    attachment_filter: bool = False,
+    *,
+    from_addr: str = '',
+    to_addr: str = '',
+    subject: str = '',
+    body: str = '',
+    after: str = '',
+    before: str = '',
+    starred_filter: bool = False,
+) -> dict:
+    await ensure_cached_message_thread_keys(user_uid, account_id, folder)
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    conditions = [
+        'user_uid = ?',
+        'account_id = ?',
+        f'folder IN ({placeholders})',
+        "thread_key <> ''",
+    ]
+    params: list[Any] = [user_uid, account_id] + aliases
+    trimmed = (keyword or '').strip()
+    if trimmed:
+        like = '%' + trimmed + '%'
+        conditions.append(
+            '(subject LIKE ? OR from_addr LIKE ? OR to_addr LIKE ? OR cc LIKE ? OR body_text LIKE ? OR body_html LIKE ?)'
+        )
+        params.extend([like, like, like, like, like, like])
+    if from_addr.strip():
+        conditions.append('from_addr LIKE ?')
+        params.append('%' + from_addr.strip() + '%')
+    if to_addr.strip():
+        conditions.append('(to_addr LIKE ? OR cc LIKE ?)')
+        like = '%' + to_addr.strip() + '%'
+        params.extend([like, like])
+    if subject.strip():
+        conditions.append('subject LIKE ?')
+        params.append('%' + subject.strip() + '%')
+    if body.strip():
+        conditions.append('(body_text LIKE ? OR body_html LIKE ?)')
+        like = '%' + body.strip() + '%'
+        params.extend([like, like])
+    if after.strip():
+        conditions.append('date >= ?')
+        params.append(after.strip() + 'T00:00:00Z')
+    if before.strip():
+        conditions.append('date < ?')
+        params.append(before.strip() + 'T00:00:00Z')
+    if read_filter == 'unread':
+        conditions.append('is_read = 0')
+    elif read_filter == 'read':
+        conditions.append('is_read = 1')
+    if attachment_filter:
+        conditions.append('has_attachments = 1')
+    if starred_filter:
+        conditions.append('is_starred = 1')
+    where_clause = ' AND '.join(conditions)
+    db = await get_db()
+    cursor = await db.execute(
+        f'''SELECT COUNT(DISTINCT thread_key),
+                   COUNT(DISTINCT CASE WHEN is_read = 0 THEN thread_key END)
+            FROM cached_messages WHERE {where_clause}''',
+        params,
+    )
+    total_row = await cursor.fetchone() or (0, 0)
+    offset = max(0, (page - 1) * page_size)
+    cursor = await db.execute(
+        f'''WITH ranked AS (
+                SELECT id, uid, subject, from_addr, to_addr, date, is_read, is_starred,
+                       folder, has_attachments, account_id, thread_key,
+                       COUNT(*) OVER (PARTITION BY thread_key) AS message_count,
+                       SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END)
+                           OVER (PARTITION BY thread_key) AS unread_count,
+                       MAX(has_attachments) OVER (PARTITION BY thread_key) AS thread_has_attachments,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY thread_key ORDER BY date DESC, uid DESC
+                       ) AS row_number
+                FROM cached_messages
+                WHERE {where_clause}
+            )
+            SELECT id, uid, subject, from_addr, to_addr, date, is_read, is_starred,
+                   folder, thread_has_attachments, account_id, thread_key,
+                   message_count, unread_count
+            FROM ranked
+            WHERE row_number = 1
+            ORDER BY date DESC, uid DESC
+            LIMIT ? OFFSET ?''',
+        params + [page_size, offset],
+    )
+    rows = await cursor.fetchall()
+    messages = [
+        {
+            'id': str(row[0]), 'uid': int(row[1]), 'subject': row[2] or '',
+            'from_addr': row[3] or '', 'to_addr': row[4] or '', 'date': row[5] or '',
+            'is_read': bool(row[6]), 'is_starred': bool(row[7]), 'folder': row[8] or folder,
+            'has_attachments': bool(row[9]), 'account_id': row[10] or account_id,
+            'thread_key': row[11] or '', 'message_count': int(row[12] or 0),
+            'unread_count': int(row[13] or 0),
+        }
+        for row in rows
+    ]
+    return {
+        'messages': messages,
+        'total': int(total_row[0] or 0),
+        'unread_total': int(total_row[1] or 0),
+        'page': page,
+        'page_size': page_size,
+    }
+
+
+async def get_conversation_messages(
+    user_uid: str,
+    account_id: str,
+    folder: str,
+    thread_key: str,
+) -> list[dict]:
+    aliases = _expand_folder_aliases(folder)
+    placeholders = ','.join('?' * len(aliases))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''SELECT id, uid, subject, from_addr, to_addr, cc, date, is_read, is_starred,
+                   folder, has_attachments, account_id, thread_key
+            FROM cached_messages
+            WHERE user_uid = ? AND account_id = ? AND folder IN ({placeholders}) AND thread_key = ?
+            ORDER BY date ASC, uid ASC''',
+        [user_uid, account_id] + aliases + [thread_key],
+    )
+    rows = await cursor.fetchall()
+    return [
+        {
+            'id': str(row[0]), 'uid': int(row[1]), 'subject': row[2] or '',
+            'from_addr': row[3] or '', 'to_addr': row[4] or '', 'cc': row[5] or '',
+            'date': row[6] or '', 'is_read': bool(row[7]), 'is_starred': bool(row[8]),
+            'folder': row[9] or folder, 'has_attachments': bool(row[10]),
+            'account_id': row[11] or account_id, 'thread_key': row[12] or thread_key,
+        }
+        for row in rows
+    ]
 
 
 async def get_folder_filter_counts(user_uid: str, account_id: str, folder: str) -> dict:
@@ -3300,6 +3563,7 @@ async def get_unified_inbox_messages(
     account_filter: str = "",
     read_filter: str = "",
     attachment_filter: bool = False,
+    keyword: str = "",
 ) -> dict:
     if not account_ids:
         return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size}
@@ -3320,6 +3584,12 @@ async def get_unified_inbox_messages(
         conditions.append("m.is_read = 1")
     if attachment_filter:
         conditions.append("m.has_attachments = 1")
+    if keyword.strip():
+        like = "%" + keyword.strip() + "%"
+        conditions.append(
+            "(m.subject LIKE ? OR m.from_addr LIKE ? OR m.to_addr LIKE ? OR m.cc LIKE ? OR m.body_text LIKE ? OR m.body_html LIKE ?)"
+        )
+        params.extend([like, like, like, like, like, like])
     where = " AND ".join(conditions)
     db = await get_db()
     cursor = await db.execute(

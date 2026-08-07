@@ -50,6 +50,9 @@ class CachedMessage(BaseModel):
     body_text: str = ""
     body_html: str = ""
     message_id: str = ""
+    in_reply_to: str = ""
+    references_header: str = ""
+    thread_key: str = ""
     body_checked: bool = False
     storage_path: str = ""
     cached_at: float = 0.0

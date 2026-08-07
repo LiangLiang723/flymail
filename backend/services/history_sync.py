@@ -48,6 +48,7 @@ from services.attachment_cache import (
     clear_account_cache_and_release,
     resolve_cached_attachment_path,
 )
+from services.message_threads import build_thread_key
 from services.sync import sync_service
 from services.sync_coordinator import sync_coordinator
 from services.token import ensure_token
@@ -754,12 +755,23 @@ async def _cache_message_detail(receiver, account, folder_name: str, message, un
             subject=detail.subject,
             from_addr=detail.from_addr,
             to_addr=detail.to_addr,
+            cc=getattr(detail, "cc", "") or "",
             date=normalize_message_date(detail.date, fallback=effective_message_date),
             is_read=detail.is_read,
             is_starred=detail.is_starred,
             has_attachments=any(not attachment.is_inline for attachment in (detail.attachments or [])),
             body_text=detail.body_text,
             body_html=detail.body_html,
+            message_id=getattr(detail, "message_id", "") or "",
+            in_reply_to=getattr(detail, "in_reply_to", "") or "",
+            references_header=getattr(detail, "references_header", "") or "",
+            thread_key=build_thread_key(
+                account.id,
+                getattr(detail, "message_id", "") or "",
+                getattr(detail, "in_reply_to", "") or "",
+                getattr(detail, "references_header", "") or "",
+                detail.subject,
+            ),
             body_checked=True,
             storage_path=storage_path,
             cached_at=time.time(),

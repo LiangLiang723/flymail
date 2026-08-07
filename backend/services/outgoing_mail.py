@@ -13,6 +13,7 @@ from db import get_folder_stats, upsert_cached_messages, upsert_folder_stats
 from providers.factory import ProviderFactory
 from services.mail_cache import sync_folder_to_cache, sync_missing_messages
 from services.message_body import html_to_text, prepare_outgoing_body_html
+from services.message_threads import build_thread_key
 from services.mime_parts import InlineImagePart, build_alternative_body, inline_cids_to_data_uris
 from services.sync import sync_service
 from services.token import ensure_token
@@ -72,6 +73,7 @@ async def _cache_outgoing_message_locally(
     subject: str,
     body_html: str,
     attachments: list[str],
+    in_reply_to: str | None = None,
 ) -> None:
     local_uid = -int(time.time() * 1000)
     await upsert_cached_messages([
@@ -89,6 +91,15 @@ async def _cache_outgoing_message_locally(
             has_attachments=bool(attachments),
             body_text=html_to_text(body_html or ""),
             body_html=prepare_outgoing_body_html(body_html or ""),
+            in_reply_to=in_reply_to or "",
+            references_header=in_reply_to or "",
+            thread_key=build_thread_key(
+                account.id,
+                "",
+                in_reply_to or "",
+                in_reply_to or "",
+                subject or "",
+            ),
             cached_at=time.time(),
         )
     ])
@@ -193,6 +204,7 @@ async def ensure_sent_message_cached(
             subject=subject or "",
             body_html=inline_cids_to_data_uris(body_html or "", inline_images),
             attachments=attachments or [],
+            in_reply_to=in_reply_to,
         )
 
     try:

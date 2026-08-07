@@ -64,7 +64,7 @@
             <span>写邮件</span>
           </button>
           <!-- 多选图标按钮 -->
-          <button class="btn-icon" @click="enterSelectMode()" title="多选">
+          <button v-if="listMode === 'messages'" class="btn-icon" @click="enterSelectMode()" title="多选">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
@@ -78,21 +78,21 @@
           <span v-else class="list-count">
             {{ mailStore.currentFolderName }} · {{ noReadStateFolder ? `全部 ${filterCounts.all}` : `未读 ${currentFolderUnreadCount}` }}
           </span>
-          <!-- 筛选按钮 -->
+          <!-- 列表模式 + 快速筛选 -->
           <span class="toolbar-divider"></span>
-          <button class="filter-btn" :class="{ active: readFilter === '' && !attachmentFilter }" @click="setReadFilter('')">全部 {{ filterCounts.all }}</button>
+          <div class="list-mode-switch" aria-label="邮件显示方式">
+            <button type="button" :class="{ active: listMode === 'messages' }" @click="setListMode('messages')">邮件</button>
+            <button v-if="!isDraftFolder" type="button" :class="{ active: listMode === 'conversations' }" @click="setListMode('conversations')">会话</button>
+          </div>
+          <span class="toolbar-divider"></span>
+          <button class="filter-btn" :class="{ active: readFilter === '' && !attachmentFilter && !starredFilter }" @click="clearQuickFilters">全部 {{ filterCounts.all }}</button>
           <button v-if="!noReadStateFolder" class="filter-btn" :class="{ active: readFilter === 'unread' }" @click="setReadFilter('unread')">未读 {{ filterCounts.unread }}</button>
           <button v-if="!noReadStateFolder" class="filter-btn" :class="{ active: readFilter === 'read' }" @click="setReadFilter('read')">已读 {{ filterCounts.read }}</button>
           <button class="filter-btn" :class="{ active: attachmentFilter }" @click="setAttachmentFilter()">附件 {{ filterCounts.attachments }}</button>
+          <button class="filter-btn" :class="{ active: starredFilter }" @click="setStarredFilter()">星标</button>
         </div>
         <div class="toolbar-right">
-          <input v-model.trim="searchKeyword" class="search-input" type="search" placeholder="搜索主题/发件人/正文" @keydown.enter="applySearch" />
-          <button class="btn-icon" @click="applySearch" title="搜索">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          </button>
-          <button v-if="searchKeyword" class="btn-icon" @click="clearSearch" title="清空搜索">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+          <MailSearchBar v-model="searchState" @search="applySearch" @clear="clearSearch" />
           <button v-if="!noReadStateFolder && currentFolderUnreadCount > 0" class="btn-icon" @click="markCurrentFolderAllRead" title="当前文件夹全部已读">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </button>
@@ -122,10 +122,11 @@
         <div v-if="showMobileFilters" class="mobile-filter-dropdown">
           <div class="filter-backdrop" @click="showMobileFilters = false"></div>
           <div class="filter-dropdown-menu filter-dropdown-compact">
-            <button class="filter-dropdown-item" :class="{ active: readFilter === '' && !attachmentFilter }" @click="setReadFilter(''); showMobileFilters = false">全部 {{ filterCounts.all }}</button>
+            <button class="filter-dropdown-item" :class="{ active: readFilter === '' && !attachmentFilter && !starredFilter }" @click="clearQuickFilters(); showMobileFilters = false">全部 {{ filterCounts.all }}</button>
             <button v-if="!noReadStateFolder" class="filter-dropdown-item" :class="{ active: readFilter === 'unread' }" @click="setReadFilter('unread'); showMobileFilters = false">未读 {{ filterCounts.unread }}</button>
             <button v-if="!noReadStateFolder" class="filter-dropdown-item" :class="{ active: readFilter === 'read' }" @click="setReadFilter('read'); showMobileFilters = false">已读 {{ filterCounts.read }}</button>
             <button class="filter-dropdown-item" :class="{ active: attachmentFilter }" @click="setAttachmentFilter(); showMobileFilters = false">附件 {{ filterCounts.attachments }}</button>
+            <button class="filter-dropdown-item" :class="{ active: starredFilter }" @click="setStarredFilter(); showMobileFilters = false">星标</button>
           </div>
         </div>
       </transition>
@@ -200,10 +201,10 @@
           v-for="msg in messages"
           :key="msg.id"
           class="mail-item"
-          :class="{ unread: !noReadStateFolder && !msg.is_read, selected: selectMode && selectedIds.has(msg.id) }"
-          @click="selectMode ? toggleSelect(msg.id) : selectMessage(msg)"
+          :class="{ unread: !noReadStateFolder && (listMode === 'conversations' ? (msg.unread_count || 0) > 0 : !msg.is_read), selected: selectMode && selectedIds.has(msg.id) }"
+          @click="selectMode ? toggleSelect(msg.id) : (listMode === 'conversations' ? selectConversation(msg) : selectMessage(msg))"
           @mouseenter="prefetchMessage(msg)"
-          @contextmenu.prevent="enterSelectMode(msg.id)"
+          @contextmenu.prevent="listMode === 'messages' && enterSelectMode(msg.id)"
         >
           <!-- 多选模式下的勾选框 -->
           <div v-if="selectMode" class="check-circle" :class="{ checked: selectedIds.has(msg.id) }">
@@ -223,13 +224,14 @@
               <svg v-if="!noReadStateFolder && !msg.is_read" class="mail-status-icon unread-icon" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
               <svg v-else-if="!noReadStateFolder" class="mail-status-icon read-icon" width="16" height="16" viewBox="0 0 1024 1024" fill="currentColor"><path d="M461.816 79.279c30.333-20.364 69.97-20.373 100.311-0.021l384.19 257.69c9.256 6.208 13.947 16.672 13.216 27.044 0.108 1.548 0.096 3.1-0.034 4.64 0.33 1.778 0.501 3.61 0.501 5.483v495.903C960 919.714 919.706 960 870 960H154c-49.706 0-90-40.286-90-89.982V374.115c0-2.663 0.347-5.245 0.999-7.704-0.004-0.803 0.025-1.608 0.086-2.412-0.804-10.432 3.883-20.985 13.191-27.234z m70.259 519.057c-11.417-10.283-28.76-10.278-40.171 0.012L157.358 900.01h709.674zM124 425.237v424.071L381.796 616.85 124 425.237z m776 0.224L642.268 616.842 900 848.964V425.461zM528.7 129.074a30.005 30.005 0 0 0-33.437 0.007L143.678 365.114l283.558 210.762 24.483-22.075c33.891-30.56 85.223-30.88 119.48-0.952l1.034 0.916 24.56 22.121 283.833-210.763z"/></svg>
               <span class="mail-subject">{{ msg.subject || '(无主题)' }}</span>
+              <span v-if="listMode === 'conversations' && (msg.message_count || 1) > 1" class="conversation-count">{{ msg.message_count }}</span>
               <!-- 附件图标 -->
               <svg v-if="msg.has_attachments" class="att-badge" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             </div>
           </div>
           <!-- 已读/未读标签 -->
-          <UiBadge v-if="!noReadStateFolder" :tone="msg.is_read ? 'neutral' : 'accent'" class="mail-status-tag">
-            {{ msg.is_read ? '已读' : '未读' }}
+          <UiBadge v-if="!noReadStateFolder" :tone="listMode === 'conversations' ? ((msg.unread_count || 0) > 0 ? 'accent' : 'neutral') : (msg.is_read ? 'neutral' : 'accent')" class="mail-status-tag">
+            {{ listMode === 'conversations' ? ((msg.unread_count || 0) > 0 ? `未读 ${msg.unread_count}` : '已读') : (msg.is_read ? '已读' : '未读') }}
           </UiBadge>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
@@ -297,6 +299,26 @@
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
             <span v-if="deleteConfirm">确认删除</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="conversationMessages.length > 1" class="conversation-navigator">
+        <div class="conversation-navigator-head">
+          <strong>会话 · {{ conversationMessages.length }} 封</strong>
+          <span>按时间从早到晚</span>
+        </div>
+        <div class="conversation-navigator-list">
+          <button
+            v-for="item in conversationMessages"
+            :key="item.id"
+            type="button"
+            class="conversation-message-link"
+            :class="{ active: selectedMessage?.id === item.id, unread: !item.is_read }"
+            @click="selectConversationMessage(item)"
+          >
+            <span>{{ extractName(item.from_addr) }}</span>
+            <small>{{ formatDate(item.date) }}</small>
           </button>
         </div>
       </div>
@@ -379,7 +401,8 @@ import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuth
 import { renderThemedMailBody } from '../utils/sanitize';
 import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
 import { reconcileMessagePage } from '../utils/mail-list-reconcile';
-import type { Attachment, Message } from '../types/mail';
+import type { Attachment, MailSearchState, Message } from '../types/mail';
+import { createEmptyMailSearch, hasMailSearchFilters, serializeMailSearchParams } from '../utils/mail-search';
 import { useWebSocket } from '../composables/useWebSocket';
 import { useSelectMode } from '../composables/useSelectMode';
 import { useConfirmAction } from '../composables/useConfirmAction';
@@ -394,6 +417,7 @@ import UiIconButton from '../components/ui/UiIconButton.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import ImageViewer, { type ViewerImage } from '../components/mail/ImageViewer.vue';
+import MailSearchBar from '../components/mail/MailSearchBar.vue';
 
 const mailStore = useMailStore();
 const uiStore = useUIStore();
@@ -426,12 +450,31 @@ const loading = ref(false);
 const totalMessages = ref(0);
 const currentPage = ref(1);
 const pageSize = 50;
-const searchKeyword = ref('');
-const readFilter = ref('');
-const attachmentFilter = ref(false);
+const searchState = ref<MailSearchState>(createEmptyMailSearch());
+const searchKeyword = computed({
+  get: () => searchState.value.keyword,
+  set: (value: string) => { searchState.value = { ...searchState.value, keyword: value }; },
+});
+const readFilter = computed({
+  get: () => searchState.value.readFilter,
+  set: (value: string) => {
+    searchState.value = { ...searchState.value, readFilter: value as MailSearchState['readFilter'] };
+  },
+});
+const attachmentFilter = computed({
+  get: () => searchState.value.attachmentOnly,
+  set: (value: boolean) => { searchState.value = { ...searchState.value, attachmentOnly: value }; },
+});
+const starredFilter = computed({
+  get: () => searchState.value.starredOnly,
+  set: (value: boolean) => { searchState.value = { ...searchState.value, starredOnly: value }; },
+});
+const listMode = ref<'messages' | 'conversations'>('messages');
+const conversationMessages = ref<Message[]>([]);
+const selectedThreadKey = ref('');
 const filterCounts = ref({ all: 0, unread: 0, read: 0, attachments: 0 });
 const showMobileFilters = ref(false);
-const hasActiveFilter = computed(() => readFilter.value !== '' || attachmentFilter.value);
+const hasActiveFilter = computed(() => hasMailSearchFilters(searchState.value));
 const noReadStateFolder = computed(() => {
   const folder = (mailStore.currentFolder || '').toLowerCase();
   return [
@@ -561,41 +604,53 @@ function goPage(page: number) {
 
 // ==================== 筛选 ====================
 
-function setReadFilter(filter: string) {
-  if (noReadStateFolder.value && filter) return;
-  readFilter.value = filter;
-  attachmentFilter.value = false;
+function reloadFromFirstPage() {
   selectedMessage.value = null;
+  conversationMessages.value = [];
+  selectedThreadKey.value = '';
   currentPage.value = 1;
   pageCache.clear();
   loadMessages();
+}
+
+function setReadFilter(filter: string) {
+  if (noReadStateFolder.value && filter) return;
+  readFilter.value = filter;
+  reloadFromFirstPage();
 }
 
 function setAttachmentFilter() {
   attachmentFilter.value = !attachmentFilter.value;
-  if (attachmentFilter.value) {
-    readFilter.value = '';
-  }
-  selectedMessage.value = null;
-  currentPage.value = 1;
-  pageCache.clear();
-  loadMessages();
+  reloadFromFirstPage();
+}
+
+function setStarredFilter() {
+  starredFilter.value = !starredFilter.value;
+  reloadFromFirstPage();
+}
+
+function clearQuickFilters() {
+  readFilter.value = '';
+  attachmentFilter.value = false;
+  starredFilter.value = false;
+  reloadFromFirstPage();
+}
+
+function setListMode(mode: 'messages' | 'conversations') {
+  if (listMode.value === mode) return;
+  listMode.value = mode;
+  exitSelectMode();
+  reloadFromFirstPage();
 }
 
 function applySearch() {
-  selectedMessage.value = null;
-  currentPage.value = 1;
-  pageCache.clear();
-  loadMessages();
+  reloadFromFirstPage();
 }
 
 function clearSearch() {
-  if (!searchKeyword.value) return;
-  searchKeyword.value = '';
-  selectedMessage.value = null;
-  currentPage.value = 1;
-  pageCache.clear();
-  loadMessages();
+  if (!hasMailSearchFilters(searchState.value)) return;
+  searchState.value = createEmptyMailSearch();
+  reloadFromFirstPage();
 }
 
 // 移动端检测（防抖 + 组件卸载时清理事件监听）
@@ -616,10 +671,10 @@ async function handleSentMessage(event: Event) {
   const sentFolder = mailStore.folders.find((folder) => folder.name === '已发送');
   mailStore.setFolder(sentFolder?.path || 'Sent');
   selectedMessage.value = null;
+  conversationMessages.value = [];
+  selectedThreadKey.value = '';
   currentPage.value = 1;
-  readFilter.value = '';
-  attachmentFilter.value = false;
-  searchKeyword.value = '';
+  searchState.value = createEmptyMailSearch();
   pageCache.clear();
   await loadMessages();
   await mailStore.loadFolderCounts();
@@ -775,6 +830,11 @@ function handleWsMessage(data: any) {
     }
   } else if (data.type === 'message_state_changed') {
     if (data.account_id === mailStore.currentAccountId) {
+      if (listMode.value === 'conversations') {
+        pageCache.clear();
+        refreshCurrentListCounts();
+        return;
+      }
       if (data.action === 'mark_read' || data.action === 'mark_unread') {
         const isRead = data.action === 'mark_read';
         for (const uid of data.uids) {
@@ -836,11 +896,10 @@ function getPageCacheKey() {
   return [
     mailStore.currentAccountId,
     mailStore.currentFolder,
+    listMode.value,
     currentPage.value,
     pageSize,
-    readFilter.value || 'all',
-    attachmentFilter.value ? 'attachments' : 'no-attachments-filter',
-    searchKeyword.value || 'no-search',
+    JSON.stringify(serializeMailSearchParams(searchState.value)),
   ].join('::');
 }
 
@@ -885,8 +944,10 @@ watch(
   () => {
     resetVisibleListState();
     currentPage.value = 1;
-    readFilter.value = '';
-    attachmentFilter.value = false;
+    searchState.value = createEmptyMailSearch();
+    conversationMessages.value = [];
+    selectedThreadKey.value = '';
+    if (isDraftFolder.value) listMode.value = 'messages';
     pageCache.clear();
     loadVersion++;
     loadMessages();
@@ -943,7 +1004,9 @@ async function handleMailNavigation(event: Event) {
   }
   if (detail.type === 'folder' && detail.path) {
     if (detail.path === mailStore.currentFolder) return;
-    searchKeyword.value = '';
+    searchState.value = createEmptyMailSearch();
+    conversationMessages.value = [];
+    selectedThreadKey.value = '';
     mailStore.setFolder(detail.path);
   }
 }
@@ -980,9 +1043,9 @@ onUnmounted(() => {
 /** 切换账号 */
 async function switchAccount(id: string) {
   mailStore.setAccount(id);
-  readFilter.value = '';
-  attachmentFilter.value = false;
-  searchKeyword.value = '';
+  searchState.value = createEmptyMailSearch();
+  conversationMessages.value = [];
+  selectedThreadKey.value = '';
   await mailStore.loadFolders();
   pageCache.clear();
   selectedMessage.value = null;
@@ -1015,7 +1078,7 @@ async function refreshLatestPage() {
     const refreshData = await api.get('/messages/refresh', { params }) as any;
     currentPage.value = 1;
     pageCache.clear();
-    if (hasActiveFilter.value || searchKeyword.value) {
+    if (listMode.value === 'conversations' || hasActiveFilter.value) {
       await loadMessages(true);
     } else {
       applyMessagePage(refreshData, true);
@@ -1107,16 +1170,17 @@ async function loadMessages(preserveVisible = false) {
   syncing.value = true;
   const version = ++loadVersion;
   try {
-    const params: Record<string, string | number> = {
+    const params: Record<string, string | number | boolean> = {
       folder: mailStore.currentFolder,
       page: currentPage.value,
       page_size: pageSize,
     };
     if (mailStore.currentAccountId) params.account_id = mailStore.currentAccountId;
-    if (readFilter.value) params.read_filter = readFilter.value;
-    if (attachmentFilter.value) params.attachment_filter = 'true';
-    if (searchKeyword.value) params.keyword = searchKeyword.value;
-    const endpoint = searchKeyword.value ? '/messages/search' : '/messages';
+    const searchParams = serializeMailSearchParams(searchState.value);
+    Object.assign(params, searchParams);
+    const endpoint = listMode.value === 'conversations'
+      ? '/messages/conversations'
+      : (Object.keys(searchParams).length > 0 ? '/messages/search' : '/messages');
     const data = await api.get(endpoint, { params }) as any;
     // 只接受最新版本的结果，丢弃旧请求的响应
     if (version !== loadVersion) return;
@@ -1149,14 +1213,44 @@ async function loadMessages(preserveVisible = false) {
   }
 }
 
+async function selectConversation(msg: Message) {
+  if (!msg.thread_key) {
+    await selectMessage(msg);
+    return;
+  }
+  try {
+    const params: Record<string, string> = {
+      folder: mailStore.currentFolder,
+      thread_key: msg.thread_key,
+    };
+    if (mailStore.currentAccountId) params.account_id = mailStore.currentAccountId;
+    const data = await api.get('/messages/conversation', { params }) as any;
+    conversationMessages.value = (data.messages || []) as Message[];
+    selectedThreadKey.value = msg.thread_key;
+    const latest = conversationMessages.value[conversationMessages.value.length - 1] || msg;
+    await selectMessage(latest, true);
+  } catch (error) {
+    console.error('加载邮件会话失败:', error);
+    uiStore.error('加载邮件会话失败');
+  }
+}
+
+async function selectConversationMessage(msg: Message) {
+  await selectMessage(msg, true);
+}
+
 /** 选择邮件查看详情（带竞态保护）
  * 用户点击邮件时：
  * 1. 用 BODY.PEEK[] 拉取正文（不自动标已读）
  * 2. 如果邮件未读，调用 STORE +FLAGS \Seen 标记已读（同步到邮箱服务器）
  * 3. 更新本地列表中的已读状态和侧边栏未读数
  */
-async function selectMessage(msg: Message) {
+async function selectMessage(msg: Message, preserveConversation = false) {
   const version = ++loadVersion;
+  if (!preserveConversation) {
+    conversationMessages.value = [];
+    selectedThreadKey.value = '';
+  }
 
   if (isDraftFolder.value) {
     try {
@@ -1209,6 +1303,20 @@ async function selectMessage(msg: Message) {
       if (selectedMessage.value) {
         selectedMessage.value = { ...selectedMessage.value, is_read: true };
       }
+      if (listMode.value === 'conversations' && msg.thread_key) {
+        const threadIndex = messages.value.findIndex((item) => item.thread_key === msg.thread_key);
+        if (threadIndex !== -1) {
+          const unreadCount = Math.max(0, (messages.value[threadIndex].unread_count || 0) - 1);
+          messages.value[threadIndex] = {
+            ...messages.value[threadIndex],
+            unread_count: unreadCount,
+            is_read: unreadCount === 0,
+          };
+        }
+        conversationMessages.value = conversationMessages.value.map((item) =>
+          item.id === msg.id ? { ...item, is_read: true } : item,
+        );
+      }
       updateFilterCountsForReadChange(wasRead, true);
       // 异步调用标记已读API，不阻塞界面
       api.post('/mark-read', {
@@ -1236,6 +1344,8 @@ async function selectMessage(msg: Message) {
 
 function backToList() {
   selectedMessage.value = null;
+  conversationMessages.value = [];
+  selectedThreadKey.value = '';
 }
 
 // ==================== 左滑返回手势 ====================
@@ -1799,6 +1909,50 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-weight: 500;
 }
 
+.list-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.list-mode-switch button {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.list-mode-switch button.active {
+  background: var(--bg-primary);
+  color: var(--ui-accent);
+  box-shadow: var(--ui-shadow-xs);
+  font-weight: 600;
+}
+
+.conversation-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 /* 工具栏分隔线（筛选按钮和同步按钮之间） */
 .toolbar-divider {
   width: 1px;
@@ -2288,6 +2442,76 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   padding: 6px 12px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+
+.conversation-navigator {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.conversation-navigator-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.conversation-navigator-head strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.conversation-navigator-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.conversation-message-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 210px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.conversation-message-link > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-message-link small {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.conversation-message-link.unread {
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--ui-accent) 38%, var(--border-color));
+}
+
+.conversation-message-link.active {
+  color: var(--ui-accent);
+  background: var(--ui-fill-selected);
+  border-color: color-mix(in srgb, var(--ui-accent) 52%, var(--border-color));
 }
 
 .btn-back {

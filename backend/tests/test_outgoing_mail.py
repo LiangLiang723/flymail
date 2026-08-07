@@ -168,18 +168,22 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
             to=["to@example.com"],
             cc=[],
             bcc=[],
-            subject="hello",
+            subject="Re: hello",
             body_html="<p>Hello</p>",
             attachments=[],
+            in_reply_to="<parent@example.com>",
         )
 
         self.assertEqual(sent_folder, "[Gmail]/Sent Mail")
         db_stub.upsert_cached_messages.assert_awaited_once()
         cached = db_stub.upsert_cached_messages.await_args.args[0][0]
         self.assertEqual(cached.folder, "[Gmail]/Sent Mail")
-        self.assertEqual(cached.subject, "hello")
+        self.assertEqual(cached.subject, "Re: hello")
         self.assertEqual(cached.from_addr, "sender@example.com")
         self.assertEqual(cached.to_addr, "to@example.com")
+        self.assertEqual(cached.in_reply_to, "<parent@example.com>")
+        self.assertEqual(cached.references_header, "<parent@example.com>")
+        self.assertTrue(cached.thread_key.startswith("rfc:"))
         self.assertTrue(cached.is_read)
         db_stub.upsert_folder_stats.assert_awaited_once_with("account-1", "[Gmail]/Sent Mail", 1, 0)
         self.assertEqual(mail_cache_stub.sync_folder_to_cache.await_count, 2)

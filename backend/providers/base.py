@@ -51,6 +51,9 @@ class Message(BaseModel):
     has_attachments: bool = False  # 是否有附件（列表展示用）
     # RFC Message-ID（如 <xxx@mail.gmail.com>），用于回复 In-Reply-To；不是 IMAP UID
     message_id: str = ""
+    in_reply_to: str = ""
+    references_header: str = ""
+    thread_key: str = ""
 
 
 class MessageList(BaseModel):

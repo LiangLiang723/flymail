@@ -20,7 +20,9 @@ from db import (
     get_cached_is_read,
     get_cached_message_detail,
     get_cached_messages_by_folder,
+    get_conversation_messages,
     get_folder_filter_counts,
+    get_message_conversations,
     get_folder_stats,
     get_unified_inbox_messages,
     get_unified_inbox_stats,
@@ -86,6 +88,7 @@ from services.attachment_cache import (
     should_persist_normal_attachment,
     write_transient_download,
 )
+from services.message_search import parse_message_search
 from services.sync import sync_service
 from services.sync_coordinator import sync_coordinator
 from services.token import ensure_token as ensure_account_token
@@ -250,6 +253,10 @@ def _message_to_item(message, account_id: str) -> dict:
             for attachment in (message.attachments or [])
         ],
         "has_attachments": bool(message.has_attachments),
+        "message_id": getattr(message, "message_id", "") or "",
+        "in_reply_to": getattr(message, "in_reply_to", "") or "",
+        "references_header": getattr(message, "references_header", "") or "",
+        "thread_key": getattr(message, "thread_key", "") or "",
         "account_id": account_id,
     }
 
@@ -662,8 +669,18 @@ async def _load_local_messages(
     read_filter: str,
     attachment_filter: bool,
     keyword: str = "",
+    from_addr: str = "",
+    to_addr: str = "",
+    subject: str = "",
+    body: str = "",
+    after: str = "",
+    before: str = "",
+    starred_filter: bool = False,
 ) -> dict:
-    if keyword.strip():
+    has_search_conditions = any(
+        value.strip() for value in (keyword, from_addr, to_addr, subject, body, after, before)
+    ) or starred_filter
+    if has_search_conditions:
         data = await search_cached_messages_by_folder(
             user_uid,
             account.id,
@@ -673,6 +690,13 @@ async def _load_local_messages(
             page_size=page_size,
             read_filter=read_filter,
             attachment_filter=attachment_filter,
+            from_addr=from_addr,
+            to_addr=to_addr,
+            subject=subject,
+            body=body,
+            after=after,
+            before=before,
+            starred_filter=starred_filter,
         )
     else:
         data = await get_cached_messages_by_folder(
@@ -696,6 +720,7 @@ async def list_unified_messages(
     account_filter: str = Query(default=""),
     read_filter: str = Query(default=""),
     attachment_filter: bool = Query(default=False),
+    keyword: str = Query(default=""),
 ):
     user_uid = await get_uid(request)
     accounts = await get_accounts(user_uid)
@@ -713,7 +738,7 @@ async def list_unified_messages(
     if not account_ids:
         return {"messages": [], "total": 0, "unread_total": 0, "page": page, "page_size": page_size, "no_accounts": True}
     result = await get_unified_inbox_messages(
-        user_uid, account_ids, page, page_size, account_filter, read_filter, attachment_filter
+        user_uid, account_ids, page, page_size, account_filter, read_filter, attachment_filter, keyword
     )
     account_map = {account.id: account for account in accounts}
     for message in result["messages"]:
@@ -906,27 +931,110 @@ async def search_messages(
     account_id: str = Query(default=""),
     read_filter: str = Query(default=""),
     attachment_filter: bool = Query(default=False),
+    starred_filter: bool = Query(default=False),
+    from_addr: str = Query(default=""),
+    to_addr: str = Query(default=""),
+    subject: str = Query(default=""),
+    body: str = Query(default=""),
+    after: str = Query(default=""),
+    before: str = Query(default=""),
 ):
     user_uid, account = await _get_account(request, account_id)
+    parsed = parse_message_search(keyword)
+    effective_read_filter = read_filter or parsed.read_state
+    effective_attachment_filter = attachment_filter or parsed.has_attachment
+    effective_starred_filter = starred_filter or parsed.starred
+
+    # Search must feel instant: query the local cache immediately and refresh the
+    # newest remote page in the background instead of blocking on IMAP/network I/O.
     if account.status != "offline" and not sync_service.is_account_suspended(account.id):
-        await _fetch_remote_page_to_cache(
+        _refresh_remote_page_in_background(
             user_uid=user_uid,
             account=account,
             folder=folder,
             page=1,
             page_size=page_size,
-            priority="interactive",
         )
+
     return await _load_local_messages(
         user_uid=user_uid,
         account=account,
         folder=folder,
         page=page,
         page_size=page_size,
-        read_filter=read_filter,
-        attachment_filter=attachment_filter,
-        keyword=keyword,
+        read_filter=effective_read_filter,
+        attachment_filter=effective_attachment_filter,
+        keyword=parsed.free_text,
+        from_addr=from_addr or parsed.from_addr,
+        to_addr=to_addr or parsed.to_addr,
+        subject=subject or parsed.subject,
+        body=body,
+        after=after or parsed.after,
+        before=before or parsed.before,
+        starred_filter=effective_starred_filter,
     )
+
+
+@router.get("/api/messages/conversations", response_model=MessageListResponse, summary="获取邮件会话列表")
+async def list_message_conversations(
+    request: Request,
+    folder: str = Query(default="INBOX"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    account_id: str = Query(default=""),
+    keyword: str = Query(default=""),
+    read_filter: str = Query(default=""),
+    attachment_filter: bool = Query(default=False),
+    starred_filter: bool = Query(default=False),
+    from_addr: str = Query(default=""),
+    to_addr: str = Query(default=""),
+    subject: str = Query(default=""),
+    body: str = Query(default=""),
+    after: str = Query(default=""),
+    before: str = Query(default=""),
+):
+    user_uid, account = await _get_account(request, account_id)
+    parsed = parse_message_search(keyword)
+    data = await get_message_conversations(
+        user_uid,
+        account.id,
+        folder,
+        page=page,
+        page_size=page_size,
+        keyword=parsed.free_text,
+        read_filter=read_filter or parsed.read_state,
+        attachment_filter=attachment_filter or parsed.has_attachment,
+        from_addr=from_addr or parsed.from_addr,
+        to_addr=to_addr or parsed.to_addr,
+        subject=subject or parsed.subject,
+        body=body,
+        after=after or parsed.after,
+        before=before or parsed.before,
+        starred_filter=starred_filter or parsed.starred,
+    )
+    data["account_id"] = account.id
+    data["filter_counts"] = await get_folder_filter_counts(user_uid, account.id, folder)
+    return data
+
+
+@router.get("/api/messages/conversation", response_model=MessageListResponse, summary="获取会话内邮件")
+async def list_conversation_messages(
+    request: Request,
+    thread_key: str = Query(min_length=1, max_length=191),
+    folder: str = Query(default="INBOX"),
+    account_id: str = Query(default=""),
+):
+    user_uid, account = await _get_account(request, account_id)
+    messages = await get_conversation_messages(user_uid, account.id, folder, thread_key)
+    return {
+        "messages": messages,
+        "total": len(messages),
+        "unread_total": sum(1 for item in messages if not item.get("is_read")),
+        "page": 1,
+        "page_size": max(1, len(messages)),
+        "account_id": account.id,
+        "filter_counts": {},
+    }
 
 
 @router.get("/api/messages/refresh", response_model=MessageListResponse, summary="刷新最近一页邮件")
