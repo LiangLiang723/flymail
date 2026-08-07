@@ -3,6 +3,8 @@
 处理邮件签名的查询、保存，以及多签名模板的增删改查。
 """
 import asyncio
+import html
+import re
 
 from fastapi import APIRouter, Request, Body, File, UploadFile
 from fastapi.responses import FileResponse
@@ -13,6 +15,7 @@ from db import (
     create_signature,
     delete_signature,
     get_account_by_id,
+    get_cached_attachment,
     get_signature_by_id,
     get_signatures,
     get_user_settings,
@@ -31,8 +34,10 @@ from schemas import (
     SignatureTemplateUpdateRequest,
     StatusResponse,
 )
+from services.attachment_cache import resolve_cached_attachment_path
 from services.signature_images import (
     MAX_SIGNATURE_IMAGE_BYTES,
+    parse_legacy_attachment_image_url,
     resolve_signature_image,
     save_signature_image,
 )
@@ -115,6 +120,64 @@ async def get_signature_image(image_id: str):
 # ==================== 签名模板接口（多模板管理） ====================
 
 
+_IMAGE_SRC_RE = re.compile(
+    r'(?P<prefix><img\b[^>]*?\bsrc\s*=\s*)(?P<quote>["\'])(?P<src>.*?)(?P=quote)',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+async def _promote_legacy_signature_images(request: Request, user_uid: str, sig: Signature) -> bool:
+    original_html = str(sig.content_html or "")
+    replacements: dict[str, str] = {}
+
+    for match in _IMAGE_SRC_RE.finditer(original_html):
+        raw_src = match.group("src")
+        parsed = parse_legacy_attachment_image_url(html.unescape(raw_src))
+        if not parsed or raw_src in replacements:
+            continue
+        account = await get_account_by_id(parsed.account_id)
+        if not account or account.user_uid != user_uid:
+            continue
+        cached = await get_cached_attachment(
+            account.id,
+            parsed.uid,
+            parsed.folder,
+            parsed.part_number,
+        )
+        if not cached:
+            continue
+        source_path = await resolve_cached_attachment_path(cached, touch=False)
+        if not source_path or not source_path.is_file():
+            continue
+        try:
+            stored = await asyncio.to_thread(save_signature_image, user_uid, source_path.read_bytes())
+        except (OSError, ValueError):
+            continue
+        replacements[raw_src] = html.escape(
+            str(request.url_for("get_signature_image", image_id=stored.image_id)),
+            quote=True,
+        )
+
+    if not replacements:
+        return False
+
+    def replace_src(match: re.Match[str]) -> str:
+        raw_src = match.group("src")
+        replacement = replacements.get(raw_src)
+        if not replacement:
+            return match.group(0)
+        return f'{match.group("prefix")}{match.group("quote")}{replacement}{match.group("quote")}'
+
+    upgraded_html = _IMAGE_SRC_RE.sub(replace_src, original_html)
+    if upgraded_html == original_html:
+        return False
+    sig.content_html = upgraded_html
+    if not await update_signature(sig):
+        sig.content_html = original_html
+        return False
+    return True
+
+
 async def _validate_signature_account(account_id: str, user_uid: str) -> str:
     """Validate that a scoped signature only references an account owned by the user."""
     normalized = (account_id or "").strip()
@@ -132,6 +195,8 @@ async def get_signatures_api(request: Request):
     uid = await get_uid(request)
     # 按 user_uid 过滤，防止跨用户数据泄露
     sigs = await get_signatures(uid)
+    for sig in sigs:
+        await _promote_legacy_signature_images(request, uid, sig)
     return {
         "signatures": [
             {

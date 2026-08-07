@@ -5,6 +5,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -22,6 +23,44 @@ _IMAGE_ID_PATTERN = re.compile(r"^(?P<bucket>[0-9a-f]{24})\.(?P<name>[0-9a-f]{32
 class StoredSignatureImage:
     image_id: str
     path: Path
+
+
+@dataclass(frozen=True)
+class LegacyAttachmentImageRef:
+    account_id: str
+    uid: int
+    part_number: int
+    folder: str
+
+
+def parse_legacy_attachment_image_url(src: str) -> LegacyAttachmentImageRef | None:
+    parsed = urlparse(str(src or '').strip())
+    match = re.search(
+        r"/api/messages/(?P<message_id>[^/]+)/attachments/(?P<part_number>\d+)$",
+        parsed.path or "",
+    )
+    if not match:
+        return None
+    query = parse_qs(parsed.query or "", keep_blank_values=True)
+    account_id = str((query.get("account_id") or [""])[0]).strip()
+    folder = str((query.get("folder") or ["INBOX"])[0]).strip() or "INBOX"
+    if not account_id:
+        return None
+    message_id = match.group("message_id")
+    raw_uid = message_id.rsplit(":", 1)[-1].rsplit("_", 1)[-1]
+    try:
+        uid = int(raw_uid)
+        part_number = int(match.group("part_number"))
+    except ValueError:
+        return None
+    if uid <= 0 or part_number <= 0:
+        return None
+    return LegacyAttachmentImageRef(
+        account_id=account_id,
+        uid=uid,
+        part_number=part_number,
+        folder=folder,
+    )
 
 
 def _user_bucket(user_uid: str) -> str:
