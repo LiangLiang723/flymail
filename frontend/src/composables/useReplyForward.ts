@@ -50,7 +50,7 @@ export function buildReplyDraft(msg: Message, myEmail: string, accountId: string
 
   const subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject || ''}`
   const safeBody = renderMailBody(msg.body_html, msg.body_text)
-  const quoteHtml = `<p><br></p><blockquote data-flymail-quote="reply" style="border-left:3px solid #ccc;padding-left:10px;color:#666;">${safeBody}</blockquote>`
+  const quoteHtml = `<p></p><blockquote data-flymail-quote="reply" style="border-left:3px solid #ccc;padding-left:10px;color:#666;">${safeBody}</blockquote>`
 
   // 线程头必须用 RFC Message-ID，不能用 IMAP UID（msg.id）
   const rfcMessageId = (msg.message_id || '').trim()
@@ -82,7 +82,7 @@ export function buildForwardDraft(msg: Message, accountId: string) {
   const safeSubject = escapeHtml(msg.subject || '')
   const safeDate = escapeHtml(msg.date || '')
   const safeBody = renderMailBody(msg.body_html, msg.body_text)
-  const fwdHtml = `<p><br></p><div data-flymail-quote="forward"><p>---------- 转发的邮件 ----------</p><p>发件人: ${safeFrom}</p><p>主题: ${safeSubject}</p><p>日期: ${safeDate}</p><hr/><div>${safeBody}</div></div>`
+  const fwdHtml = `<p></p><div data-flymail-quote="forward"><p>---------- 转发的邮件 ----------</p><p>发件人: ${safeFrom}</p><p>主题: ${safeSubject}</p><p>日期: ${safeDate}</p><hr/><div>${safeBody}</div></div>`
   return {
     to: [] as string[],
     subject,

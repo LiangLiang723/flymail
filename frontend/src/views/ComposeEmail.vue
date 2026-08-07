@@ -594,7 +594,7 @@ async function applyComposeDraft(
     ccList.value = [...(draft?.cc || [])];
     bccList.value = [...(draft?.bcc || [])];
     subject.value = draft?.subject || '';
-    bodyHtml.value = draft?.body_html || '<p><br></p>';
+    bodyHtml.value = draft?.body_html || '<p></p>';
     draftMessageId.value = draft?.draft_message_id || '';
     draftFolder.value = draft?.draft_folder || '';
     fromAccountId.value = draft?.account_id || mailStore.currentAccountId || accounts.value[0]?.id || '';

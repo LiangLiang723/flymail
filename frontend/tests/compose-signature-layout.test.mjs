@@ -28,11 +28,17 @@ test('signature replacement preserves all non-signature nodes in one transaction
   assert.doesNotMatch(source, /chain\(\)\.focus\(\)\.insertContentAt\(position, signatureHtml\)/);
 });
 
-test('reply and forward drafts mark the original quoted area', async () => {
-  const source = await readSource('src/composables/useReplyForward.ts');
+test('new reply and forward drafts start with a real empty input paragraph', async () => {
+  const composeSource = await readSource('src/views/ComposeEmail.vue');
+  const editorSource = await readSource('src/components/TiptapEditor.vue');
+  const replySource = await readSource('src/composables/useReplyForward.ts');
 
-  assert.match(source, /data-flymail-quote="reply"/);
-  assert.match(source, /data-flymail-quote="forward"/);
-  assert.match(source, /compose_kind:\s*'reply'/);
-  assert.match(source, /compose_kind:\s*'forward'/);
+  assert.match(editorSource, /const MailQuote = Node\.create\(\{[\s\S]*?priority:\s*1000/);
+
+  assert.match(composeSource, /bodyHtml\.value = draft\?\.body_html \|\| '<p><\/p>'/);
+  assert.match(replySource, /const quoteHtml = `<p><\/p><blockquote data-flymail-quote="reply"/);
+  assert.match(replySource, /const fwdHtml = `<p><\/p><div data-flymail-quote="forward"/);
+  assert.doesNotMatch(replySource, /<p><br><\/p><(?:blockquote|div) data-flymail-quote/);
+  assert.match(replySource, /compose_kind:\s*'reply'/);
+  assert.match(replySource, /compose_kind:\s*'forward'/);
 });

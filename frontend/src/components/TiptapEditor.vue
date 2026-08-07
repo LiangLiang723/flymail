@@ -337,6 +337,7 @@ const ResizableImage = Image.extend({
 
 const MailQuote = Node.create({
   name: 'mailQuote',
+  priority: 1000,
   group: 'block',
   content: 'block+',
   defining: true,
