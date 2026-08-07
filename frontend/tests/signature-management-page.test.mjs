@@ -36,6 +36,16 @@ test('signature management protects unsaved work and supports mobile editing', a
   assert.doesNotMatch(source, /\.signature-action-bar\s*\{[^}]*position:\s*sticky;/s);
 });
 
+test('signature editor rehydrates after save and explicit reselection', async () => {
+  const source = await readSource('src/views/SignatureManagement.vue');
+
+  assert.match(source, /const editorRevision = ref\(0\)/);
+  assert.match(source, /<TiptapEditor[^>]*:key="[^\"]*editorRevision[^\"]*"/s);
+  assert.match(source, /signatureStore\.beginEdit\(id\)[\s\S]*editorRevision\.value \+= 1/);
+  assert.match(source, /await signatureStore\.saveDraft\(\)[\s\S]*editorRevision\.value \+= 1/);
+  assert.doesNotMatch(source, /if \(signatureStore\.selectedId === id\) \{\s*signatureStore\.mobileEditing = true;\s*return;/s);
+});
+
 test('signature creation offers five persisted starting templates', async () => {
   const source = await readSource('src/views/SignatureManagement.vue');
 

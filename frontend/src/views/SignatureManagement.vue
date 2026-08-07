@@ -186,7 +186,11 @@
               </div>
               <UiBadge v-if="isSignatureBodyEmpty(signatureStore.draft.content_html)" tone="warning">该签名没有正文</UiBadge>
             </div>
-            <TiptapEditor v-model="signatureStore.draft.content_html" class="signature-full-editor" />
+            <TiptapEditor
+              :key="`signature-editor-${signatureStore.draft.id ?? 'new'}-${editorRevision}`"
+              v-model="signatureStore.draft.content_html"
+              class="signature-full-editor"
+            />
           </div>
         </div>
 
@@ -261,6 +265,7 @@ const mailStore = useMailStore();
 const signatureStore = useSignatureStore();
 const uiStore = useUIStore();
 const isMobile = ref(window.innerWidth <= 768);
+const editorRevision = ref(0);
 
 const showTemplatePicker = computed(() => (
   signatureStore.draft.id === null
@@ -293,12 +298,12 @@ async function confirmDiscardChanges(): Promise<boolean> {
 }
 
 async function requestSelect(id: number) {
-  if (signatureStore.selectedId === id) {
-    signatureStore.mobileEditing = true;
+  if (signatureStore.selectedId === id && signatureStore.hasUnsavedChanges) {
+    if (!await confirmDiscardChanges()) return;
+  } else if (signatureStore.selectedId !== id && !await confirmDiscardChanges()) {
     return;
   }
-  if (!await confirmDiscardChanges()) return;
-  signatureStore.beginEdit(id);
+  if (signatureStore.beginEdit(id)) editorRevision.value += 1;
 }
 
 async function requestCreate() {
@@ -326,6 +331,7 @@ function applyTemplate(template: SignatureStartingTemplate) {
 async function saveSignature() {
   try {
     await signatureStore.saveDraft();
+    editorRevision.value += 1;
   } catch (error: any) {
     uiStore.error(error?.message || '保存签名失败');
   }

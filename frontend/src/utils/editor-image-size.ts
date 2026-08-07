@@ -17,6 +17,13 @@ export function clampImageWidth(
   return Math.min(safeContainer, Math.max(safeMinimum, Math.round(value || safeMinimum)));
 }
 
+export function imageWidthForInitialRender(value: number, containerWidth: number): number {
+  const persistedWidth = Math.max(1, Math.round(value || 1));
+  const measuredWidth = Math.max(0, Math.round(containerWidth || 0));
+  if (measuredWidth <= 1) return persistedWidth;
+  return Math.min(persistedWidth, measuredWidth);
+}
+
 export function imageWidthFromPercent(
   containerWidth: number,
   percent: number,

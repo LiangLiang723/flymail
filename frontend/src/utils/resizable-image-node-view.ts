@@ -1,6 +1,11 @@
 import type { NodeViewRendererProps } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
-import { clampImageWidth, imageWidthFromPercent, parseImageWidth } from './editor-image-size';
+import {
+  clampImageWidth,
+  imageWidthForInitialRender,
+  imageWidthFromPercent,
+  parseImageWidth,
+} from './editor-image-size';
 
 const QUICK_IMAGE_SIZES = [25, 50, 75, 100] as const;
 
@@ -51,9 +56,10 @@ export function createResizableImageNodeView({
     image.title = String(node.attrs.title || '');
     const width = parseImageWidth(node.attrs.width);
     if (width) {
-      const safeWidth = clampImageWidth(width, editorWidth());
-      image.width = safeWidth;
-      image.style.width = `${safeWidth}px`;
+      const mountedContainerWidth = Math.round(dom.parentElement?.clientWidth || 0);
+      const renderWidth = imageWidthForInitialRender(width, mountedContainerWidth);
+      image.width = renderWidth;
+      image.style.width = `${renderWidth}px`;
     } else {
       image.removeAttribute('width');
       image.style.removeProperty('width');

@@ -16,6 +16,15 @@ test('resizable image node view exposes drag and keyboard-accessible quick sizes
   assert.match(source, /resizable-image-node--selected/);
 });
 
+test('initial image sync does not read editor.view before Tiptap mounts it', async () => {
+  const source = await read('src/utils/resizable-image-node-view.ts');
+  const syncBlock = source.match(/function syncImageAttributes\(\) \{([\s\S]*?)\n  \}\n\n  function selectCurrentNode/);
+
+  assert.ok(syncBlock, 'syncImageAttributes should remain a focused helper');
+  assert.doesNotMatch(syncBlock[1], /editorWidth\(\)/);
+  assert.doesNotMatch(syncBlock[1], /editor\.view/);
+});
+
 test('tiptap connects the resizable node view and styles its controls', async () => {
   const source = await read('src/components/TiptapEditor.vue');
 

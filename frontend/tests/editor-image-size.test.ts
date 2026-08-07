@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clampImageWidth,
+  imageWidthForInitialRender,
   imageWidthFromPercent,
   parseImageWidth,
 } from '../src/utils/editor-image-size.ts';
@@ -19,6 +20,12 @@ test('clamps image width to the editor bounds', () => {
   assert.equal(clampImageWidth(320, 600), 320);
   assert.equal(clampImageWidth(900, 600), 600);
   assert.equal(clampImageWidth(80, 48), 48);
+});
+
+test('keeps persisted width while the editor is not laid out yet', () => {
+  assert.equal(imageWidthForInitialRender(367, 0), 367);
+  assert.equal(imageWidthForInitialRender(367, 1), 367);
+  assert.equal(imageWidthForInitialRender(367, 300), 300);
 });
 
 test('converts quick percentages into bounded integer pixels', () => {
