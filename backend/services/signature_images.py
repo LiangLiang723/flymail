@@ -17,12 +17,48 @@ MAX_SIGNATURE_IMAGE_PIXELS = 40_000_000
 MAX_SIGNATURE_IMAGE_DIMENSION = 1200
 _ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 _IMAGE_ID_PATTERN = re.compile(r"^(?P<bucket>[0-9a-f]{24})\.(?P<name>[0-9a-f]{32})$")
+_SIGNATURE_IMAGE_SCHEME = "flymail-signature-image:"
 
 
 @dataclass(frozen=True)
 class StoredSignatureImage:
     image_id: str
     path: Path
+
+
+def signature_image_reference(image_id: str) -> str:
+    normalized = str(image_id or "").strip().lower()
+    if not _IMAGE_ID_PATTERN.fullmatch(normalized):
+        raise ValueError("签名图片 ID 无效")
+    return f"{_SIGNATURE_IMAGE_SCHEME}{normalized}"
+
+
+def parse_signature_image_id(src: str) -> str | None:
+    value = str(src or "").strip()
+    if value.lower().startswith(_SIGNATURE_IMAGE_SCHEME):
+        image_id = value[len(_SIGNATURE_IMAGE_SCHEME):].strip().lower()
+        return image_id if _IMAGE_ID_PATTERN.fullmatch(image_id) else None
+
+    parsed = urlparse(value)
+    match = re.search(
+        r"/api/signature-images/(?P<image_id>[0-9a-f]{24}\.[0-9a-f]{32})$",
+        parsed.path or "",
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    image_id = match.group("image_id").lower()
+    return image_id if _IMAGE_ID_PATTERN.fullmatch(image_id) else None
+
+
+def signature_image_belongs_to_user(user_uid: str, image_id: str) -> bool:
+    match = _IMAGE_ID_PATTERN.fullmatch(str(image_id or "").strip().lower())
+    if not match:
+        return False
+    try:
+        return match.group("bucket") == _user_bucket(user_uid)
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True)

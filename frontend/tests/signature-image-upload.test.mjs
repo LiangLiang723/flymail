@@ -14,8 +14,17 @@ test('tiptap image button uploads a local image instead of asking for a URL', as
   assert.match(source, /accept="image\/jpeg,image\/png,image\/webp"/);
   assert.match(source, /function openImagePicker/);
   assert.match(source, /async function handleImageUpload/);
+  assert.match(source, /async function uploadEditorImage/);
   assert.match(source, /api\.post\('\/signatures\/images', formData/);
-  assert.match(source, /setImage\(\{ src: data\.url \}\)/);
+  assert.match(source, /data\?*\.image_id/);
+  assert.match(source, /managedSignatureImageSource/);
+  assert.match(source, /signatureImageId/);
+  assert.match(source, /data-flymail-signature-image/);
+  assert.match(source, /handlePaste/);
+  assert.match(source, /clipboardData/);
+  assert.match(source, /getAsFile\(\)/);
+  assert.match(source, /uploadEditorImage\(file/);
+  assert.doesNotMatch(source, /setImage\(\{ src: data\.url \}\)/);
   assert.match(source, /uploadingImage/);
   assert.doesNotMatch(source, /输入图片地址/);
 });

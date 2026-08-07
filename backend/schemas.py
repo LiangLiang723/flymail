@@ -413,7 +413,8 @@ class SignatureListResponse(BaseModel):
 
 
 class SignatureImageUploadResponse(BaseModel):
-    url: str = Field(description="可插入签名 HTML 的图片地址")
+    image_id: str = Field(description="FlyMail 内部签名图片ID")
+    url: str = Field(description="编辑器兼容预览地址")
 
 
 class UnifiedSettingsRequest(BaseModel):

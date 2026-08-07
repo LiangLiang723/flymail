@@ -14,6 +14,8 @@ test('resizable image node view exposes drag and keyboard-accessible quick sizes
   assert.match(source, /setNodeMarkup/);
   assert.match(source, /imageWidthFromPercent/);
   assert.match(source, /resizable-image-node--selected/);
+  assert.match(source, /resolveManagedImagePreview/);
+  assert.match(source, /node\.attrs\.signatureImageId/);
 });
 
 test('initial image sync does not read editor.view before Tiptap mounts it', async () => {
@@ -30,7 +32,7 @@ test('tiptap connects the resizable node view and styles its controls', async ()
 
   assert.match(source, /createResizableImageNodeView/);
   assert.match(source, /addNodeView\(\)/);
-  assert.match(source, /return createResizableImageNodeView/);
+  assert.match(source, /createResizableImageNodeView\(props, signatureImagePreviewUrl\)/);
   assert.match(source, /\.image-resize-handle/);
   assert.match(source, /\.image-size-toolbar/);
   assert.match(source, /:focus-visible/);

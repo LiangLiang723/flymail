@@ -158,6 +158,11 @@ import { watch, onBeforeUnmount, computed, ref, onMounted } from 'vue';
 import api from '../utils/api';
 import { parseImageWidth } from '../utils/editor-image-size';
 import { createResizableImageNodeView } from '../utils/resizable-image-node-view';
+import {
+  managedSignatureImageSource,
+  parseManagedSignatureImageId,
+  signatureImagePreviewUrl,
+} from '../utils/signature-image';
 
 const props = defineProps<{
   modelValue?: string;
@@ -212,11 +217,7 @@ function openImagePicker() {
   imageInput.value?.click();
 }
 
-async function handleImageUpload(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
+async function uploadEditorImage(file: File, insertPos?: number) {
   if (!SIGNATURE_IMAGE_TYPES.has(file.type)) {
     imageUploadError.value = '仅支持 JPG、PNG 或 WebP 图片';
     return;
@@ -234,13 +235,40 @@ async function handleImageUpload(event: Event) {
     const data = await api.post('/signatures/images', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }) as any;
-    if (!data?.url) throw new Error('图片上传成功但未返回地址');
-    editor.value?.chain().focus().setImage({ src: data.url }).run();
+    const imageId = String(data?.image_id || '').trim();
+    if (!imageId) throw new Error('图片上传成功但未返回内部标识');
+    const attrs = {
+      src: managedSignatureImageSource(imageId),
+      signatureImageId: imageId,
+    };
+    if (typeof insertPos === 'number') {
+      editor.value?.commands.insertContentAt(insertPos, { type: 'image', attrs });
+    } else {
+      editor.value?.chain().focus().setImage(attrs as any).run();
+    }
   } catch (error: any) {
     imageUploadError.value = error?.detail || error?.message || '图片上传失败，请稍后重试';
   } finally {
     uploadingImage.value = false;
   }
+}
+
+async function handleImageUpload(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  await uploadEditorImage(file);
+}
+
+function handlePaste(view: any, event: ClipboardEvent) {
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItem = items.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+  const file = imageItem?.getAsFile();
+  if (!file) return false;
+  event.preventDefault();
+  void uploadEditorImage(file, view.state.selection.from);
+  return true;
 }
 
 // 自定义 TextStyle：扩展 fontSize 和 lineHeight 属性
@@ -318,6 +346,18 @@ const ResizableImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      signatureImageId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => (
+          element.getAttribute('data-flymail-signature-image')
+          || parseManagedSignatureImageId(element.getAttribute('src') || '')
+        ),
+        renderHTML: (attributes: Record<string, any>) => (
+          attributes.signatureImageId
+            ? { 'data-flymail-signature-image': String(attributes.signatureImageId) }
+            : {}
+        ),
+      },
       width: {
         default: null,
         parseHTML: (element: HTMLElement) => (
@@ -331,7 +371,7 @@ const ResizableImage = Image.extend({
     };
   },
   addNodeView() {
-    return createResizableImageNodeView;
+    return (props) => createResizableImageNodeView(props, signatureImagePreviewUrl);
   },
 });
 
@@ -407,6 +447,9 @@ const SignatureBlock = Node.create({
 let savedStoredMarks: any[] | null = null;
 
 const editor = useEditor({
+  editorProps: {
+    handlePaste,
+  },
   extensions: [
   StarterKit.configure({
   heading: { levels: [1, 2, 3] },

@@ -15,11 +15,14 @@ function getNodePosition(getPos: NodeViewRendererProps['getPos']): number | null
   return typeof position === 'number' ? position : null;
 }
 
-export function createResizableImageNodeView({
-  node: initialNode,
-  editor,
-  getPos,
-}: NodeViewRendererProps) {
+export function createResizableImageNodeView(
+  {
+    node: initialNode,
+    editor,
+    getPos,
+  }: NodeViewRendererProps,
+  resolveManagedImagePreview: (imageId: string) => string = (imageId) => imageId,
+) {
   let node = initialNode;
   let dragPointerId: number | null = null;
   let dragStartX = 0;
@@ -51,7 +54,10 @@ export function createResizableImageNodeView({
   }
 
   function syncImageAttributes() {
-    image.src = String(node.attrs.src || '');
+    const signatureImageId = String(node.attrs.signatureImageId || '').trim();
+    image.src = signatureImageId
+      ? resolveManagedImagePreview(signatureImageId)
+      : String(node.attrs.src || '');
     image.alt = String(node.attrs.alt || '');
     image.title = String(node.attrs.title || '');
     const width = parseImageWidth(node.attrs.width);

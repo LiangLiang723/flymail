@@ -38,8 +38,11 @@ from services.attachment_cache import resolve_cached_attachment_path
 from services.signature_images import (
     MAX_SIGNATURE_IMAGE_BYTES,
     parse_legacy_attachment_image_url,
+    parse_signature_image_id,
     resolve_signature_image,
     save_signature_image,
+    signature_image_belongs_to_user,
+    signature_image_reference,
 )
 
 router = APIRouter(tags=["签名"])
@@ -96,6 +99,7 @@ async def upload_signature_image(request: Request, image: UploadFile = File(...)
         status_code = 413 if "不能超过" in message else 400
         raise AppError(status_code, message)
     return {
+        "image_id": stored.image_id,
         "url": str(request.url_for("get_signature_image", image_id=stored.image_id)),
     }
 
@@ -120,18 +124,58 @@ async def get_signature_image(image_id: str):
 # ==================== 签名模板接口（多模板管理） ====================
 
 
-_IMAGE_SRC_RE = re.compile(
-    r'(?P<prefix><img\b[^>]*?\bsrc\s*=\s*)(?P<quote>["\'])(?P<src>.*?)(?P=quote)',
+_IMAGE_TAG_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE | re.DOTALL)
+_IMAGE_SRC_ATTR_RE = re.compile(
+    r'\bsrc\s*=\s*(?P<quote>["\'])(?P<src>.*?)(?P=quote)',
     re.IGNORECASE | re.DOTALL,
 )
+_MANAGED_IMAGE_ATTR_RE = re.compile(
+    r'\sdata-flymail-signature-image\s*=\s*(?P<quote>["\'])(?P<image_id>.*?)(?P=quote)',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _managed_image_tag(tag: str, image_id: str) -> str:
+    reference = html.escape(signature_image_reference(image_id), quote=True)
+    rewritten = _IMAGE_SRC_ATTR_RE.sub(f'src="{reference}"', tag, count=1)
+    managed_attr = f' data-flymail-signature-image="{image_id}"'
+    if _MANAGED_IMAGE_ATTR_RE.search(rewritten):
+        return _MANAGED_IMAGE_ATTR_RE.sub(managed_attr, rewritten, count=1)
+    close_at = rewritten.rfind("/>")
+    if close_at >= 0:
+        return f"{rewritten[:close_at].rstrip()}{managed_attr} />"
+    close_at = rewritten.rfind(">")
+    if close_at < 0:
+        return rewritten
+    return f"{rewritten[:close_at].rstrip()}{managed_attr}>"
+
+
+def _normalize_managed_signature_image_html(content_html: str, user_uid: str) -> str:
+    def replace_tag(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        src_match = _IMAGE_SRC_ATTR_RE.search(tag)
+        if not src_match:
+            return tag
+        image_id = parse_signature_image_id(html.unescape(src_match.group("src")))
+        if not image_id or not signature_image_belongs_to_user(user_uid, image_id):
+            return tag
+        image_path = resolve_signature_image(image_id)
+        if not image_path or not image_path.is_file():
+            return tag
+        return _managed_image_tag(tag, image_id)
+
+    return _IMAGE_TAG_RE.sub(replace_tag, str(content_html or ""))
 
 
 async def _promote_legacy_signature_images(request: Request, user_uid: str, sig: Signature) -> bool:
     original_html = str(sig.content_html or "")
     replacements: dict[str, str] = {}
 
-    for match in _IMAGE_SRC_RE.finditer(original_html):
-        raw_src = match.group("src")
+    for tag_match in _IMAGE_TAG_RE.finditer(original_html):
+        src_match = _IMAGE_SRC_ATTR_RE.search(tag_match.group(0))
+        if not src_match:
+            continue
+        raw_src = src_match.group("src")
         parsed = parse_legacy_attachment_image_url(html.unescape(raw_src))
         if not parsed or raw_src in replacements:
             continue
@@ -153,22 +197,22 @@ async def _promote_legacy_signature_images(request: Request, user_uid: str, sig:
             stored = await asyncio.to_thread(save_signature_image, user_uid, source_path.read_bytes())
         except (OSError, ValueError):
             continue
-        replacements[raw_src] = html.escape(
-            str(request.url_for("get_signature_image", image_id=stored.image_id)),
-            quote=True,
-        )
+        replacements[raw_src] = stored.image_id
 
     if not replacements:
         return False
 
-    def replace_src(match: re.Match[str]) -> str:
-        raw_src = match.group("src")
-        replacement = replacements.get(raw_src)
-        if not replacement:
-            return match.group(0)
-        return f'{match.group("prefix")}{match.group("quote")}{replacement}{match.group("quote")}'
+    def replace_tag(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        src_match = _IMAGE_SRC_ATTR_RE.search(tag)
+        if not src_match:
+            return tag
+        image_id = replacements.get(src_match.group("src"))
+        if not image_id:
+            return tag
+        return _managed_image_tag(tag, image_id)
 
-    upgraded_html = _IMAGE_SRC_RE.sub(replace_src, original_html)
+    upgraded_html = _IMAGE_TAG_RE.sub(replace_tag, original_html)
     if upgraded_html == original_html:
         return False
     sig.content_html = upgraded_html
@@ -197,6 +241,10 @@ async def get_signatures_api(request: Request):
     sigs = await get_signatures(uid)
     for sig in sigs:
         await _promote_legacy_signature_images(request, uid, sig)
+        normalized_html = _normalize_managed_signature_image_html(sig.content_html, uid)
+        if normalized_html != sig.content_html:
+            sig.content_html = normalized_html
+            await update_signature(sig)
     return {
         "signatures": [
             {
