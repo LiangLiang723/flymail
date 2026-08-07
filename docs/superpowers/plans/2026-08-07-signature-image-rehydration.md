@@ -13,7 +13,7 @@
 - Work only in `/home/chatgpt/flymail` on `main`.
 - Never delete or migrate `/Docker/flymail/data`; legacy mail attachments remain untouched.
 - No new production dependencies.
-- Only promote legacy attachment URLs that resolve to the current user's owned account and an existing local cached image.
+- Only promote legacy FlyMail attachment URLs that resolve to the current user's owned account and an existing local cached image.
 - If a legacy image cannot be safely resolved, preserve the original HTML unchanged.
 - Release target is `0.0.38`.
 
@@ -31,27 +31,27 @@
 - Produces: an async route helper that receives the current `user_uid`, `Request`, and signature HTML and returns rewritten HTML plus whether it changed.
 - Consumes existing `get_account_by_id`, `get_cached_attachment`, `resolve_cached_attachment_path`, `save_signature_image`, and `update_signature`.
 
-- [ ] **Step 1: Write failing parser and promotion tests**
+- [x] **Step 1: Write failing parser and promotion tests**
 
 Add tests proving an absolute or relative FlyMail URL like `/api/messages/4942/attachments/4?account_id=a1&folder=INBOX` parses into account, UID, part and folder, while unrelated URLs and malformed IDs return `None`. Add an async route test with mocked ownership/cache functions asserting successful promotion replaces only the `src` URL, keeps `width="367"`, and calls signature-image storage without deleting the source attachment.
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `cd backend && python -m unittest tests.test_signature_images -v`
 
 Expected: FAIL because the legacy parser/promotion helper is absent.
 
-- [ ] **Step 3: Implement minimal compatibility promotion**
+- [x] **Step 3: Implement minimal compatibility promotion**
 
 Use `urllib.parse.urlparse/parse_qs` and a strict regex for `/api/messages/{message_id}/attachments/{part}`. Resolve the account and verify `account.user_uid == user_uid`; read only `get_cached_attachment(..., touch=False)` and `resolve_cached_attachment_path(..., touch=False)`. Copy bytes through `save_signature_image`, generate the new URL with `request.url_for('get_signature_image', image_id=...)`, replace the matching `src` in the HTML, and persist only if at least one image changed.
 
-- [ ] **Step 4: Run focused tests and full backend suite**
+- [x] **Step 4: Run focused tests and full backend suite**
 
 Run: `cd backend && python -m unittest tests.test_signature_images -v && python -m unittest discover -s tests -v`
 
 Expected: focused and full backend tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Commit title: `🖼️ 迁移旧签名附件图片到稳定存储`
 
@@ -62,37 +62,39 @@ Commit title: `🖼️ 迁移旧签名附件图片到稳定存储`
 - Modify: `frontend/src/utils/resizable-image-node-view.ts`
 - Modify: `frontend/src/views/SignatureManagement.vue`
 - Modify: `frontend/tests/editor-image-size.test.ts`
+- Modify: `frontend/tests/resizable-image-node-view.test.mjs`
 - Modify: `frontend/tests/signature-management-page.test.mjs`
 
 **Interfaces:**
 - Produces: `imageWidthForInitialRender(width: number, containerWidth: number) -> number`, where unavailable container width does not shrink a persisted width.
 - Signature management owns an `editorRevision` key and increments it after successful save and explicit selection/reselection.
+- Initial NodeView synchronization must not access `editor.view` before Tiptap mounts the EditorView.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
-Add a pure test: `imageWidthForInitialRender(367, 0) === 367`, `imageWidthForInitialRender(367, 1) === 367`, and `imageWidthForInitialRender(367, 300) === 300`. Extend the signature-management contract to require `:key` on `TiptapEditor`, an editor revision, and rehydration when the current signature is clicked.
+Add a pure test: `imageWidthForInitialRender(367, 0) === 367`, `imageWidthForInitialRender(367, 1) === 367`, and `imageWidthForInitialRender(367, 300) === 300`. Extend the signature-management contract to require `:key` on `TiptapEditor`, an editor revision, and rehydration when the current signature is clicked. Add a NodeView contract test proving initial synchronization never reads `editor.view`.
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
-Run: `cd frontend && node --test tests/editor-image-size.test.ts tests/signature-management-page.test.mjs`
+Run: `cd frontend && node --test tests/editor-image-size.test.ts tests/resizable-image-node-view.test.mjs tests/signature-management-page.test.mjs`
 
-Expected: FAIL for the missing initial-render helper/revision behavior.
+Expected: FAIL for the missing initial-render helper/revision behavior and the pre-mount `editor.view` access.
 
-- [ ] **Step 3: Implement minimal frontend fix**
+- [x] **Step 3: Implement minimal frontend fix**
 
-Use the new helper only from `syncImageAttributes()`; active drag and quick-size operations continue using strict `clampImageWidth`. Add `editorRevision`, bind it to the editor key, increment after `saveDraft()` and whenever `requestSelect()` intentionally reloads a signature. Clicking the already-selected signature must call `beginEdit(id)` when there are no unsaved changes instead of returning without rehydrating.
+Use the new helper only from `syncImageAttributes()` with the already-mounted node container width; initial construction must not read `editor.view`. Active drag and quick-size operations continue using strict `clampImageWidth`. Add `editorRevision`, bind it to the editor key, increment after `saveDraft()` and whenever `requestSelect()` intentionally reloads a signature. Clicking the already-selected signature calls `beginEdit(id)` when safe instead of returning without rehydrating.
 
-- [ ] **Step 4: Run frontend tests/build**
+- [x] **Step 4: Run frontend tests/build**
 
 Run: `cd frontend && npm test && npm run build`
 
 Expected: all tests and production build pass.
 
-- [ ] **Step 5: Browser regression**
+- [x] **Step 5: Browser regression**
 
-With Playwright, verify: legacy production image loads; saved `width=367` renders at the expected width; save/reselect works without page refresh; a mocked hidden/zero-width initialization does not collapse the persisted width; new uploaded signature-image URLs still load; quick sizes and drag remain functional.
+With Playwright, verify: a persisted `width=367` image loads; quick size updates remain functional; save retains the image; clicking the current signature remounts the editor; switching away and back displays the image without refresh; no `The editor view is not available` error appears.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit title: `🐛 修复签名图片保存后需刷新才能显示`
 
@@ -107,30 +109,30 @@ Commit title: `🐛 修复签名图片保存后需刷新才能显示`
 **Interfaces:**
 - Produces local image `benxianyu/flymail:0.0.38` and replaces the current `flymail` container with rollback protection.
 
-- [ ] **Step 1: Update README**
+- [x] **Step 1: Update README**
 
 Document that legacy FlyMail mail-attachment images are copied into stable signature-image storage when safely resolvable, and that old mail/attachment data is retained.
 
-- [ ] **Step 2: Set and synchronize `0.0.38`**
+- [x] **Step 2: Set and synchronize `0.0.38`**
 
 Set `VERSION` to `0.0.38`, run `npm run sync-version`, and verify root/frontend/compose/README versions match.
 
-- [ ] **Step 3: Final code verification**
+- [x] **Step 3: Final code verification**
 
 Run backend full tests, `npm install`, frontend full tests/build, `bash -n scripts/docker-entrypoint.sh`, safe Compose config using `.env.example`, `git diff --check`, `git status --short`, and full diff review.
 
-- [ ] **Step 4: Build image**
+- [x] **Step 4: Build image**
 
 Run: `docker build -t benxianyu/flymail:0.0.38 .`
 
-- [ ] **Step 5: Validate isolated temporary container**
+- [x] **Step 5: Validate isolated temporary container**
 
 Use a unique `/Docker/flymail/` temporary data path, fixed free port, and database password containing quote, backslash, `@`, `:`, `/`, `%`. Verify health/version, MySQL 8.0 `/data/mysql/`, DB read/write and restart persistence, signature image upload/download, legacy promotion behavior, secret redaction, image metadata, and MySQL safe shutdown. Remove temporary resources afterward.
 
-- [ ] **Step 6: Replace production with rollback protection**
+- [x] **Step 6: Replace production with rollback protection**
 
-Capture runtime configuration without printing secret values, keep `/Docker/flymail/data:/data`, record the data fingerprint, replace `flymail` with `0.0.38`, verify health/image/MySQL/data fingerprint and a second restart, then remove rollback container only after success.
+Capture runtime configuration without printing secret values, keep `/Docker/flymail/data:/data`, record the data fingerprint, replace `flymail` with `0.0.38`, verify health/image/MySQL/data fingerprint, migrate the existing legacy signature image without deleting its attachment, run a real production browser rehydration check, and verify a second restart. Delete the rollback container only after every check passes.
 
-- [ ] **Step 7: Final commit and push**
+- [x] **Step 7: Final commit and push**
 
 Commit title: `🚀 发布签名图片兼容修复 0.0.38`. Fetch origin, confirm no remote divergence, push `main`, then verify local and remote SHA match and workspace is clean.
