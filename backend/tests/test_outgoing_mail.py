@@ -1,5 +1,7 @@
+import importlib
 import importlib.util
 import sys
+import tempfile
 import types
 import unittest
 from email import message_from_bytes
@@ -101,6 +103,47 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(html_parts, ["<p>第一行</p><p><br></p><p>第二行<br>继续第二行</p><ul><li>列表项</li></ul>"])
         self.assertEqual(plain_parts, ["第一行\n\n第二行\n继续第二行\n- 列表项"])
+
+    async def test_build_outgoing_message_embeds_inline_images_and_keeps_normal_attachments(self):
+        mime_spec = importlib.util.find_spec("services.mime_parts")
+        self.assertIsNotNone(mime_spec, "services.mime_parts must exist")
+        mime_parts = importlib.import_module("services.mime_parts")
+        outgoing_mail, _db_stub, _mail_cache_stub, _sync_stub = _load_outgoing_mail_module()
+        inline = mime_parts.InlineImagePart(
+            content_id="sig-image@flymail",
+            data=b"webp-inline-image",
+            content_type="image/webp",
+            filename="signature.webp",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            attachment_path = Path(temp_dir) / "notes.txt"
+            attachment_path.write_bytes(b"normal-attachment")
+            raw = outgoing_mail.build_outgoing_message_bytes(
+                from_email="sender@example.com",
+                to=["to@example.com"],
+                cc=[],
+                bcc=[],
+                subject="inline",
+                body_html='<p>Hello</p><img src="cid:sig-image@flymail" width="200">',
+                attachments=[str(attachment_path)],
+                inline_images=[inline],
+            )
+
+        msg = message_from_bytes(raw)
+        html = next(part for part in msg.walk() if part.get_content_type() == "text/html")
+        html_text = html.get_payload(decode=True).decode(html.get_content_charset() or "utf-8")
+        image = next(part for part in msg.walk() if part.get_content_type() == "image/webp")
+        attachment = next(
+            part for part in msg.walk()
+            if part.get_content_disposition() == "attachment"
+        )
+
+        self.assertIn('src="cid:sig-image@flymail"', html_text)
+        self.assertEqual(image.get("Content-ID"), "<sig-image@flymail>")
+        self.assertEqual(image.get_content_disposition(), "inline")
+        self.assertEqual(image.get_payload(decode=True), b"webp-inline-image")
+        self.assertEqual(attachment.get_payload(decode=True), b"normal-attachment")
 
     async def test_append_failure_caches_sent_message_locally(self):
         outgoing_mail, db_stub, mail_cache_stub, sync_stub = _load_outgoing_mail_module()

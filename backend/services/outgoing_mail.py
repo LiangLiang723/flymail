@@ -13,6 +13,7 @@ from db import get_folder_stats, upsert_cached_messages, upsert_folder_stats
 from providers.factory import ProviderFactory
 from services.mail_cache import sync_folder_to_cache, sync_missing_messages
 from services.message_body import html_to_text, prepare_outgoing_body_html
+from services.mime_parts import InlineImagePart, build_alternative_body
 from services.sync import sync_service
 from services.token import ensure_token
 from utils.logger import get_logger
@@ -29,6 +30,7 @@ def build_outgoing_message_bytes(
     body_html: str,
     attachments: list[str],
     in_reply_to: str | None = None,
+    inline_images: list[InlineImagePart] | None = None,
 ) -> bytes:
     body_html = prepare_outgoing_body_html(body_html or "")
     msg = MIMEMultipart("mixed")
@@ -42,12 +44,8 @@ def build_outgoing_message_bytes(
         msg["In-Reply-To"] = in_reply_to
         msg["References"] = in_reply_to
 
-    alt = MIMEMultipart("alternative")
     body_text = html_to_text(body_html)
-    if body_text:
-        alt.attach(MIMEText(body_text, "plain", "utf-8"))
-    alt.attach(MIMEText(body_html, "html", "utf-8"))
-    msg.attach(alt)
+    msg.attach(build_alternative_body(body_html, body_text, inline_images))
 
     for file_path in attachments or []:
         with open(file_path, "rb") as f:
