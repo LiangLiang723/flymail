@@ -105,7 +105,7 @@
         <div class="compose-field-control">
           <div class="tag-input">
             <span v-for="(addr, i) in toList" :key="'to'+i" class="tag">
-              {{ addr }}
+              <span class="tag-label" :title="addr">{{ addr }}</span>
               <button class="tag-remove" type="button" :aria-label="`移除收件人 ${addr}`" @click="toList.splice(i, 1)">&times;</button>
             </span>
             <input v-model="toInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="toField.onInput" @keydown="handleRecipientKeydown('to', $event)" @keydown.comma.prevent="addRecipient('to')" @change="addRecipient('to')" @blur="closeRecipientSuggestions('to')" placeholder="输入姓名或邮箱" class="tag-input-field" />
@@ -124,7 +124,7 @@
         <div class="compose-field-control">
           <div class="tag-input">
             <span v-for="(addr, i) in ccList" :key="'cc'+i" class="tag">
-              {{ addr }}
+              <span class="tag-label" :title="addr">{{ addr }}</span>
               <button class="tag-remove" type="button" :aria-label="`移除抄送人 ${addr}`" @click="ccList.splice(i, 1)">&times;</button>
             </span>
             <input v-model="ccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="ccField.onInput" @keydown="handleRecipientKeydown('cc', $event)" @keydown.comma.prevent="addRecipient('cc')" @change="addRecipient('cc')" @blur="closeRecipientSuggestions('cc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
@@ -143,7 +143,7 @@
         <div class="compose-field-control">
           <div class="tag-input">
             <span v-for="(addr, i) in bccList" :key="'bcc'+i" class="tag">
-              {{ addr }}
+              <span class="tag-label" :title="addr">{{ addr }}</span>
               <button class="tag-remove" type="button" :aria-label="`移除密送人 ${addr}`" @click="bccList.splice(i, 1)">&times;</button>
             </span>
             <input v-model="bccInput" type="text" inputmode="email" autocomplete="email" enterkeyhint="done" @input="bccField.onInput" @keydown="handleRecipientKeydown('bcc', $event)" @keydown.comma.prevent="addRecipient('bcc')" @change="addRecipient('bcc')" @blur="closeRecipientSuggestions('bcc')" placeholder="输入姓名或邮箱" class="tag-input-field" />
@@ -1172,11 +1172,21 @@ function formatSize(bytes: number): string {
   background: var(--bg-hover);
 }
 
+.contact-suggestions strong,
 .contact-suggestions small {
+  min-width: 0;
   overflow: hidden;
-  color: var(--text-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.contact-suggestions strong {
+  flex: 1 1 auto;
+}
+
+.contact-suggestions small {
+  flex: 0 1 46%;
+  color: var(--text-tertiary);
 }
 
 .tag-input-field {

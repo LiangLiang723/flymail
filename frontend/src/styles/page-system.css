@@ -433,9 +433,28 @@
 }
 
 .compose-page .tag {
+  min-width: 0;
+  max-width: min(420px, calc(100% - 132px));
   border: 1px solid color-mix(in srgb, var(--ui-accent) 24%, transparent) !important;
   background: var(--ui-accent-soft) !important;
   color: var(--ui-accent) !important;
+}
+
+.compose-page .tag-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-page .tag-remove {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  padding: 0;
+  border-radius: var(--ui-radius-sm);
 }
 
 .compose-page .sig-panel,

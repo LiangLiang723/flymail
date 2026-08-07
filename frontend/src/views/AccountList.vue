@@ -351,7 +351,7 @@
             <label class="field-label">分组</label>
             <input v-model="editForm.group_name" class="input" type="text" placeholder="如：工作、个人" />
             <div v-if="existingGroups.length" class="group-tags">
-              <button v-for="g in existingGroups" :key="g" class="group-tag" :class="{ active: editForm.group_name === g }" @click="editForm.group_name = g">{{ g }}</button>
+              <button v-for="g in existingGroups" :key="g" class="group-tag" :class="{ active: editForm.group_name === g }" :title="g" @click="editForm.group_name = g">{{ g }}</button>
             </div>
           </div>
           <div class="form-field">
@@ -1519,13 +1519,17 @@ async function reconnectAccount(account: any) {
 }
 
 .group-tag {
+  max-width: min(260px, 100%);
   padding: 3px 10px;
+  overflow: hidden;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-full);
   background: var(--bg-primary);
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-family: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
   transition: all var(--transition-fast);
 }

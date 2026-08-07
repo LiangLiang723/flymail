@@ -62,8 +62,9 @@ test('application overlays keep dense layout and independent scrolling', async (
   assert.match(shellCss, /\.notification-drawer\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s);
   assert.match(shellCss, /\.notification-list\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
   assert.match(shellCss, /\.notification-item\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s);
-  assert.match(shellCss, /\.toast-container \.toast-item\s*\{[^}]*padding:/s);
+  assert.match(shellCss, /\.toast-container \.toast-item\s*\{[^}]*padding:[^}]*overflow-wrap:\s*anywhere;/s);
   assert.match(shellCss, /\.confirm-dialog\s*\{[^}]*padding:/s);
+  assert.match(shellCss, /\.confirm-message\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
   assert.match(shellCss, /\.confirm-actions\s*\{[^}]*display:\s*flex;/s);
 });
 
@@ -150,6 +151,7 @@ test('audited compact controls keep readable colors, labels and usable hit areas
   assert.match(backupSource, /class="btn-icon mobile-filter-toggle"[^>]*aria-label="筛选备份邮件"/s);
   assert.match(composeSource, /\.text-btn\s*\{[^}]*min-width:\s*var\(--ui-control-md\);/s);
   assert.match(composeSource, /\.text-btn\s*\{[^}]*padding:\s*0 6px;/s);
+  assert.match(accountSource, /\.group-tag\s*\{[^}]*max-width:[^;}]+;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   assert.match(accountSource, /<UiSwitch[^>]*v-model="fetchHistory"[^>]*label="获取历史邮件"/s);
   assert.match(accountSource, /<UiSwitch[^>]*v-model="editForm\.hide_email"[^>]*label="隐藏邮箱地址"/s);
   assert.doesNotMatch(accountSource, /class="toggle-switch"/);

@@ -525,6 +525,7 @@ button.sidebar-row:active,
 .toast-container .toast-item {
   min-width: 0;
   padding: 12px 14px;
+  overflow-wrap: anywhere;
   pointer-events: auto;
 }
 
@@ -713,6 +714,7 @@ button.sidebar-row:active,
 
 .confirm-message {
   margin: 10px 0 0;
+  overflow-wrap: anywhere;
   color: var(--ui-text-2);
   font-size: var(--ui-text-sm);
   line-height: 1.55;
