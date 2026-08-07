@@ -1,3 +1,4 @@
+import importlib
 import importlib.util
 import sys
 import unittest
@@ -40,6 +41,36 @@ class DraftMessageTest(unittest.TestCase):
 
         self.assertEqual(html_parts, ["<p>a</p><p><br></p><p>b</p>"])
         self.assertEqual(plain_parts, ["a\n\nb"])
+
+    def test_draft_message_embeds_inline_signature_image(self):
+        draft = _load_draft_module()
+        mime_parts = importlib.import_module("services.mime_parts")
+        inline = mime_parts.InlineImagePart(
+            content_id="draft-image@flymail",
+            data=b"draft-inline-image",
+            content_type="image/webp",
+            filename="signature.webp",
+        )
+
+        raw = draft._build_draft_message(
+            from_email="sender@example.com",
+            from_name="sender@example.com",
+            to=["to@example.com"],
+            cc=[],
+            bcc=[],
+            subject="draft inline",
+            body_html='<p>x</p><img src="cid:draft-image@flymail">',
+            inline_images=[inline],
+        )
+
+        msg = message_from_bytes(raw)
+        image = next(part for part in msg.walk() if part.get_content_type() == "image/webp")
+        html = next(part for part in msg.walk() if part.get_content_type() == "text/html")
+        html_text = html.get_payload(decode=True).decode(html.get_content_charset() or "utf-8")
+        self.assertIn('src="cid:draft-image@flymail"', html_text)
+        self.assertEqual(image.get("Content-ID"), "<draft-image@flymail>")
+        self.assertEqual(image.get_content_disposition(), "inline")
+        self.assertEqual(image.get_payload(decode=True), b"draft-inline-image")
 
 
 if __name__ == "__main__":

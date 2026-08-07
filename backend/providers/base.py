@@ -264,6 +264,7 @@ class MailSender(ABC):
         bcc: list[str] = None,
         attachments: list[str] = None,
         in_reply_to: str = None,
+        inline_images: list[Any] | None = None,
     ) -> SendResult:
         """发送邮件
 
@@ -276,6 +277,7 @@ class MailSender(ABC):
             bcc: 密送列表
             attachments: 附件文件路径列表
             in_reply_to: 回复的邮件 Message-ID（设置 References/In-Reply-To 头）
+            inline_images: 随邮件发送的 CID 内嵌图片
         """
         raise NotImplementedError
 

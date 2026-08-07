@@ -13,7 +13,7 @@ from db import get_folder_stats, upsert_cached_messages, upsert_folder_stats
 from providers.factory import ProviderFactory
 from services.mail_cache import sync_folder_to_cache, sync_missing_messages
 from services.message_body import html_to_text, prepare_outgoing_body_html
-from services.mime_parts import InlineImagePart, build_alternative_body
+from services.mime_parts import InlineImagePart, build_alternative_body, inline_cids_to_data_uris
 from services.sync import sync_service
 from services.token import ensure_token
 from utils.logger import get_logger
@@ -148,6 +148,7 @@ async def ensure_sent_message_cached(
     body_html: str,
     attachments: list[str],
     in_reply_to: str | None = None,
+    inline_images: list[InlineImagePart] | None = None,
 ) -> str:
     sent_folder = await find_special_folder(account, "sent")
     if not sent_folder:
@@ -163,6 +164,7 @@ async def ensure_sent_message_cached(
         body_html=body_html or "",
         attachments=attachments or [],
         in_reply_to=in_reply_to,
+        inline_images=inline_images,
     )
 
     await sync_folder_to_cache(account, sent_folder)
@@ -189,7 +191,7 @@ async def ensure_sent_message_cached(
             cc=cc or [],
             bcc=bcc or [],
             subject=subject or "",
-            body_html=body_html or "",
+            body_html=inline_cids_to_data_uris(body_html or "", inline_images),
             attachments=attachments or [],
         )
 

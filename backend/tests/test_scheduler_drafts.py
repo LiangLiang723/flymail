@@ -30,6 +30,14 @@ def _load_scheduler_module():
     outgoing_stub = types.ModuleType("services.outgoing_mail")
     outgoing_stub.ensure_sent_message_cached = AsyncMock(return_value="Sent")
 
+    inline_stub = types.ModuleType("services.inline_images")
+    inline_stub.prepare_inline_images = AsyncMock(
+        return_value=types.SimpleNamespace(
+            body_html='<p>prepared</p><img src="cid:scheduled@flymail">',
+            inline_images=[types.SimpleNamespace(content_id="scheduled@flymail")],
+        )
+    )
+
     previous = {
         name: sys.modules.get(name)
         for name in (
@@ -37,6 +45,7 @@ def _load_scheduler_module():
             "apscheduler.jobstores.sqlalchemy",
             "apscheduler.schedulers.asyncio",
             "services.outgoing_mail",
+            "services.inline_images",
         )
     }
     sys.modules.update(
@@ -45,6 +54,7 @@ def _load_scheduler_module():
             "apscheduler.jobstores.sqlalchemy": sqlalchemy_stub,
             "apscheduler.schedulers.asyncio": scheduler_stub,
             "services.outgoing_mail": outgoing_stub,
+            "services.inline_images": inline_stub,
         }
     )
     try:
@@ -52,7 +62,7 @@ def _load_scheduler_module():
         spec = importlib.util.spec_from_file_location("scheduler_for_test", module_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        return module, outgoing_stub
+        return module, outgoing_stub, inline_stub
     finally:
         for name, value in previous.items():
             if value is None:
@@ -63,7 +73,7 @@ def _load_scheduler_module():
 
 class SchedulerUrlTest(unittest.TestCase):
     def test_redacts_database_password_from_jobstore_url(self):
-        scheduler, _ = _load_scheduler_module()
+        scheduler, _, _ = _load_scheduler_module()
 
         redacted = scheduler._redact_jobstore_url(
             "mysql+pymysql://flymail:secret-password@127.0.0.1:3306/flymail?charset=utf8mb4"
@@ -78,7 +88,7 @@ class SchedulerUrlTest(unittest.TestCase):
 
 class SchedulerDraftTest(unittest.IsolatedAsyncioTestCase):
     async def test_scheduled_send_deletes_source_draft_and_refreshes_counts(self):
-        scheduler, outgoing_stub = _load_scheduler_module()
+        scheduler, outgoing_stub, inline_stub = _load_scheduler_module()
         account = Account(
             id="account-1",
             user_uid="user-1",
@@ -144,8 +154,15 @@ class SchedulerDraftTest(unittest.IsolatedAsyncioTestCase):
                 else:
                     sys.modules[name] = value
 
+        inline_stub.prepare_inline_images.assert_awaited_once_with("user-1", "<p>body</p>")
         sender.send_message.assert_awaited_once()
+        send_kwargs = sender.send_message.await_args.kwargs
+        self.assertEqual(send_kwargs["body_html"], '<p>prepared</p><img src="cid:scheduled@flymail">')
+        self.assertEqual(len(send_kwargs["inline_images"]), 1)
         outgoing_stub.ensure_sent_message_cached.assert_awaited_once()
+        cache_kwargs = outgoing_stub.ensure_sent_message_cached.await_args.kwargs
+        self.assertEqual(cache_kwargs["body_html"], '<p>prepared</p><img src="cid:scheduled@flymail">')
+        self.assertEqual(len(cache_kwargs["inline_images"]), 1)
         draft_stub.delete_draft_from_imap.assert_awaited_once_with(receiver, 42, folder="Drafts")
         mail_cache_stub.sync_folder_to_cache.assert_awaited_once_with(account, "Drafts")
         sync_stub.sync_service.refresh_clients.assert_awaited_once_with("account-1", "Drafts", user_uid="user-1")

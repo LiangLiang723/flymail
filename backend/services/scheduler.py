@@ -12,6 +12,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 from data_paths import CONFIG_DIR, ensure_data_dirs
+from services.inline_images import prepare_inline_images
 from services.outgoing_mail import ensure_sent_message_cached
 
 logger = logging.getLogger("flymail")
@@ -103,6 +104,7 @@ async def _send_scheduled_email(
             return
 
         account = next((a for a in accounts if a.id == account_id), accounts[0])
+        prepared_body = await prepare_inline_images(user_uid, body_html or "")
         credentials = await ensure_token(account)
         sender = ProviderFactory.get_sender(account.provider)
         await sender.connect(credentials)
@@ -110,11 +112,12 @@ async def _send_scheduled_email(
             await sender.send_message(
                 to=to,
                 subject=subject,
-                body_html=body_html,
+                body_html=prepared_body.body_html,
                 cc=cc or None,
                 bcc=bcc or None,
                 attachments=attachment_paths or None,
                 in_reply_to=in_reply_to,
+                inline_images=prepared_body.inline_images,
             )
             logger.info("定时邮件发送成功: %s -> %s", account.email, to)
 
@@ -131,9 +134,10 @@ async def _send_scheduled_email(
                     cc=cc or [],
                     bcc=bcc or [],
                     subject=subject or "",
-                    body_html=body_html or "",
+                    body_html=prepared_body.body_html,
                     attachments=attachment_paths or [],
                     in_reply_to=in_reply_to,
+                    inline_images=prepared_body.inline_images,
                 )
             except Exception as cache_err:
                 logger.warning("定时邮件发送成功后缓存已发送邮件失败: %s", cache_err)

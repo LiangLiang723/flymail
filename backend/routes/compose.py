@@ -21,6 +21,7 @@ from services.token import ensure_token as _ensure_gmail_token
 from services.sync import sync_service
 from services.mail_cache import sync_folder_to_cache
 from services.message_body import prepare_outgoing_body_html
+from services.inline_images import prepare_inline_images
 from services.outgoing_mail import ensure_sent_message_cached, find_special_folder
 from services.attachments import check_attachment_total_size, validate_attachment_paths
 from utils.logger import get_logger
@@ -63,6 +64,7 @@ async def _cache_sent_message_after_send(
     body_html: str,
     attachments: list[str],
     in_reply_to: str | None,
+    inline_images: list | None = None,
 ) -> str:
     try:
         return await ensure_sent_message_cached(
@@ -75,6 +77,7 @@ async def _cache_sent_message_after_send(
             body_html=body_html,
             attachments=attachments,
             in_reply_to=in_reply_to,
+            inline_images=inline_images,
         )
     except Exception as exc:
         logger.warning("发送成功后缓存已发送邮件失败: %s", exc)
@@ -151,6 +154,10 @@ async def send_message(request: Request, body: SendMessageRequest = Body(descrip
 
     account = accounts[0]
     try:
+        body_html = prepare_outgoing_body_html(
+            body.content if body.html else body.content.replace("\n", "<br>")
+        )
+        prepared_body = await prepare_inline_images(user_uid, body_html)
         credentials = await _ensure_gmail_token(account)
 
         sender = ProviderFactory.get_sender(account.provider)
@@ -159,8 +166,9 @@ async def send_message(request: Request, body: SendMessageRequest = Body(descrip
             result = await sender.send_message(
                 to=body.to,
                 subject=body.subject,
-                body_html=body.content if body.html else body.content.replace("\n", "<br>"),
+                body_html=prepared_body.body_html,
                 body_text="" if body.html else body.content,
+                inline_images=prepared_body.inline_images,
             )
         finally:
             try:
@@ -176,9 +184,10 @@ async def send_message(request: Request, body: SendMessageRequest = Body(descrip
                 cc=[],
                 bcc=[],
                 subject=body.subject,
-                body_html=body.content if body.html else body.content.replace("\n", "<br>"),
+                body_html=prepared_body.body_html,
                 attachments=[],
                 in_reply_to=None,
+                inline_images=prepared_body.inline_images,
             )
             return {"success": True, "message": "邮件发送成功"}
         else:
@@ -205,6 +214,12 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
     if not account:
         account = accounts[0]
     body_html = prepare_outgoing_body_html(body.body_html)
+    prepared_body = None
+    if body.action in {"send", "draft"}:
+        try:
+            prepared_body = await prepare_inline_images(user_uid, body_html)
+        except ValueError as exc:
+            raise AppError(400, str(exc))
     attachment_paths = []
     if body.action in {"send", "schedule"}:
         attachment_paths = prepare_attachment_paths(user_uid, account, body.attachments)
@@ -220,8 +235,9 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 from services.draft import save_draft_to_imap
                 ok, new_draft_uid = await save_draft_to_imap(
                     receiver, account.email, account.email,
-                    body.to, body.cc, body.bcc, body.subject, body_html,
+                    body.to, body.cc, body.bcc, body.subject, prepared_body.body_html,
                     folder=drafts_folder,
+                    inline_images=prepared_body.inline_images,
                 )
                 if ok:
                     await _delete_source_draft_after_success(
@@ -293,12 +309,13 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
             result = await sender.send_message(
                 to=body.to,
                 subject=body.subject,
-                body_html=body_html,
+                body_html=prepared_body.body_html,
                 body_text="",
                 cc=body.cc or None,
                 bcc=body.bcc or None,
                 attachments=attachment_paths or None,
                 in_reply_to=body.in_reply_to,
+                inline_images=prepared_body.inline_images,
             )
         finally:
             try:
@@ -314,9 +331,10 @@ async def compose_message(request: Request, body: ComposeMessageRequest):
                 cc=body.cc or [],
                 bcc=body.bcc or [],
                 subject=body.subject,
-                body_html=body_html,
+                body_html=prepared_body.body_html,
                 attachments=attachment_paths,
                 in_reply_to=body.in_reply_to,
+                inline_images=prepared_body.inline_images,
             )
             await _delete_source_draft_after_success(
                 account,

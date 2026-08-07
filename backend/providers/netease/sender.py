@@ -10,6 +10,7 @@ from typing import Optional
 from ..base import MailSender, Credentials, SendResult
 from ..ipv4 import IPv4SMTP_SSL
 from .config import SMTP_163_HOST, SMTP_163_PORT, SMTP_126_HOST, SMTP_126_PORT, SMTP_188_HOST, SMTP_188_PORT, SMTP_YEAH_HOST, SMTP_YEAH_PORT
+from services.mime_parts import build_alternative_body
 from utils.logger import get_logger
 
 logger = get_logger("netease.sender")
@@ -82,6 +83,7 @@ class NeteaseSender(MailSender):
         bcc: list[str] = None,
         attachments: list[str] = None,
         in_reply_to: str = None,
+        inline_images: list | None = None,
     ) -> SendResult:
         """发送邮件"""
         if not self.conn:
@@ -89,12 +91,12 @@ class NeteaseSender(MailSender):
 
         try:
             return await asyncio.to_thread(
-                self._send_sync, to, subject, body_html, body_text, cc, bcc, attachments, in_reply_to
+                self._send_sync, to, subject, body_html, body_text, cc, bcc, attachments, in_reply_to, inline_images
             )
         except Exception as e:
             return SendResult(success=False, error=str(e))
 
-    def _send_sync(self, to, subject, body_html, body_text="", cc=None, bcc=None, attachments=None, in_reply_to=None):
+    def _send_sync(self, to, subject, body_html, body_text="", cc=None, bcc=None, attachments=None, in_reply_to=None, inline_images=None):
         """同步发送邮件
 
         使用 MIMEMultipart("mixed") 作为外层，内嵌 alternative 放纯文本+HTML，
@@ -114,11 +116,7 @@ class NeteaseSender(MailSender):
             msg["References"] = in_reply_to
 
         # 正文：纯文本+HTML
-        alt = MIMEMultipart("alternative")
-        if body_text:
-            alt.attach(MIMEText(body_text, "plain", "utf-8"))
-        alt.attach(MIMEText(body_html, "html", "utf-8"))
-        msg.attach(alt)
+        msg.attach(build_alternative_body(body_html, body_text, inline_images))
 
         # 附件
         if attachments:

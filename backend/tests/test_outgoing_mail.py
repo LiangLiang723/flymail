@@ -196,6 +196,45 @@ class OutgoingMailTest(unittest.IsolatedAsyncioTestCase):
             user_uid="user-1",
         )
 
+    async def test_append_failure_keeps_inline_image_visible_in_local_sent_cache(self):
+        mime_parts = importlib.import_module("services.mime_parts")
+        outgoing_mail, db_stub, _mail_cache_stub, _sync_stub = _load_outgoing_mail_module()
+        account = Account(
+            id="account-1",
+            user_uid="user-1",
+            email="sender@example.com",
+            provider="gmail",
+        )
+        inline = mime_parts.InlineImagePart(
+            content_id="cache-image@flymail",
+            data=b"cached-inline-image",
+            content_type="image/webp",
+            filename="signature.webp",
+        )
+
+        receiver = AsyncMock()
+        receiver.fetch_folders.return_value = [types.SimpleNamespace(name="Sent", path="Sent")]
+        receiver.save_draft.side_effect = RuntimeError("append failed")
+        receiver.disconnect = AsyncMock()
+        outgoing_mail.ProviderFactory.get_receiver = staticmethod(lambda provider: receiver)
+
+        await outgoing_mail.ensure_sent_message_cached(
+            account=account,
+            user_uid="user-1",
+            to=["to@example.com"],
+            cc=[],
+            bcc=[],
+            subject="inline fallback",
+            body_html='<p>x</p><img src="cid:cache-image@flymail">',
+            attachments=[],
+            inline_images=[inline],
+        )
+
+        cached = db_stub.upsert_cached_messages.await_args.args[0][0]
+        self.assertIn("data:image/webp;base64,", cached.body_html)
+        self.assertNotIn("cid:cache-image@flymail", cached.body_html)
+        self.assertFalse(cached.has_attachments)
+
     async def test_sent_cache_always_appends_even_when_same_subject_exists(self):
         outgoing_mail, db_stub, mail_cache_stub, sync_stub = _load_outgoing_mail_module()
         account = Account(

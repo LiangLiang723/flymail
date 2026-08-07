@@ -4,11 +4,10 @@
 支持跨平台（QQ/Gmail/Outlook/iCloud/网易）。
 """
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate
 
 from services.message_body import html_to_text, prepare_outgoing_body_html
+from services.mime_parts import InlineImagePart, build_alternative_body
 
 logger = logging.getLogger("flymail")
 
@@ -21,10 +20,12 @@ def _build_draft_message(
     bcc: list[str],
     subject: str,
     body_html: str,
+    inline_images: list[InlineImagePart] | None = None,
 ) -> bytes:
     """构建草稿 MIME 邮件（用于 IMAP APPEND）"""
     body_html = prepare_outgoing_body_html(body_html or "")
-    msg = MIMEMultipart("alternative")
+    body_text = html_to_text(body_html)
+    msg = build_alternative_body(body_html, body_text, inline_images)
     msg["From"] = formataddr((from_name or "", from_email))
     if to:
         msg["To"] = ", ".join(to)
@@ -37,26 +38,22 @@ def _build_draft_message(
     # 草稿标记
     msg["X-Draft"] = "True"
 
-    # 纯文本备选
-    body_text = html_to_text(body_html)
-    if body_text:
-        msg.attach(MIMEText(body_text, "plain", "utf-8"))
-    if body_html:
-        msg.attach(MIMEText(body_html, "html", "utf-8"))
-
     return msg.as_bytes()
 
 
 async def save_draft_to_imap(receiver, from_email: str, from_name: str,
                               to: list[str], cc: list[str], bcc: list[str],
                               subject: str, body_html: str,
-                              folder: str = "Drafts") -> tuple[bool, int | None]:
+                              folder: str = "Drafts",
+                              inline_images: list[InlineImagePart] | None = None) -> tuple[bool, int | None]:
     """通过 IMAP APPEND 命令保存草稿到服务器
 
     返回 True 表示保存成功。
     """
     try:
-        message_bytes = _build_draft_message(from_email, from_name, to, cc, bcc, subject, body_html)
+        message_bytes = _build_draft_message(
+            from_email, from_name, to, cc, bcc, subject, body_html, inline_images
+        )
         uid = await receiver.save_draft(message_bytes, folder)
         logger.info("草稿保存成功: %s", subject)
         return True, uid
