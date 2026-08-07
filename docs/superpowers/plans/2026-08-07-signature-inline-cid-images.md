@@ -1,6 +1,6 @@
 # Signature Inline CID Images Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Persist signature images as FlyMail-managed assets and send their bytes inside every outgoing email as CID inline MIME images instead of receiver-visible FlyMail URLs.
 
@@ -42,7 +42,7 @@
 - Produces frontend `managedSignatureImageSource(imageId: string): string` and `parseManagedSignatureImageId(src: string): string | null`.
 - Tiptap image nodes persist `signatureImageId` as `data-flymail-signature-image` and render the internal scheme; NodeView receives a preview resolver so editor display still uses `/api/signature-images/<id>`.
 
-- [ ] **Step 1: Write failing backend tests for internal image references**
+- [x] **Step 1: Write failing backend tests for internal image references**
 
 Extend `backend/tests/test_signature_images.py` with tests equivalent to:
 
@@ -63,17 +63,17 @@ self.assertFalse(signature_images.signature_image_belongs_to_user("user-2", owne
 
 Also assert the upload response schema exposes `image_id`, and legacy promotion stores the internal scheme while preserving `width="367"`.
 
-- [ ] **Step 2: Run backend signature tests and confirm RED**
+- [x] **Step 2: Run backend signature tests and confirm RED**
 
 Run: `cd backend && python -m unittest tests.test_signature_images -v`
 
 Expected: FAIL because the reference/parser/ownership APIs and response field do not yet exist.
 
-- [ ] **Step 3: Implement internal reference helpers and normalize existing stable URLs**
+- [x] **Step 3: Implement internal reference helpers and normalize existing stable URLs**
 
 In `backend/services/signature_images.py`, reuse the existing image-id regex and user bucket helper. Parse both `flymail-signature-image:<id>` and any URL path ending in `/api/signature-images/<id>`. In `backend/routes/signatures.py`, make legacy attachment promotion write the internal source plus `data-flymail-signature-image`; while listing signatures, normalize 0.0.38 stable signature-image URLs owned by the current user to the same internal representation and persist only changed HTML. Keep the public GET route for backward compatibility with already-sent historical mail.
 
-- [ ] **Step 4: Write failing frontend upload/paste tests**
+- [x] **Step 4: Write failing frontend upload/paste tests**
 
 Extend `frontend/tests/signature-image-upload.test.mjs` to require:
 
@@ -87,17 +87,17 @@ pasted image uses the same upload function
 
 Extend the NodeView contract to require a preview resolver rather than using the persisted internal scheme as the DOM `<img src>`.
 
-- [ ] **Step 5: Run frontend focused tests and confirm RED**
+- [x] **Step 5: Run frontend focused tests and confirm RED**
 
 Run: `cd frontend && node --test tests/signature-image-upload.test.mjs tests/resizable-image-node-view.test.mjs`
 
 Expected: FAIL because upload still inserts `data.url` and no paste handler/internal image ID exists.
 
-- [ ] **Step 6: Implement frontend internal images and clipboard upload**
+- [x] **Step 6: Implement frontend internal images and clipboard upload**
 
 Create `frontend/src/utils/signature-image.ts` with strict image-id validation. Refactor `TiptapEditor.vue` into a shared `uploadEditorImage(file, insertPos?)` path used by file input and paste. Add `signatureImageId` to `ResizableImage`; render it as `data-flymail-signature-image` and internal `src`, and have the NodeView call a preview resolver for the actual browser image URL. `handlePaste` handles only clipboard image files and otherwise returns `false` so normal text/HTML paste behavior is unchanged.
 
-- [ ] **Step 7: Verify Task 1**
+- [x] **Step 7: Verify Task 1**
 
 Run:
 
@@ -109,7 +109,7 @@ npm run build
 
 Expected: all focused tests and typechecked production build pass.
 
-- [ ] **Step 8: Commit Task 1**
+- [x] **Step 8: Commit Task 1**
 
 Commit title: `🖼️ 将签名图片保存为内部资产引用`
 
@@ -127,7 +127,7 @@ Commit title: `🖼️ 将签名图片保存为内部资产引用`
 - Produces `inline_cids_to_data_uris(body_html: str, inline_images: list[InlineImagePart]) -> str` for FlyMail-only fallback cache display.
 - Produces async `prepare_inline_images(user_uid: str, body_html: str) -> PreparedInlineBody`, where `PreparedInlineBody.body_html` uses `cid:` and `PreparedInlineBody.inline_images` contains bytes.
 
-- [ ] **Step 1: Write failing inline preparation tests**
+- [x] **Step 1: Write failing inline preparation tests**
 
 Create tests that make a temporary owned signature image and assert:
 
@@ -142,31 +142,31 @@ self.assertEqual(prepared.inline_images[0].data, image_bytes)
 
 Add cases for repeated references deduplicating to one MIME part, wrong-user IDs failing, missing managed files failing, and `data:image/png;base64,...` becoming an inline part.
 
-- [ ] **Step 2: Run inline tests and confirm RED**
+- [x] **Step 2: Run inline tests and confirm RED**
 
 Run: `cd backend && python -m unittest tests.test_inline_images -v`
 
 Expected: FAIL because the services do not exist.
 
-- [ ] **Step 3: Implement preparation service**
+- [x] **Step 3: Implement preparation service**
 
 Use stdlib regex/html/base64/uuid only. Never download arbitrary `http(s)` sources. For managed assets, verify `signature_image_belongs_to_user` before `resolve_signature_image`; cap decoded data-URI images at the existing 5 MB image limit. Remove `data-flymail-signature-image` from outgoing HTML and preserve attributes such as `width`.
 
-- [ ] **Step 4: Write failing MIME tests**
+- [x] **Step 4: Write failing MIME tests**
 
 Extend `backend/tests/test_outgoing_mail.py` so a message with one `InlineImagePart` must parse as HTML `src="cid:..."` plus an `image/webp` part whose `Content-ID` matches and whose content disposition is `inline`; a normal file remains `attachment`.
 
-- [ ] **Step 5: Implement shared MIME body builder**
+- [x] **Step 5: Implement shared MIME body builder**
 
 Build `multipart/alternative`; plain text is the first alternative when present. When inline images exist, the HTML alternative is `multipart/related` containing the HTML part followed by image parts with base64 payload, `Content-ID: <...>`, and `Content-Disposition: inline`. With no inline images, preserve the current direct HTML alternative.
 
-- [ ] **Step 6: Verify Task 2**
+- [x] **Step 6: Verify Task 2**
 
 Run: `cd backend && python -m unittest tests.test_inline_images tests.test_outgoing_mail -v`
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit Task 2**
+- [x] **Step 7: Commit Task 2**
 
 Commit title: `✉️ 构建签名图片 CID 内嵌邮件结构`
 
@@ -197,11 +197,11 @@ Commit title: `✉️ 构建签名图片 CID 内嵌邮件结构`
 - `build_outgoing_message_bytes(..., inline_images=None)` and `ensure_sent_message_cached(..., inline_images=None)` preserve CID images for sent-folder APPEND and local fallback.
 - Scheduled jobs keep internal HTML only; `_send_scheduled_email` calls `prepare_inline_images(user_uid, body_html)` at execution time.
 
-- [ ] **Step 1: Write failing provider contract and draft/scheduler tests**
+- [x] **Step 1: Write failing provider contract and draft/scheduler tests**
 
 Create `test_sender_inline_images.py` to iterate all seven sender files and require the optional `inline_images` parameter plus shared `build_alternative_body` call. Extend draft tests to parse `_build_draft_message` with one inline part and require `Content-ID`/`inline`. Extend scheduler tests so the scheduled callback prepares inline images at execution rather than persisting image bytes in job kwargs.
 
-- [ ] **Step 2: Run targeted tests and confirm RED**
+- [x] **Step 2: Run targeted tests and confirm RED**
 
 Run:
 
@@ -212,23 +212,23 @@ python -m unittest tests.test_sender_inline_images tests.test_draft_message test
 
 Expected: FAIL because sender/draft/scheduler interfaces do not accept inline images.
 
-- [ ] **Step 3: Update all SMTP senders**
+- [x] **Step 3: Update all SMTP senders**
 
 Add optional `inline_images` to the base interface and each provider. Keep connection/authentication, headers, recipient calculation, normal attachment behavior, and `sendmail` unchanged. Replace only the per-provider alternative-body construction with the shared helper.
 
-- [ ] **Step 4: Wire immediate and legacy send routes**
+- [x] **Step 4: Wire immediate and legacy send routes**
 
 In `compose_message`, after `prepare_outgoing_body_html`, call `await prepare_inline_images(user_uid, body_html)` for `send` and `draft`; for `schedule`, store the original internal HTML so the image is resolved at execution time. Pass prepared HTML and inline parts into sender, draft APPEND, and sent-cache functions. Apply the same preparation to `/api/messages/send` when HTML content contains managed images.
 
-- [ ] **Step 5: Wire scheduled send**
+- [x] **Step 5: Wire scheduled send**
 
 Inside `_send_scheduled_email`, resolve internal/data-URI images immediately before `sender.send_message`. Pass prepared HTML/inline parts to both the provider and `ensure_sent_message_cached`. Keep scheduler job kwargs limited to strings/lists/paths already persisted today.
 
-- [ ] **Step 6: Wire draft and sent-folder MIME**
+- [x] **Step 6: Wire draft and sent-folder MIME**
 
 Use `build_alternative_body` in draft/outgoing MIME builders. On local sent-cache fallback, call `inline_cids_to_data_uris` so FlyMail can render the cached copy even when IMAP APPEND fails; do not count inline signature images as ordinary attachments.
 
-- [ ] **Step 7: Run targeted and full backend suites**
+- [x] **Step 7: Run targeted and full backend suites**
 
 Run:
 
@@ -240,7 +240,7 @@ python -m unittest discover -s tests -v
 
 Expected: targeted tests and full backend suite pass.
 
-- [ ] **Step 8: Commit Task 3**
+- [x] **Step 8: Commit Task 3**
 
 Commit title: `📨 让所有发送路径携带签名内嵌图片`
 
@@ -255,15 +255,15 @@ Commit title: `📨 让所有发送路径携带签名内嵌图片`
 - Browser preview still loads from FlyMail only inside the editor.
 - Outgoing raw MIME uses CID and contains image bytes.
 
-- [ ] **Step 1: Run production-build browser preview**
+- [x] **Step 1: Run production-build browser preview**
 
 Use the existing `webapp-testing` Playwright workflow with `frontend/dist`/Vite preview and mocked authenticated APIs. Upload a generated PNG, assert the editor DOM image loads, and assert the `v-model`/PUT signature payload contains `flymail-signature-image:` plus `data-flymail-signature-image` and does not contain an `http(s)` FlyMail image URL.
 
-- [ ] **Step 2: Test clipboard paste**
+- [x] **Step 2: Test clipboard paste**
 
 Set the clipboard/paste event with an image file, verify one `/api/signatures/images` upload occurs, and verify the pasted image becomes the same internal managed node. Confirm image resizing still updates persisted `width`.
 
-- [ ] **Step 3: Test backend raw MIME end-to-end**
+- [x] **Step 3: Test backend raw MIME end-to-end**
 
 In an isolated backend/container fixture, create an owned signature image and body HTML, prepare it, build outgoing MIME, parse the bytes, and assert:
 
@@ -276,13 +276,13 @@ Content-Disposition is inline
 normal attachment remains attachment
 ```
 
-- [ ] **Step 4: Re-run frontend full suite/build**
+- [x] **Step 4: Re-run frontend full suite/build**
 
 Run: `cd frontend && npm test && npm run build`
 
 Expected: all tests and production build pass.
 
-- [ ] **Step 5: Commit only if browser-discovered source changes were required**
+- [x] **Step 5: Commit only if browser-discovered source changes were required**
 
 Commit title when needed: `🐛 修复签名 CID 图片浏览器交互边界`
 
@@ -298,15 +298,15 @@ Commit title when needed: `🐛 修复签名 CID 图片浏览器交互边界`
 - Produces local image `benxianyu/flymail:0.0.39`.
 - Production container remains `flymail` with `/Docker/flymail/data:/data` and the same host port/runtime environment.
 
-- [ ] **Step 1: Update documentation**
+- [x] **Step 1: Update documentation**
 
 Replace the README statement that receiver clients load public FlyMail signature-image URLs. Document internal signature asset IDs, clipboard upload, MIME CID sending, draft/schedule behavior, and the fact that the existing public image route remains only for editor preview/backward compatibility with already-sent historical messages.
 
-- [ ] **Step 2: Synchronize version `0.0.39`**
+- [x] **Step 2: Synchronize version `0.0.39`**
 
 Write `0.0.39` to `VERSION`, run `npm run sync-version`, then verify `VERSION`, root package, frontend package, Compose image tag, and README image examples are all `0.0.39`.
 
-- [ ] **Step 3: Fresh code-level verification**
+- [x] **Step 3: Fresh code-level verification**
 
 Run:
 
@@ -323,18 +323,18 @@ git diff
 
 Expected: all tests/build/static checks pass; only known npm audit/chunk-size warnings may remain.
 
-- [ ] **Step 4: Build local Docker image**
+- [x] **Step 4: Build local Docker image**
 
 Run: `docker build -t benxianyu/flymail:0.0.39 .`
 
-- [ ] **Step 5: Validate an isolated temporary container**
+- [x] **Step 5: Validate an isolated temporary container**
 
 Use a unique temporary `/Docker/flymail/` data directory, fixed free port, and database password containing quote, backslash, `@`, `:`, `/`, and `%`. Verify health/version, MySQL 8.0 and `/data/mysql/`, DB read/write and restart persistence, signature upload/internal representation, raw CID MIME generation, draft MIME, logs redaction, image metadata, and MySQL `Shutdown complete`. Clean all temporary resources afterward.
 
-- [ ] **Step 6: Replace production with rollback protection**
+- [x] **Step 6: Replace production with rollback protection**
 
 Record current image, port, network, restart policy, mount, and a non-sensitive data fingerprint. Clone existing runtime environment without printing secrets, keep the old container stopped/renamed for rollback, start `0.0.39`, verify `healthy`, `/api/health`, MySQL, data fingerprint, `/Docker/flymail/data:/data`, existing signature images, and a second restart. Delete the rollback container only after all checks pass.
 
-- [ ] **Step 7: Final review, commit, and push**
+- [x] **Step 7: Final review, commit, and push**
 
 Run fresh verification on the final tree, stage only this task's files, inspect staged diff and secret scan, commit title `🚀 发布签名 CID 内嵌图片 0.0.39`, fetch origin, ensure no remote divergence, then push `origin main` without force. Verify local and remote SHA match and workspace is clean.
