@@ -117,6 +117,24 @@ class MessageSearchDbTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["messages"][0]["unread_count"], 2)
         self.assertTrue(result["messages"][0]["has_attachments"])
 
+    async def test_conversation_list_does_not_use_mysql_reserved_row_number_alias(self):
+        fake = _DB([
+            _Cursor(one=(0, 0)),
+            _Cursor(rows=[]),
+        ])
+        with (
+            patch.object(db, "get_db", new=AsyncMock(return_value=fake)),
+            patch.object(db, "ensure_cached_message_thread_keys", new=AsyncMock(return_value=0)),
+        ):
+            await db.get_message_conversations("user-1", "acc-1", "INBOX")
+
+        list_sql, _params = fake.calls[1]
+        normalized = " ".join(list_sql.lower().split())
+        self.assertNotIn(" as row_number", normalized)
+        self.assertNotIn("where row_number = 1", normalized)
+        self.assertIn(" as conversation_rank", normalized)
+        self.assertIn("where conversation_rank = 1", normalized)
+
     async def test_conversation_detail_is_chronological_and_scoped(self):
         fake = _DB([
             _Cursor(rows=[

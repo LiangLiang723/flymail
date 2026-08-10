@@ -2914,7 +2914,7 @@ async def get_message_conversations(
                        MAX(has_attachments) OVER (PARTITION BY thread_key) AS thread_has_attachments,
                        ROW_NUMBER() OVER (
                            PARTITION BY thread_key ORDER BY date DESC, uid DESC
-                       ) AS row_number
+                       ) AS conversation_rank
                 FROM cached_messages
                 WHERE {where_clause}
             )
@@ -2922,7 +2922,7 @@ async def get_message_conversations(
                    folder, thread_has_attachments, account_id, thread_key,
                    message_count, unread_count
             FROM ranked
-            WHERE row_number = 1
+            WHERE conversation_rank = 1
             ORDER BY date DESC, uid DESC
             LIMIT ? OFFSET ?''',
         params + [page_size, offset],
