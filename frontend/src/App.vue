@@ -16,15 +16,18 @@
         :mobile="isMobileLayout"
         :mobile-open="mobileSidebarOpen"
         :current-view="currentView"
-        :nav-items="navItems"
+        :unified-inbox-enabled="unifiedInboxEnabled"
         :user="currentUser"
         @toggle-collapse="toggleSidebar"
         @close-mobile="mobileSidebarOpen = false"
+        @compose="openComposeFromSidebar"
         @navigate="navigateFromSidebar"
+        @select-account="openMailAccount"
+        @select-folder="openMailFolder"
+        @reauthorize-account="reauthorizeAccount"
         @open-notifications="toggleNotifications"
         @change-password="changePassword"
         @logout="logout"
-        @mail-navigation="selectMobileMailNavigation"
       />
 
       <div class="main">
@@ -114,6 +117,7 @@ import AppIcon from './components/AppIcon.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AuthGate from './components/app/AuthGate.vue';
 import NotificationDrawer from './components/app/NotificationDrawer.vue';
+import { useAccountReauthorization } from './composables/useAccountReauthorization';
 import { useWebSocket } from './composables/useWebSocket';
 import { useMailStore } from './stores/mail';
 import { useSignatureStore } from './stores/signatures';
@@ -147,13 +151,10 @@ interface CurrentUser {
   status: string;
 }
 
-type MailNavigation =
-  | { type: 'account' | 'reauth'; id: string }
-  | { type: 'folder'; path: string };
-
 const mailStore = useMailStore();
 const signatureStore = useSignatureStore();
 const uiStore = useUIStore();
+const { reauthorizeAccount } = useAccountReauthorization();
 const currentUser = ref<CurrentUser | null>(null);
 const authState = ref<AuthState>('booting');
 const authErrorMessage = ref('');
@@ -207,16 +208,21 @@ function handleGlobalWsMessage(data: any) {
 const { connect: connectGlobalWs, disconnect: disconnectGlobalWs } = useWebSocket(handleGlobalWsMessage);
 
 const isAdmin = computed(() => currentUser.value?.role === 'admin');
-const navItems = computed(() => [
-  ...(unifiedInboxEnabled.value ? [{ key: 'unified', label: '聚合收件箱', icon: 'inbox' }] : []),
-  { key: 'mail', label: '邮件管理', icon: 'mail' },
-  { key: 'contacts', label: '联系人', icon: 'contacts' },
-  { key: 'history-sync', label: '同步管理', icon: 'sync' },
-  { key: 'accounts', label: '账号管理', icon: 'accounts' },
-  { key: 'backup', label: '邮件备份', icon: 'backup' },
+const authenticatedViews = new Set([
+  'mail',
+  'unified',
+  'contacts',
+  'history-sync',
+  'accounts',
+  'backup',
+  'profile',
+  'signatures',
+  'notifications',
+  'settings',
+  'about',
 ]);
 
-async function requestNavigation(target: string, source?: SignatureEntrySource): Promise<boolean> {
+async function confirmNavigation(target: string): Promise<boolean> {
   if (
     currentView.value === 'signatures'
     && target !== 'signatures'
@@ -231,20 +237,50 @@ async function requestNavigation(target: string, source?: SignatureEntrySource):
     if (!confirmed) return false;
     signatureStore.discardDraft();
   }
+  return true;
+}
 
+function commitNavigation(target: string, source?: SignatureEntrySource) {
   if (target === 'signatures' && source) signatureStore.setEntrySource(source);
   currentView.value = target;
   mobileSidebarOpen.value = false;
+}
+
+async function requestNavigation(target: string, source?: SignatureEntrySource): Promise<boolean> {
+  if (!await confirmNavigation(target)) return false;
+  commitNavigation(target, source);
   return true;
+}
+
+async function openComposeFromSidebar() {
+  if (!mailStore.currentAccountId) {
+    uiStore.error('请先在账号管理中添加邮箱');
+    return;
+  }
+  if (!await confirmNavigation('compose')) return;
+  mailStore.clearComposeWorkspace();
+  mailStore.setComposeDraft({
+    account_id: mailStore.currentAccountId,
+    compose_kind: 'new',
+  });
+  commitNavigation('compose');
+}
+
+async function openMailAccount(accountId: string) {
+  if (!await requestNavigation('mail')) return;
+  if (accountId === mailStore.currentAccountId) return;
+  mailStore.setAccount(accountId);
+  await mailStore.loadFolders();
+}
+
+async function openMailFolder(path: string) {
+  if (!await requestNavigation('mail')) return;
+  if (path === mailStore.currentFolder) return;
+  mailStore.setFolder(path);
 }
 
 async function navigateFromSidebar(key: string) {
   await requestNavigation(key, key === 'signatures' ? 'menu' : undefined);
-}
-
-function selectMobileMailNavigation(detail: MailNavigation) {
-  window.dispatchEvent(new CustomEvent('flymail-mail-navigation', { detail }));
-  mobileSidebarOpen.value = false;
 }
 
 function toggleSidebar() {
@@ -439,9 +475,7 @@ watch(currentView, (value) => {
     currentView.value = 'mail';
     return;
   }
-  const menuViews = ['profile', 'notifications', 'settings', 'signatures', 'about'];
-  if (isAdmin.value) menuViews.push('users');
-  if (value !== 'compose' && !navItems.value.some((item) => item.key === value) && !menuViews.includes(value)) {
+  if (value !== 'compose' && value !== 'users' && !authenticatedViews.has(value)) {
     currentView.value = 'mail';
     return;
   }

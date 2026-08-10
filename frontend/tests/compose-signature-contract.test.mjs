@@ -33,6 +33,7 @@ test('compose context selects the correct account default signature', async () =
   const composeSource = await readSource('src/views/ComposeEmail.vue');
   const storeSource = await readSource('src/stores/mail.ts');
   const replySource = await readSource('src/composables/useReplyForward.ts');
+  const appSource = await readSource('src/App.vue');
   const mailListSource = await readSource('src/views/MailList.vue');
 
   assert.match(composeSource, /import \{ resolveDefaultSignature \} from '\.\.\/utils\/signature-management'/);
@@ -41,7 +42,7 @@ test('compose context selects the correct account default signature', async () =
   assert.match(storeSource, /compose_kind\?: 'new' \| 'reply' \| 'forward' \| 'draft'/);
   assert.match(replySource, /compose_kind:\s*'reply'/);
   assert.match(replySource, /compose_kind:\s*'forward'/);
-  assert.match(mailListSource, /compose_kind:\s*'new'/);
+  assert.match(appSource, /function openComposeFromSidebar\([\s\S]*account_id:\s*mailStore\.currentAccountId,[\s\S]*compose_kind:\s*'new'/s);
   assert.match(mailListSource, /compose_kind:\s*'draft'/);
 });
 

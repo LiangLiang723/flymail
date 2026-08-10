@@ -19,13 +19,15 @@ test('user menu keeps the profile trigger without a dropdown chevron', async () 
 });
 
 test('unified inbox navigation is disabled until the saved user preference enables it', async () => {
-  const source = await readSource('src/App.vue');
+  const app = await readSource('src/App.vue');
+  const sidebar = await readSource('src/components/app/AppSidebar.vue');
 
-  assert.match(source, /const unifiedInboxEnabled = ref\(false\)/);
-  assert.match(source, /unifiedInboxEnabled\.value\s*\?\s*\[\{ key: 'unified'/s);
-  assert.match(source, /api\.get\('\/settings\/unified'\)/);
-  assert.match(source, /flymail-unified-inbox-setting-changed/);
-  assert.match(source, /currentView\.value === 'unified'/);
+  assert.match(app, /const unifiedInboxEnabled = ref\(false\)/);
+  assert.match(app, /:unified-inbox-enabled="unifiedInboxEnabled"/);
+  assert.match(sidebar, /v-if="unifiedInboxEnabled"[\s\S]*聚合收件箱/s);
+  assert.match(app, /api\.get\('\/settings\/unified'\)/);
+  assert.match(app, /flymail-unified-inbox-setting-changed/);
+  assert.match(app, /currentView\.value === 'unified'/);
 });
 
 test('unified inbox supports local keyword search without changing selected account scope', async () => {

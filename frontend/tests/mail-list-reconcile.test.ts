@@ -33,7 +33,7 @@ test('reconciles a refreshed page by inserting new mail and updating existing ro
 
 test('manual refresh applies the returned page without an empty-list reload', async () => {
   const source = await readFile(new URL('../src/views/MailList.vue', import.meta.url), 'utf8');
-  const refreshBlock = source.match(/async function refreshLatestPage\(\)[\s\S]*?\n}\n\n\/\*\* 重新授权/)?.[0] || '';
+  const refreshBlock = source.match(/async function refreshLatestPage\(\)[\s\S]*?\n}\n\n\/\/ 删除确认/)?.[0] || '';
 
   assert.match(source, /import \{ reconcileMessagePage \} from '\.\.\/utils\/mail-list-reconcile';/);
   assert.match(source, /function applyMessagePage\(data: any, reconcileVisible = false\)/);

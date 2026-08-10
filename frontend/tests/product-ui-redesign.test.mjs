@@ -99,6 +99,7 @@ test('mail management uses the fluid workspace and shared toolbar primitives', a
   assert.match(source, /UiBadge/);
   assert.match(source, /UiEmptyState/);
   assert.match(source, /UiLoadingState/);
+  assert.doesNotMatch(source, /class="folder-sidebar"/);
 });
 
 test('contacts render one bounded split workspace with two scroll owners', async () => {

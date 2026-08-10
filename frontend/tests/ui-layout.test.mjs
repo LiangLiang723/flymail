@@ -34,9 +34,10 @@ test('application shell uses extracted navigation components without legacy dupl
   assert.doesNotMatch(appSource, /class="topbar"/);
   assert.match(sidebarSource, /class="sidebar-header"/);
   assert.match(sidebarSource, /class="sidebar-brand"/);
-  assert.match(sidebarSource, /class="nav-list"/);
-  assert.match(sidebarSource, /v-for="item in navItems"/);
-  assert.doesNotMatch(sidebarSource, /class="nav-group-label"/);
+  assert.match(sidebarSource, /class="sidebar-primary-actions"/);
+  assert.match(sidebarSource, /class="sidebar-mail-accounts"/);
+  assert.match(sidebarSource, /class="sidebar-mail-folders"/);
+  assert.doesNotMatch(sidebarSource, /v-for="item in navItems"/);
   assert.match(userMenuSource, /class="sidebar-profile-trigger"/);
   assert.match(userMenuSource, /class="user-menu-popover"/);
   assert.match(shellCss, /\.user-menu-popover\s*\{[^}]*position:\s*fixed/s);
@@ -73,8 +74,8 @@ test('mail view keeps the toolbar inside the list card without a permanent previ
   const listStart = source.indexOf('class="mail-list"');
   const toolbarStart = source.indexOf('class="list-toolbar"');
 
-  assert.match(source, /class="folder-sidebar-header"/);
-  assert.match(source, /class="account-switcher"/);
+  assert.doesNotMatch(source, /class="folder-sidebar-header"/);
+  assert.doesNotMatch(source, /class="account-switcher"/);
   assert.ok(listStart >= 0, 'mail list container should exist');
   assert.ok(toolbarStart > listStart, 'list toolbar should stay inside the mail list container');
   assert.doesNotMatch(source, /mail-preview-pane/);
@@ -94,8 +95,8 @@ test('responsive shell keeps a stable 72px icon rail and uses a mobile drawer', 
   assert.match(shellCss, /--app-sidebar-collapsed:\s*72px/);
   assert.match(shellCss, /grid-template-columns:\s*72px minmax\(0,\s*1fr\)/);
   assert.doesNotMatch(shellCss, /\.app-shell\.sidebar-collapsed[^\{]*\{[^}]*flex-direction:/s);
-  assert.match(sidebarSource, /class="mobile-mail-navigation"/);
-  assert.match(sidebarSource, /type: 'reauth'/);
+  assert.doesNotMatch(sidebarSource, /class="mobile-mail-navigation"/);
+  assert.match(sidebarSource, /'reauthorize-account'/);
   assert.match(shellCss, /prefers-reduced-transparency/);
 });
 
@@ -112,17 +113,17 @@ test('collapsed sidebar swaps one brand slot from logo to expand icon on interac
   assert.match(css, /\.sidebar-collapsed-toggle:hover \.sidebar-collapsed-logo,[\s\S]*\.sidebar-collapsed-toggle:focus-visible \.sidebar-collapsed-logo\s*\{[^}]*opacity:\s*0/s);
   assert.match(css, /\.sidebar-collapsed-toggle:hover \.sidebar-collapsed-expand,[\s\S]*\.sidebar-collapsed-toggle:focus-visible \.sidebar-collapsed-expand\s*\{[^}]*opacity:\s*1/s);
   assert.match(css, /--sidebar-item-icon-column:\s*56px/);
-  assert.match(css, /\.nav-item\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.sidebar-mail-entry\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) minmax\(0,\s*1fr\)/s);
   assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-profile-trigger\s*\{[^}]*grid-template-columns:\s*var\(--sidebar-item-icon-column\) 0 0/s);
 });
 
-test('mobile mail view delegates account and folder navigation without horizontal overflow', async () => {
+test('mobile mail view opens the shared drawer without owning account and folder navigation', async () => {
   const source = await readSource('src/views/MailList.vue');
 
   assert.doesNotMatch(source, /mobile-account-tabs/);
-  assert.match(source, /flymail-mail-navigation/);
-  assert.match(source, /function handleMailNavigation/);
-  assert.match(source, /detail\.type === 'reauth'/);
+  assert.doesNotMatch(source, /flymail-mail-navigation/);
+  assert.doesNotMatch(source, /function handleMailNavigation/);
+  assert.match(source, /flymail-toggle-sidebar/);
   assert.match(source, /@media \(max-width: 768px\)[\s\S]*\.mail-item,[\s\S]*min-width: 0;/);
 });
 

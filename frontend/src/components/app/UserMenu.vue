@@ -31,26 +31,49 @@
           </span>
         </div>
 
+        <button type="button" role="menuitem" @click="navigate('contacts')">
+          <AppIcon name="contacts" :size="18" />
+          <span>联系人</span>
+        </button>
+        <button type="button" role="menuitem" @click="navigate('history-sync')">
+          <AppIcon name="sync" :size="18" />
+          <span>同步管理</span>
+        </button>
+        <button type="button" role="menuitem" @click="navigate('accounts')">
+          <AppIcon name="accounts" :size="18" />
+          <span>账号管理</span>
+        </button>
+        <button type="button" role="menuitem" @click="navigate('backup')">
+          <AppIcon name="backup" :size="18" />
+          <span>邮件备份</span>
+        </button>
+
+        <div class="user-menu-separator" role="separator"></div>
+
         <button type="button" role="menuitem" @click="navigate('profile')">
           <AppIcon name="accounts" :size="18" />
           <span>个人资料</span>
-        </button>
-        <button v-if="user?.role === 'admin'" type="button" role="menuitem" @click="navigate('users')">
-          <AppIcon name="users" :size="18" />
-          <span>用户管理</span>
-        </button>
-        <button type="button" role="menuitem" @click="navigate('notifications')">
-          <AppIcon name="notifications" :size="18" />
-          <span>第三方通知</span>
         </button>
         <button type="button" role="menuitem" @click="navigate('signatures')">
           <AppIcon name="signature" :size="18" />
           <span>签名管理</span>
         </button>
+        <button type="button" role="menuitem" @click="navigate('notifications')">
+          <AppIcon name="notifications" :size="18" />
+          <span>第三方通知</span>
+        </button>
         <button type="button" role="menuitem" @click="navigate('settings')">
           <AppIcon name="settings" :size="18" />
           <span>设置</span>
         </button>
+
+        <template v-if="user?.role === 'admin'">
+          <div class="user-menu-separator" role="separator"></div>
+          <button type="button" role="menuitem" @click="navigate('users')">
+            <AppIcon name="users" :size="18" />
+            <span>用户管理</span>
+          </button>
+        </template>
 
         <div class="user-menu-separator" role="separator"></div>
 

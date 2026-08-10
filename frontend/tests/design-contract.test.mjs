@@ -29,6 +29,8 @@ test('root design contract defines stable layout rules for dynamic UI content', 
   assert.match(design, /200%/);
   assert.match(design, /tokens\.css/);
   assert.match(design, /极端内容/);
+  assert.match(design, /永久侧栏[^\n]*邮件导航/);
+  assert.match(design, /(?:管理[^\n]*用户菜单|用户菜单[^\n]*管理)/);
 });
 
 test('agent instructions require reading DESIGN.md before UI work', async () => {

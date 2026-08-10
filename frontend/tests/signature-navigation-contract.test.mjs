@@ -13,8 +13,8 @@ test('app registers signature management without adding a primary sidebar item',
   assert.match(app, /import SignatureManagement from '\.\/views\/SignatureManagement\.vue'/);
   assert.match(app, /currentView === 'signatures'/);
   assert.match(app, /@back="returnFromSignatureManagement"/);
-  assert.match(app, /menuViews = \['profile', 'notifications', 'settings', 'signatures', 'about'\]/);
-  assert.doesNotMatch(app, /navItems[\s\S]{0,500}key:\s*'signatures'/);
+  assert.match(app, /const authenticatedViews = new Set\([\s\S]*'signatures'/);
+  assert.doesNotMatch(app, /:nav-items=/);
 });
 
 test('all signature exits use the shared unsaved confirmation gate', async () => {

@@ -3,66 +3,15 @@
     <!-- 单账号重新授权提示 -->
     <div v-if="mailStore.accounts.length === 1 && mailStore.reauthAccountIds.has(mailStore.currentAccountId)" class="reauth-banner">
       <span>账号授权已过期</span>
-      <button class="btn btn-primary btn-sm" @click="reauthorize(mailStore.currentAccountId)">重新授权</button>
+      <button class="btn btn-primary btn-sm" @click="reauthorizeAccount(mailStore.currentAccountId)">重新授权</button>
     </div>
 
     <div class="mail-shell workspace-grid" :class="{ detail: !!selectedMessage }">
-    <aside v-if="!isMobile" class="folder-sidebar">
-      <header class="folder-sidebar-header">
-        <span>文件夹</span>
-        <span>{{ mailStore.accounts.length }} 个账号</span>
-      </header>
-
-      <div class="account-switcher">
-        <div v-for="acc in mailStore.accounts" :key="acc.id" class="account-switcher-row">
-          <button
-            class="account-switcher-item"
-            :class="{ active: mailStore.currentAccountId === acc.id }"
-            @click="switchAccount(acc.id)"
-          >
-            <AccountIcon :account="acc" :size="18" decorative />
-            <span class="account-switcher-copy">
-              <strong>{{ accountDisplayName(acc) }}</strong>
-              <small>{{ acc.email }}</small>
-            </span>
-          </button>
-          <button
-            v-if="mailStore.reauthAccountIds.has(acc.id)"
-            class="btn-reauth account-reauth"
-            @click.stop="reauthorize(acc.id)"
-            title="重新授权"
-          >
-            <AppIcon name="sync" :size="14" />
-          </button>
-        </div>
-      </div>
-
-      <div class="folder-nav-list">
-        <button
-          v-for="folder in mailStore.folders"
-          :key="folder.path"
-          class="folder-nav-item"
-          :class="{ active: mailStore.currentFolder === folder.path }"
-          @click="mailStore.setFolder(folder.path)"
-        >
-          <AppIcon :name="folderIconName(folder.name)" :size="17" />
-          <span class="folder-nav-name">{{ mailStore.folderDisplayName(folder.name) }}</span>
-          <span class="folder-nav-count">{{ getFolderCount(folder) }}</span>
-        </button>
-      </div>
-    </aside>
-
     <!-- 邮件列表视图 -->
     <div v-if="!selectedMessage" class="mail-list">
       <!-- 普通模式工具栏 -->
       <div v-if="!selectMode" class="list-toolbar">
         <div class="toolbar-left">
-          <button class="compose-entry-btn" @click="openCompose" title="写邮件">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 5v14"/><path d="M5 12h14"/>
-            </svg>
-            <span>写邮件</span>
-          </button>
           <!-- 多选图标按钮 -->
           <button v-if="listMode === 'messages'" class="btn-icon" @click="enterSelectMode()" title="多选">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -396,8 +345,7 @@ import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } f
 import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
-import AccountIcon from '../components/account/AccountIcon.vue';
-import { authWindowBlockedMessage, closeAuthWindow, navigateAuthWindow, openAuthWindowSync } from '../utils/oauthWindow';
+import { useAccountReauthorization } from '../composables/useAccountReauthorization';
 import { renderThemedMailBody } from '../utils/sanitize';
 import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
 import { reconcileMessagePage } from '../utils/mail-list-reconcile';
@@ -409,7 +357,6 @@ import { useConfirmAction } from '../composables/useConfirmAction';
 import { useContacts } from '../composables/useContacts';
 import { buildForwardDraft, buildReplyDraft } from '../composables/useReplyForward';
 import { exportMailToPDF } from '../utils/export-pdf';
-import AppIcon from '../components/AppIcon.vue';
 import PageFrame from '../components/layout/PageFrame.vue';
 import UiBadge from '../components/ui/UiBadge.vue';
 import UiEmptyState from '../components/ui/UiEmptyState.vue';
@@ -422,27 +369,12 @@ import MailSearchBar from '../components/mail/MailSearchBar.vue';
 const mailStore = useMailStore();
 const uiStore = useUIStore();
 const { quickAddContact } = useContacts();
+const { reauthorizeAccount } = useAccountReauthorization();
 const showAttachmentNasPicker = ref(false);
 const attachmentForNas = ref<Attachment | null>(null);
 const imageViewerOpen = ref(false);
 const viewerImages = ref<ViewerImage[]>([]);
 const viewerInitialIndex = ref(0);
-
-function accountDisplayName(account: any) {
-  return String(account?.remark || '').trim() || account?.email || '';
-}
-
-function folderIconName(folderName: string) {
-  const name = String(folderName || '').toLowerCase();
-  if (['inbox', '收件箱'].includes(name)) return 'inbox';
-  if (['sent', 'sent messages', 'sent items', 'sent mail', '已发送'].includes(name)) return 'send';
-  if (name.includes('draft') || name === '草稿箱') return 'draft';
-  if (['junk', 'junk email', 'spam', '垃圾邮件'].includes(name)) return 'junk';
-  if (['trash', 'deleted', 'deleted items', 'deleted messages', '已删除'].includes(name)) return 'trash';
-  if (name.includes('archive') || name === '存档') return 'archive';
-  if (name.includes('star') || name === '星标邮件') return 'star';
-  return 'folder';
-}
 
 const messages = ref<Message[]>([]);
 const selectedMessage = ref<Message | null>(null);
@@ -991,29 +923,8 @@ function openMobileSidebar() {
   window.dispatchEvent(new CustomEvent('flymail-toggle-sidebar'));
 }
 
-async function handleMailNavigation(event: Event) {
-  const detail = (event as CustomEvent).detail as { type?: string; id?: string; path?: string } | undefined;
-  if (!detail) return;
-  if (detail.type === 'account' && detail.id) {
-    if (detail.id !== mailStore.currentAccountId) await switchAccount(detail.id);
-    return;
-  }
-  if (detail.type === 'reauth' && detail.id) {
-    await reauthorize(detail.id);
-    return;
-  }
-  if (detail.type === 'folder' && detail.path) {
-    if (detail.path === mailStore.currentFolder) return;
-    searchState.value = createEmptyMailSearch();
-    conversationMessages.value = [];
-    selectedThreadKey.value = '';
-    mailStore.setFolder(detail.path);
-  }
-}
-
 onMounted(async () => {
   connectWs();
-  window.addEventListener('flymail-mail-navigation', handleMailNavigation);
   if (!(await openPendingMessage())) await loadMessages();
 });
 
@@ -1036,33 +947,11 @@ onUnmounted(() => {
   // 清理 resize 事件监听，防止内存泄漏
   window.removeEventListener('resize', onResize);
   window.removeEventListener('flymail-sent-message', handleSentMessage);
-  window.removeEventListener('flymail-mail-navigation', handleMailNavigation);
   if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
 });
 
-/** 切换账号 */
-async function switchAccount(id: string) {
-  mailStore.setAccount(id);
-  searchState.value = createEmptyMailSearch();
-  conversationMessages.value = [];
-  selectedThreadKey.value = '';
-  await mailStore.loadFolders();
-  pageCache.clear();
-  selectedMessage.value = null;
-  currentPage.value = 1;
-  await loadMessages();
-}
-
 function navigateToCompose() {
   window.dispatchEvent(new CustomEvent('flymail-navigate', { detail: 'compose' }));
-}
-
-function openCompose() {
-  mailStore.setComposeDraft({
-    account_id: mailStore.currentAccountId,
-    compose_kind: 'new',
-  });
-  navigateToCompose();
 }
 
 async function refreshLatestPage() {
@@ -1091,45 +980,6 @@ async function refreshLatestPage() {
   } finally {
     refreshingLatest.value = false;
     syncing.value = false;
-  }
-}
-
-/** 重新授权指定账号（复用添加账号的 OAuth 流程） */
-async function reauthorize(accountId?: string) {
-  const targetId = accountId || mailStore.currentAccountId;
-  const targetAccount = mailStore.accounts.find((a: any) => a.id === targetId);
-  if (!targetAccount) return;
-  const provider = targetAccount.provider;
-  const providerLabel = provider === 'outlook' ? 'Microsoft' : 'Google';
-  const { win: authWindow } = openAuthWindowSync(providerLabel);
-  if (!authWindow) {
-    uiStore.error(authWindowBlockedMessage(providerLabel));
-    return;
-  }
-  try {
-    const settingsData = await api.get('/settings') as any;
-    const settings = settingsData.settings || {};
-    let redirectUri = '';
-    if (provider === 'outlook') {
-      redirectUri = settings.outlook_redirect_uri || '';
-      if (!redirectUri) { closeAuthWindow(authWindow); uiStore.error('请先在设置页面配置 Microsoft 重定向 URI'); return; }
-    } else {
-      redirectUri = settings.gmail_redirect_uri || '';
-      if (!redirectUri) { closeAuthWindow(authWindow); uiStore.error('请先在设置页面配置 Gmail 重定向 URI'); return; }
-    }
-    // 标记这是重新授权，OAuth 回调后不跳转到账号页
-    sessionStorage.setItem('flymail_oauth_reauth', '1');
-    const data = await api.post('/accounts/auth-url', { provider, redirect_uri: redirectUri }) as any;
-    if (data.error) { closeAuthWindow(authWindow); uiStore.error('获取授权链接失败：' + data.error); return; }
-    if (data.auth_url) {
-      if (!navigateAuthWindow(authWindow, data.auth_url)) uiStore.error(authWindowBlockedMessage(providerLabel));
-    } else {
-      closeAuthWindow(authWindow);
-      uiStore.error('获取授权链接失败');
-    }
-  } catch (e: any) {
-    closeAuthWindow(authWindow);
-    uiStore.error('重新授权失败：' + (e.response?.data?.error || e.message || '网络错误'));
   }
 }
 
@@ -1668,66 +1518,13 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   overflow: hidden;
 }
 
 .mail-shell.detail {
-  grid-template-columns: 220px minmax(0, 1fr);
-}
-
-.folder-sidebar {
-  min-height: 0;
-  overflow-y: auto;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.folder-nav-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: none;
-  background: transparent;
-  border-radius: 10px;
-  padding: 10px 12px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.folder-nav-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.folder-nav-item.active {
-  background: var(--ui-fill-selected);
-  color: var(--ui-accent);
-  font-weight: 600;
-}
-
-.folder-nav-name,
-.folder-nav-count {
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.folder-nav-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.folder-nav-count {
-  color: var(--text-tertiary);
-  font-size: 12px;
-  flex-shrink: 0;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* 账号 Tab 切换 */
@@ -3118,155 +2915,10 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   }
 }
 
-.compose-entry-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 8px;
-  background: var(--color-accent);
-  color: var(--ui-text-inverse);
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-
-.compose-entry-btn:hover {
-  opacity: 0.9;
-}
-
 /* 2026 邮件工作区视觉重构 */
 .mail-shell {
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 14px;
-}
-
-.folder-sidebar {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  border-radius: 14px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-.folder-sidebar-header {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.folder-sidebar-header span:last-child {
-  color: var(--text-tertiary);
-  font-size: 10px;
-  font-weight: 500;
-}
-
-.account-switcher {
-  padding: 10px 10px 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.account-switcher-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.account-switcher-item {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 32px 8px 9px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.account-switcher-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.account-switcher-item.active {
-  background: var(--bg-active);
-  color: var(--color-accent);
-}
-
-.account-switcher-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.account-switcher-copy strong,
-.account-switcher-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.account-switcher-copy strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.account-switcher-copy small {
-  color: var(--text-tertiary);
-  font-size: 10px;
-}
-
-.account-reauth {
-  position: absolute;
-  right: 7px;
-  z-index: 1;
-}
-
-.folder-nav-list {
-  flex: 1;
-  min-height: 0;
-  padding: 8px 10px 12px;
-  overflow-y: auto;
-}
-
-.folder-nav-item {
-  min-height: 38px;
-  justify-content: flex-start;
-  gap: 9px;
-  padding: 8px 10px;
-  border-radius: 8px;
-}
-
-.folder-nav-item > svg {
-  flex: 0 0 auto;
-}
-
-.folder-nav-name {
-  flex: 1;
-}
-
-.folder-nav-item.active {
-  background: var(--bg-active);
-  color: var(--color-accent);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
 .mail-list {
@@ -3308,13 +2960,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-}
-
-.compose-entry-btn {
-  height: 34px;
-  padding: 0 13px;
-  border-radius: 9px;
-  box-shadow: var(--ui-shadow-xs);
 }
 
 .list-items {
@@ -3433,10 +3078,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   .mail-shell.detail {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
-  }
-
-  .folder-sidebar {
-    display: none;
   }
 }
 
@@ -3604,11 +3245,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .folder-nav-item,
-  .account-switcher-item,
   .mail-item,
-  .btn-icon,
-  .compose-entry-btn {
+  .btn-icon {
     transition: none;
   }
 

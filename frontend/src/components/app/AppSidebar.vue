@@ -57,60 +57,99 @@
       </template>
     </div>
 
-    <div class="sidebar-scroll">
-      <nav class="nav-list" aria-label="主导航">
-        <button
-          v-for="item in navItems"
-          :key="item.key"
-          class="sidebar-row nav-item"
-          :class="{ active: currentView === item.key }"
-          :title="collapsed && !mobile ? item.label : undefined"
-          @click="$emit('navigate', item.key)"
-        >
-          <span class="sidebar-row-icon"><AppIcon :name="item.icon" :size="19" /></span>
-          <span class="sidebar-label-pane nav-item-label">{{ item.label }}</span>
-        </button>
-      </nav>
+    <div class="sidebar-primary-actions">
+      <button
+        class="sidebar-row sidebar-compose-action"
+        type="button"
+        title="写邮件"
+        aria-label="写邮件"
+        :disabled="mailStore.accounts.length === 0"
+        @click="emit('compose')"
+      >
+        <span class="sidebar-row-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+        </span>
+        <span class="sidebar-label-pane">写邮件</span>
+      </button>
 
-      <section v-if="mobile && currentView === 'mail'" class="mobile-mail-navigation">
-        <h3>邮箱账号</h3>
-        <div v-for="account in mailStore.accounts" :key="account.id" class="mobile-account-row">
+      <button
+        v-if="unifiedInboxEnabled"
+        class="sidebar-row sidebar-mail-entry"
+        :class="{ active: currentView === 'unified' }"
+        type="button"
+        :title="collapsed && !mobile ? '聚合收件箱' : undefined"
+        @click="emit('navigate', 'unified')"
+      >
+        <span class="sidebar-row-icon"><AppIcon name="inbox" :size="19" /></span>
+        <span class="sidebar-label-pane">聚合收件箱</span>
+      </button>
+    </div>
+
+    <div class="sidebar-scroll sidebar-mail-navigation">
+      <section class="sidebar-mail-accounts" aria-labelledby="sidebar-accounts-title">
+        <h3 id="sidebar-accounts-title" class="sidebar-section-title">邮箱账号</h3>
+        <p v-if="mailStore.accounts.length === 0" class="sidebar-empty-copy">暂无邮箱账号</p>
+
+        <div
+          v-for="account in mailStore.accounts"
+          :key="account.id"
+          class="sidebar-account-row"
+          :class="{ 'is-reauth': mailStore.reauthAccountIds.has(account.id) }"
+        >
           <button
             type="button"
-            class="mobile-account-item"
-            :class="{ active: mailStore.currentAccountId === account.id }"
-            @click="selectMailNavigation({ type: 'account', id: account.id })"
+            class="sidebar-row sidebar-account-item"
+            :class="{
+              active: currentView === 'mail' && mailStore.currentAccountId === account.id,
+              'is-context': mailStore.currentAccountId === account.id,
+            }"
+            :title="collapsed && !mobile ? accountDisplayName(account) : account.email"
+            @click="emit('select-account', account.id)"
           >
-            <AccountIcon :account="account" :size="30" decorative />
-            <span class="mobile-account-copy">
+            <span class="sidebar-row-icon sidebar-account-icon">
+              <AccountIcon :account="account" :size="30" decorative />
+            </span>
+            <span class="sidebar-label-pane sidebar-account-copy">
               <strong>{{ accountDisplayName(account) }}</strong>
               <small>{{ account.email }}</small>
             </span>
           </button>
           <button
             v-if="mailStore.reauthAccountIds.has(account.id)"
-            class="mobile-account-reauth"
+            class="sidebar-account-reauth"
             type="button"
             title="重新授权"
-            aria-label="重新授权"
-            @click="selectMailNavigation({ type: 'reauth', id: account.id })"
+            :aria-label="`重新授权 ${accountDisplayName(account)}`"
+            @click="requestReauthorization(account.id)"
           >
             <AppIcon name="sync" :size="15" />
           </button>
         </div>
+      </section>
 
-        <h3 class="folder-title">文件夹</h3>
+      <section
+        v-if="mailStore.accounts.length > 0"
+        class="sidebar-mail-folders"
+        aria-labelledby="sidebar-folders-title"
+      >
+        <h3 id="sidebar-folders-title" class="sidebar-section-title">文件夹</h3>
         <button
           v-for="folder in mailStore.folders"
           :key="folder.path"
           type="button"
-          class="mobile-folder-item"
-          :class="{ active: mailStore.currentFolder === folder.path }"
-          @click="selectMailNavigation({ type: 'folder', path: folder.path })"
+          class="sidebar-row sidebar-folder-item"
+          :class="{ active: currentView === 'mail' && mailStore.currentFolder === folder.path }"
+          :title="collapsed && !mobile ? mailStore.folderDisplayName(folder.name) : undefined"
+          @click="emit('select-folder', folder.path)"
         >
-          <AppIcon :name="folderIconName(folder.name)" :size="17" />
-          <span>{{ mailStore.folderDisplayName(folder.name) }}</span>
-          <small>{{ mobileFolderCount(folder) }}</small>
+          <span class="sidebar-row-icon"><AppIcon :name="folderIconName(folder.name)" :size="17" /></span>
+          <span class="sidebar-label-pane sidebar-folder-copy">
+            <span>{{ mailStore.folderDisplayName(folder.name) }}</span>
+            <small>{{ folderCount(folder) }}</small>
+          </span>
         </button>
       </section>
     </div>
@@ -142,22 +181,12 @@ import AppIcon from '../AppIcon.vue';
 import UserMenu from './UserMenu.vue';
 import { useMailStore } from '../../stores/mail';
 
-interface NavItem {
-  key: string;
-  label: string;
-  icon: string;
-}
-
-type MailNavigation =
-  | { type: 'account' | 'reauth'; id: string }
-  | { type: 'folder'; path: string };
-
 defineProps<{
   collapsed: boolean;
   mobile: boolean;
   mobileOpen: boolean;
   currentView: string;
-  navItems: NavItem[];
+  unifiedInboxEnabled: boolean;
   user: {
     username: string;
     nickname?: string;
@@ -170,11 +199,14 @@ defineProps<{
 const emit = defineEmits<{
   'toggle-collapse': [];
   'close-mobile': [];
+  compose: [];
   navigate: [key: string];
+  'select-account': [accountId: string];
+  'select-folder': [path: string];
+  'reauthorize-account': [accountId: string];
   'open-notifications': [];
   'change-password': [];
   logout: [];
-  'mail-navigation': [detail: MailNavigation];
 }>();
 
 const mailStore = useMailStore();
@@ -195,15 +227,15 @@ function folderIconName(name: string) {
   return icons[mailStore.folderDisplayName(name)] || 'folder';
 }
 
-function mobileFolderCount(folder: any) {
+function folderCount(folder: any) {
   const displayName = mailStore.folderDisplayName(folder.name);
   return ['已发送', '草稿箱', '已删除'].includes(displayName)
     ? Number(folder.total_count || 0)
     : Number(folder.unread_count || 0);
 }
 
-function selectMailNavigation(detail: MailNavigation) {
-  emit('mail-navigation', detail);
+function requestReauthorization(accountId: string) {
+  emit('reauthorize-account', accountId);
   emit('close-mobile');
 }
 </script>
