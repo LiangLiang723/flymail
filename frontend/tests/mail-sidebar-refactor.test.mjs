@@ -38,16 +38,53 @@ test('folder and unified active states are tied to the matching page', async () 
   assert.match(sidebar, /currentView === 'mail'[^\n]*mailStore\.currentFolder === folder\.path/);
 });
 
-test('sidebar keeps primary mail actions fixed around one account and folder scroll owner', async () => {
+test('sidebar keeps account and folder scrolling independent without an outer scroll owner', async () => {
   const sidebar = await read('src/components/app/AppSidebar.vue');
   const css = await read('src/styles/app-shell.css');
 
   assert.match(sidebar, /class="sidebar-primary-actions"/);
   assert.match(sidebar, /class="sidebar-scroll sidebar-mail-navigation"/);
+  assert.match(sidebar, /class="sidebar-account-scroll" :class="\{ 'has-scroll': mailStore\.accounts\.length > 5 \}"/);
   assert.match(sidebar, /id="sidebar-accounts-title"[^>]*>邮箱账号</);
   assert.match(sidebar, /id="sidebar-folders-title"[^>]*>文件夹</);
   assert.match(sidebar, /class="sidebar-row sidebar-compose-action"[\s\S]*:disabled="mailStore\.accounts\.length === 0"/s);
-  assert.match(css, /\.sidebar-scroll\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.sidebar-scroll\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.sidebar-account-scroll\.has-scroll\s*\{[^}]*max-height:\s*240px;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/s);
+  assert.match(sidebar, /class="sidebar-folder-scroll"/);
+  assert.match(css, /\.sidebar-mail-folders\s*\{[^}]*flex:\s*1 1 0;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.sidebar-folder-scroll\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/s);
+  assert.doesNotMatch(css, /\.sidebar-scroll\s*\{[^}]*scrollbar-gutter:/s);
+});
+
+test('custom folders keep the standard folder outline and overlay the first character inside it', async () => {
+  const sidebar = await read('src/components/app/AppSidebar.vue');
+  const css = await read('src/styles/app-shell.css');
+
+  assert.match(sidebar, /class="sidebar-folder-glyph"[\s\S]*<AppIcon name="folder" :size="18" \/>[\s\S]*class="sidebar-folder-initial"/s);
+  assert.match(sidebar, /return icons\[mailStore\.folderDisplayName\(name\)\] \|\| 'folder';/);
+  assert.doesNotMatch(sidebar, /folder-letter/);
+  assert.match(css, /\.sidebar-folder-glyph\s*\{[^}]*position:\s*relative;/s);
+  assert.match(css, /\.sidebar-folder-initial\s*\{[^}]*position:\s*absolute;/s);
+});
+
+test('sidebar scroll owners never allow horizontal scrolling and use low-profile vertical scrollbars', async () => {
+  const css = await read('src/styles/app-shell.css');
+
+  assert.match(css, /\.sidebar-account-scroll\.has-scroll,[\s\S]*\.sidebar-folder-scroll\s*\{[^}]*scrollbar-width:\s*thin;[^}]*scrollbar-color:[^;}]*transparent;/s);
+  assert.match(css, /\.sidebar-account-scroll\.has-scroll::-webkit-scrollbar,[\s\S]*\.sidebar-folder-scroll::-webkit-scrollbar\s*\{[^}]*width:\s*5px;[^}]*height:\s*0;/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-account-scroll\.has-scroll,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-folder-scroll\s*\{[^}]*scrollbar-width:\s*none;/s);
+});
+
+test('collapsed sidebar geometry keeps the 56px icon rail inside the bordered 72px shell', async () => {
+  const css = await read('src/styles/app-shell.css');
+
+  assert.match(css, /\.sidebar-account-scroll\s*\{[^}]*padding:\s*0;/s);
+  assert.match(css, /\.sidebar-folder-scroll\s*\{[^}]*padding:\s*0;/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-compose-action,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-mail-entry,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-account-row,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-folder-item\s*\{[^}]*width:\s*calc\(100% - 14px\);[^}]*margin:\s*0 7px;/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-compose-action \.sidebar-label-pane,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-mail-entry \.sidebar-label-pane,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-account-item \.sidebar-label-pane,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-folder-item \.sidebar-label-pane,[\s\S]*\.app-shell\.sidebar-collapsed \.sidebar-bottom \.sidebar-row \.sidebar-label-pane\s*\{[^}]*padding-left:\s*0;[^}]*padding-right:\s*0;/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-bottom\s*\{[^}]*padding-left:\s*7px;[^}]*padding-right:\s*7px;[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-profile-copy\s*\{[^}]*padding-left:\s*0;/s);
+  assert.match(css, /\.app-shell\.sidebar-collapsed \.sidebar-icon-rail\s*\{[^}]*width:\s*100%;/s);
 });
 
 test('desktop and mobile share one account and folder navigation tree', async () => {

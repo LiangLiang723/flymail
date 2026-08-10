@@ -49,6 +49,10 @@
   pointer-events: none;
 }
 
+.app-shell.sidebar-collapsed .sidebar-icon-rail {
+  width: 100%;
+}
+
 .sidebar-row,
 .sidebar-profile-trigger {
   width: 100%;
@@ -324,33 +328,35 @@ button.sidebar-compose-action:active:not(:disabled) {
   flex: 1;
   min-height: 0;
   padding: 10px 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 .sidebar-mail-navigation {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow: hidden;
 }
 
-.sidebar-mail-accounts,
-.sidebar-mail-folders {
+.sidebar-mail-accounts {
+  flex: 0 0 auto;
   min-width: 0;
-  padding: 0 4px;
+  overflow: hidden;
 }
 
 .sidebar-account-scroll {
+  min-width: 0;
   max-height: none;
-  overflow: visible;
+  padding: 0;
+  overflow: hidden;
 }
 
 .sidebar-account-scroll.has-scroll {
-  max-height: 264px;
+  max-height: 240px;
+  overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 .sidebar-section-title {
@@ -377,22 +383,79 @@ button.sidebar-compose-action:active:not(:disabled) {
 }
 
 .sidebar-mail-folders {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.sidebar-folder-letter {
-  width: 22px;
-  height: 22px;
+.sidebar-folder-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidebar-account-scroll.has-scroll,
+.sidebar-folder-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-text-3) 38%, transparent) transparent;
+}
+
+.sidebar-account-scroll.has-scroll::-webkit-scrollbar,
+.sidebar-folder-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 0;
+}
+
+.sidebar-account-scroll.has-scroll::-webkit-scrollbar-track,
+.sidebar-folder-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-account-scroll.has-scroll::-webkit-scrollbar-thumb,
+.sidebar-folder-scroll::-webkit-scrollbar-thumb {
+  border-radius: var(--ui-radius-round);
+  background: color-mix(in srgb, var(--ui-text-3) 38%, transparent);
+}
+
+.sidebar-account-scroll.has-scroll:hover::-webkit-scrollbar-thumb,
+.sidebar-folder-scroll:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ui-text-2) 52%, transparent);
+}
+
+.app-shell.sidebar-collapsed .sidebar-account-scroll.has-scroll,
+.app-shell.sidebar-collapsed .sidebar-folder-scroll {
+  scrollbar-width: none;
+}
+
+.app-shell.sidebar-collapsed .sidebar-account-scroll.has-scroll::-webkit-scrollbar,
+.app-shell.sidebar-collapsed .sidebar-folder-scroll::-webkit-scrollbar {
+  width: 0;
+}
+
+.sidebar-folder-glyph {
+  position: relative;
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-fill-muted);
-  color: var(--ui-text-2);
-  font-size: 12px;
-  font-weight: 700;
+}
+
+.sidebar-folder-initial {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  color: currentColor;
+  font-size: 7px;
+  font-weight: 750;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .sidebar-account-item {
@@ -485,6 +548,23 @@ button.sidebar-compose-action:active:not(:disabled) {
   display: none;
 }
 
+.app-shell.sidebar-collapsed .sidebar-compose-action,
+.app-shell.sidebar-collapsed .sidebar-mail-entry,
+.app-shell.sidebar-collapsed .sidebar-account-row,
+.app-shell.sidebar-collapsed .sidebar-folder-item {
+  width: calc(100% - 14px);
+  margin: 0 7px;
+}
+
+.app-shell.sidebar-collapsed .sidebar-compose-action .sidebar-label-pane,
+.app-shell.sidebar-collapsed .sidebar-mail-entry .sidebar-label-pane,
+.app-shell.sidebar-collapsed .sidebar-account-item .sidebar-label-pane,
+.app-shell.sidebar-collapsed .sidebar-folder-item .sidebar-label-pane,
+.app-shell.sidebar-collapsed .sidebar-bottom .sidebar-row .sidebar-label-pane {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .app-shell.sidebar-collapsed .sidebar-account-row.is-reauth .sidebar-account-copy {
   padding-right: 14px;
 }
@@ -505,6 +585,12 @@ button.sidebar-compose-action:active:not(:disabled) {
   flex: 0 0 auto;
   padding: 8px var(--sidebar-item-inset) 10px;
   border-top: 1px solid var(--ui-border);
+}
+
+.app-shell.sidebar-collapsed .sidebar-bottom {
+  padding-left: 7px;
+  padding-right: 7px;
+  overflow: hidden;
 }
 
 .sidebar-bottom .sidebar-row {
@@ -584,6 +670,7 @@ button.sidebar-compose-action:active:not(:disabled) {
 }
 
 .app-shell.sidebar-collapsed .sidebar-profile-copy {
+  padding-left: 0;
   visibility: hidden;
   opacity: 0;
 }

@@ -138,24 +138,29 @@
         aria-labelledby="sidebar-folders-title"
       >
         <h3 id="sidebar-folders-title" class="sidebar-section-title">文件夹</h3>
-        <button
-          v-for="folder in mailStore.folders"
-          :key="folder.path"
-          type="button"
-          class="sidebar-row sidebar-folder-item"
-          :class="{ active: currentView === 'mail' && mailStore.currentFolder === folder.path }"
-          :title="collapsed && !mobile ? mailStore.folderDisplayName(folder.name) : undefined"
-          @click="emit('select-folder', folder.path)"
-        >
-          <span class="sidebar-row-icon">
-            <span v-if="folderIconName(folder.name) === 'folder-letter'" class="sidebar-folder-letter">{{ folderLetter(folder.name) }}</span>
-            <AppIcon v-else :name="folderIconName(folder.name)" :size="17" />
-          </span>
-          <span class="sidebar-label-pane sidebar-folder-copy">
-            <span>{{ mailStore.folderDisplayName(folder.name) }}</span>
-            <small>{{ folderCount(folder) }}</small>
-          </span>
-        </button>
+        <div class="sidebar-folder-scroll">
+          <button
+            v-for="folder in mailStore.folders"
+            :key="folder.path"
+            type="button"
+            class="sidebar-row sidebar-folder-item"
+            :class="{ active: currentView === 'mail' && mailStore.currentFolder === folder.path }"
+            :title="collapsed && !mobile ? mailStore.folderDisplayName(folder.name) : undefined"
+            @click="emit('select-folder', folder.path)"
+          >
+            <span class="sidebar-row-icon">
+              <span v-if="folderIconName(folder.name) === 'folder'" class="sidebar-folder-glyph" aria-hidden="true">
+                <AppIcon name="folder" :size="18" />
+                <span class="sidebar-folder-initial">{{ folderLetter(folder.name) }}</span>
+              </span>
+              <AppIcon v-else :name="folderIconName(folder.name)" :size="17" />
+            </span>
+            <span class="sidebar-label-pane sidebar-folder-copy">
+              <span>{{ mailStore.folderDisplayName(folder.name) }}</span>
+              <small>{{ folderCount(folder) }}</small>
+            </span>
+          </button>
+        </div>
       </section>
     </div>
 
@@ -229,7 +234,7 @@ function folderIconName(name: string) {
     已删除: 'trash',
     已加星标: 'star',
   };
-  return icons[mailStore.folderDisplayName(name)] || 'folder-letter';
+  return icons[mailStore.folderDisplayName(name)] || 'folder';
 }
 
 function folderLetter(name: string) {
