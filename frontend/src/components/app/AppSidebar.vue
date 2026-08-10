@@ -91,6 +91,7 @@
     <div class="sidebar-scroll sidebar-mail-navigation">
       <section class="sidebar-mail-accounts" aria-labelledby="sidebar-accounts-title">
         <h3 id="sidebar-accounts-title" class="sidebar-section-title">邮箱账号</h3>
+        <div class="sidebar-account-scroll" :class="{ 'has-scroll': mailStore.accounts.length > 5 }">
         <p v-if="mailStore.accounts.length === 0" class="sidebar-empty-copy">暂无邮箱账号</p>
 
         <div
@@ -128,6 +129,7 @@
             <AppIcon name="sync" :size="15" />
           </button>
         </div>
+        </div>
       </section>
 
       <section
@@ -145,7 +147,10 @@
           :title="collapsed && !mobile ? mailStore.folderDisplayName(folder.name) : undefined"
           @click="emit('select-folder', folder.path)"
         >
-          <span class="sidebar-row-icon"><AppIcon :name="folderIconName(folder.name)" :size="17" /></span>
+          <span class="sidebar-row-icon">
+            <span v-if="folderIconName(folder.name) === 'folder-letter'" class="sidebar-folder-letter">{{ folderLetter(folder.name) }}</span>
+            <AppIcon v-else :name="folderIconName(folder.name)" :size="17" />
+          </span>
           <span class="sidebar-label-pane sidebar-folder-copy">
             <span>{{ mailStore.folderDisplayName(folder.name) }}</span>
             <small>{{ folderCount(folder) }}</small>
@@ -224,7 +229,11 @@ function folderIconName(name: string) {
     已删除: 'trash',
     已加星标: 'star',
   };
-  return icons[mailStore.folderDisplayName(name)] || 'folder';
+  return icons[mailStore.folderDisplayName(name)] || 'folder-letter';
+}
+
+function folderLetter(name: string) {
+  return String(mailStore.folderDisplayName(name) || name || '文').trim().slice(0, 1).toUpperCase();
 }
 
 function folderCount(folder: any) {

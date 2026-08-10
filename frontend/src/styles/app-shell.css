@@ -339,6 +339,18 @@ button.sidebar-compose-action:active:not(:disabled) {
 .sidebar-mail-accounts,
 .sidebar-mail-folders {
   min-width: 0;
+  padding: 0 4px;
+}
+
+.sidebar-account-scroll {
+  max-height: none;
+  overflow: visible;
+}
+
+.sidebar-account-scroll.has-scroll {
+  max-height: 264px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .sidebar-section-title {
@@ -362,6 +374,25 @@ button.sidebar-compose-action:active:not(:disabled) {
   position: relative;
   width: calc(100% - (2 * var(--sidebar-item-inset)));
   margin: 0 var(--sidebar-item-inset);
+}
+
+.sidebar-mail-folders {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-folder-letter {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill-muted);
+  color: var(--ui-text-2);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .sidebar-account-item {
@@ -395,6 +426,11 @@ button.sidebar-compose-action:active:not(:disabled) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar-folder-item .sidebar-row-icon {
+  display: grid;
+  place-items: center;
 }
 
 .sidebar-account-copy strong {
