@@ -1,0 +1,146 @@
+# FlyMail UI Design Contract
+
+`DESIGN.md` 是 FlyMail 用户界面设计、布局和交互约束的事实来源。它记录跨页面长期成立的设计不变量；单次功能为什么这样设计，继续记录在 `docs/superpowers/specs/`；用户可见能力记录在 README。
+
+> **核心不变量：状态可以改变内容，但不能无意改变工作区骨架。**
+
+任何前端 UI、布局、组件或视觉修改，都先阅读本文，再复用当前 PageFrame、共享组件和语义 token。不要用新的局部 CSS 规则掩盖既有布局问题。
+
+## 1. 稳定骨架
+
+- 应用壳、页面框架、页头、固定工具栏、导航行和固定控制行，不得由搜索词、筛选数量、邮箱地址、主题、路径、错误字符串等动态内容决定尺寸。
+- 桌面工具栏默认是一行稳定控制带。只有明确的响应式断点可以切换为多行、纵向或另一种结构，禁止依靠隐式 `flex-wrap` 让桌面布局“自己挤下去”。
+- 加载、空状态、筛选、同步状态等状态变化，不应造成工作区骨架跳动；产品明确要求展开内容区时除外。
+- 固定操作、图标、状态点和按钮不能被动态文字挤没，应使用固定轨道或 `flex-shrink: 0` 等等价约束。
+
+### 邮件工具栏的具体规则
+
+邮件工具栏的高级筛选状态只显示固定尺寸摘要，例如 **`筛选 N`**。完整条件在筛选浮层中查看和编辑。不得把数量不受控的筛选 chips 放进固定工具栏正常文档流中。
+
+## 2. 动态内容必须服从容器
+
+Flexbox/Grid 中的内容默认可能有基于内容的自动最小尺寸。FlyMail 的可变内容区域必须主动声明可收缩边界：
+
+```css
+.flexible-content {
+  min-width: 0;
+}
+
+.layout {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+```
+
+选择 overflow 策略时先判断内容用途，而不是统一截断：
+
+| 内容 | 默认策略 |
+|---|---|
+| 邮箱、名称、主题、紧凑标签等单行身份信息 | 限定容器 + ellipsis；必要时提供 `title` 或详情入口 |
+| 正文、帮助文字、错误说明 | 正常换行；无空格长字符串使用 `overflow-wrap: anywhere` |
+| 多个筛选、多个选中标签 | 数量摘要 + 渐进披露，不无限扩张固定控件 |
+| 表格、邮件正文等确实需要宽内容 | 交给明确的横向滚动 owner，不撑宽页面根节点 |
+
+可交互元素本身不要因为截断而隐藏操作语义；焦点、关闭按钮、删除按钮等必须始终可见、可达。
+
+## 3. 浮层不参与主布局
+
+高级筛选、菜单、下拉选项、日期选择器、上下文菜单等临时界面是浮层。**浮层不参与主布局尺寸计算**，使用项目现有的 absolute/fixed/overlay 模式，并满足：
+
+- 最大宽高受可用视口限制；长内容在浮层内部换行或滚动。
+- 打开浮层不能改变触发工具栏、页头或列表的高度。
+- 保留清晰的打开/关闭路径、`aria-expanded`/可访问名称、键盘焦点和 Escape 行为（适用时）。
+- 不为实现浮层新增第三方生产依赖；优先复用现有 Vue/CSS 能力。
+
+## 4. 滚动责任唯一
+
+继续遵守现有 PageFrame / UiScrollRegion 模型：
+
+- 普通 management/document 页面由页面主体负责纵向滚动。
+- workspace/split 页面由明确的列表、详情或面板负责滚动，页面根不滚动。
+- 一个视觉区域只能有一个主滚动 owner；禁止页面根、面板、列表同时争夺同一方向滚动。
+- 横向滚动必须出现在确实需要宽内容的局部区域，不允许产生页面级横向滚动。
+
+## 5. 设计 Token 与样式职责
+
+`frontend/src/styles/tokens.css` 是颜色、间距、控件尺寸、圆角、阴影、页面尺寸和运动参数的事实来源。
+
+- `tokens.css`：语义 token。
+- `base.css`：全局基础与无障碍偏好。
+- `components.css`：共享按钮、表单、徽标、状态和控件。
+- `app-shell.css`：应用壳、侧栏、全局浮层。
+- `layout-system.css`：PageFrame、PageToolbar、滚动和页面结构。
+- `page-system.css`：跨页面复用的工作台/列表/详情模式。
+- 页面 `<style scoped>`：只描述该页面独有结构。
+- `macos.css`：迁移兼容层，不新增新的设计规则。
+
+业务页面不要新增固定调色板；使用 `--ui-*` 语义 token 或当前兼容别名。新尺寸若会跨页面复用，应进入 token，而不是复制魔法数字。
+
+## 6. 响应式规则
+
+- 优先使用项目已有断点，不为单个控件创建非常接近的新断点。
+- 应用壳继续以 960px 为桌面侧栏/移动抽屉切换边界；业务页面继续沿用各自已经存在且经过测试的窄屏断点。
+- **390×844** 手机视口不得出现页面级横向溢出。
+- 桌面至少检查 1440×900 和 1920×1080；固定工具栏在不同状态数量下高度必须稳定。
+- 关键 UI 要检查 **200%** 页面缩放或等价字号增加，不能靠裁掉文字换取“看起来不变”。空间不够时应切换明确的响应式结构或渐进披露。
+
+## 7. 无障碍
+
+- 所有交互控件保留清晰 `:focus-visible`。
+- 纯图标控件必须有可访问名称。
+- 错误和状态不能只靠颜色表达。
+- 移动端主要触控目标遵守现有 `--touch-target: 44px`。
+- 截断不能让焦点、关闭、删除、确认等关键操作消失。
+- 支持项目现有的 reduced-motion、reduced-transparency 和高对比偏好。
+
+## 8. 极端内容是必测输入
+
+UI 改动不能只用“正常长度”验证。与动态内容有关时至少覆盖：
+
+- 一个很长、无空格的邮箱/令牌/文件路径。
+- 很长的中文名称、主题或错误说明。
+- 5 个以上筛选/标签/状态。
+- 390×844 手机宽度。
+- 1440/1920 桌面宽度。
+- 200% 缩放或等价字号增加。
+
+若动态内容可以把固定区域撑高、撑宽、遮挡按钮或制造新的页面滚动条，即视为布局缺陷。
+
+## 9. AI 修改 UI 的强制流程
+
+1. 先读 `DESIGN.md`，再读当前页面、最近相关设计文档和现有测试。
+2. 明确本次必须保持的布局不变量：谁固定、谁可收缩、谁滚动、谁是浮层。
+3. 先找现有 PageFrame、PageToolbar、UiScrollRegion、共享组件和 token，避免复制新的基础样式。
+4. Bug 先复现；能自动化时先写失败的布局契约测试。
+5. 做最小实现，不顺手重构旁边页面。
+6. 运行聚焦测试、前端全量测试和生产构建。
+7. 对布局改动做桌面、移动、极端内容和必要的 200% 缩放检查。
+8. 提交前检查是否引入页面级横向 overflow、重复 scroll owner、固定颜色、隐式 desktop wrap 或由动态内容决定的固定区尺寸。
+
+## 10. 设计决策速查
+
+**要做：**
+
+- `min-width: 0` / `minmax(0, 1fr)` 让动态内容真正服从 flex/grid 容器。
+- 固定动作 `flex-shrink: 0`。
+- 大量状态使用 `筛选 N`、`+N`、展开面板等渐进披露。
+- 完整信息进入内容区或浮层，固定工具栏只放短状态摘要。
+- 明确 scroll owner 和 responsive mode。
+
+**不要做：**
+
+- 在固定工具栏下面动态追加无限 chips，让工具栏高度随状态数量增长。
+- 用 desktop `flex-wrap: wrap` 掩盖空间分配问题。
+- 只在截图对应宽度上“挪几个像素”。
+- 对所有内容都强制 ellipsis，包括必须完整阅读的错误和说明。
+- 在业务页面写新的固定色板、公共按钮基础样式或页面级滚动规则。
+
+## 11. 官方参考
+
+这些资料用于解释本文原则，不代表 FlyMail 引入对应框架：
+
+- W3C CSS Flexible Box Layout Module Level 1: https://www.w3.org/TR/css-flexbox-1/
+- GitHub Primer Design Guidelines: https://primer.style/product/contribute/design/
+- GitHub Primer Truncation: https://primer.style/accessibility/patterns/truncation/
+- Carbon Design System — Overflow content: https://carbondesignsystem.com/patterns/overflow-content/
+- Radix Primitives — Popover: https://www.radix-ui.com/primitives/docs/components/popover
+- Ant Design — Select: https://ant.design/components/select-cn

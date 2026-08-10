@@ -20,6 +20,7 @@
         type="button"
         class="mail-search-action"
         :class="{ active: advancedOpen || activeLabels.length > 0 }"
+        :aria-label="activeLabels.length ? `筛选邮件，已应用 ${activeLabels.length} 个条件` : '筛选邮件'"
         :aria-expanded="advancedOpen"
         @click="advancedOpen = !advancedOpen"
       >
@@ -27,10 +28,6 @@
       </button>
       <button type="button" class="mail-search-primary" @click="emit('search')">搜索</button>
       <button v-if="hasFilters" type="button" class="mail-search-clear" @click="emit('clear')">清除</button>
-    </div>
-
-    <div v-if="activeLabels.length" class="mail-search-summary" aria-label="已应用筛选">
-      <span v-for="label in activeLabels" :key="label" class="search-chip">{{ label }}</span>
     </div>
 
     <div v-if="advancedOpen" class="mail-search-panel">
@@ -141,7 +138,9 @@ function applyAdvanced() {
 <style scoped>
 .mail-search-bar {
   position: relative;
-  min-width: min(560px, 52vw);
+  width: min(560px, 42vw);
+  max-width: 100%;
+  min-width: 0;
 }
 
 .mail-search-main {
@@ -153,7 +152,7 @@ function applyAdvanced() {
 .mail-search-input-wrap {
   position: relative;
   flex: 1;
-  min-width: 220px;
+  min-width: 0;
 }
 
 .mail-search-icon {
@@ -205,6 +204,7 @@ function applyAdvanced() {
   font: inherit;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mail-search-action.active {
@@ -233,25 +233,6 @@ function applyAdvanced() {
   background: var(--accent-blue);
   color: var(--ui-text-inverse);
   font-size: 11px;
-}
-
-.mail-search-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 7px;
-}
-
-.search-chip {
-  max-width: 190px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 12px;
 }
 
 .mail-search-panel {
@@ -318,7 +299,7 @@ function applyAdvanced() {
     min-width: 0;
   }
 
-  .mail-search-primary {
+  .mail-search-main > .mail-search-primary {
     display: none;
   }
 }

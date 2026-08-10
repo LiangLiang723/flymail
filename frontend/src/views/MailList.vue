@@ -1547,7 +1547,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .toolbar-right {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
