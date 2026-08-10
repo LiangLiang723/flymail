@@ -88,7 +88,7 @@ FLYMAIL_NO_PROXY=127.0.0.1,localhost
 
 当前仓库自带 `docker-compose.yml`，会：
 
-- 使用当前仓库源码构建 `benxianyu/flymail:0.0.46` 单容器镜像
+- 使用当前仓库源码构建 `benxianyu/flymail:0.0.47` 单容器镜像
 - 在镜像内部运行 FlyMail 与 MySQL 8.0
 - 读取根目录 `.env`
 - 将宿主机 `APP_PORT` 映射到容器 `8080`
@@ -131,7 +131,7 @@ docker compose down
 本地构建：
 
 ```bash
-docker build -t benxianyu/flymail:0.0.46 .
+docker build -t benxianyu/flymail:0.0.47 .
 ```
 
 登录 Docker Hub：
@@ -143,7 +143,7 @@ docker login
 推送镜像：
 
 ```bash
-docker push benxianyu/flymail:0.0.46
+docker push benxianyu/flymail:0.0.47
 ```
 
 ## 数据存储
