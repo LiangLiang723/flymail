@@ -1,5 +1,5 @@
 <template>
-  <div class="mail-search-bar">
+  <div ref="searchRoot" class="mail-search-bar">
     <div class="mail-search-main">
       <div class="mail-search-input-wrap">
         <svg class="mail-search-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { MailSearchState } from '../../types/mail';
 import { hasMailSearchFilters } from '../../utils/mail-search';
 
@@ -94,6 +94,7 @@ const emit = defineEmits<{
 }>();
 
 const advancedOpen = ref(false);
+const searchRoot = ref<HTMLElement | null>(null);
 type TextField = 'keyword' | 'fromAddr' | 'toAddr' | 'subject' | 'body' | 'after' | 'before';
 type BooleanField = 'attachmentOnly' | 'starredOnly';
 
@@ -129,10 +130,30 @@ function updateBoolean(field: BooleanField, event: Event) {
   emit('update:modelValue', { ...props.modelValue, [field]: value });
 }
 
+function handlePointerDown(event: PointerEvent) {
+  if (advancedOpen.value && searchRoot.value && !searchRoot.value.contains(event.target as Node)) {
+    advancedOpen.value = false;
+  }
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') advancedOpen.value = false;
+}
+
 function applyAdvanced() {
   advancedOpen.value = false;
   emit('search');
 }
+
+onMounted(() => {
+  window.addEventListener('pointerdown', handlePointerDown);
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('pointerdown', handlePointerDown);
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <style scoped>

@@ -27,6 +27,22 @@ test('applied search filters stay inside a fixed-height toolbar control', async 
   );
 });
 
+test('advanced search panel closes on outside pointer and Escape while preserving inside clicks', async () => {
+  const searchSource = await readSource('src/components/mail/MailSearchBar.vue');
+
+  assert.match(searchSource, /ref="searchRoot"/);
+  assert.match(searchSource, /const searchRoot = ref<HTMLElement \| null>\(null\)/);
+  assert.match(
+    searchSource,
+    /advancedOpen\.value && searchRoot\.value && !searchRoot\.value\.contains\(event\.target as Node\)[\s\S]*advancedOpen\.value = false/,
+  );
+  assert.match(searchSource, /event\.key === 'Escape'[^\n]*advancedOpen\.value = false/);
+  assert.match(searchSource, /window\.addEventListener\('pointerdown', handlePointerDown\)/);
+  assert.match(searchSource, /window\.removeEventListener\('pointerdown', handlePointerDown\)/);
+  assert.match(searchSource, /window\.addEventListener\('keydown', handleKeydown\)/);
+  assert.match(searchSource, /window\.removeEventListener\('keydown', handleKeydown\)/);
+});
+
 test('desktop mail toolbar never relies on implicit wrapping for search controls', async () => {
   const mailListSource = await readSource('src/views/MailList.vue');
 
