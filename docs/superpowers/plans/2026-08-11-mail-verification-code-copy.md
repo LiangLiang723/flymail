@@ -36,7 +36,7 @@
 Tests must cover:
 
 ```python
-self.assertEqual(extract(subject="83840212 是您的验证码"), "83840212")
+self.assertEqual(extract(subject="24681357 是您的验证码"), "24681357")
 self.assertEqual(extract(subject="登录验证", body_text="您的验证码是 123-456"), "123456")
 self.assertEqual(extract(body_text="Your verification code is 654321."), "654321")
 self.assertEqual(extract(body_html="<p>Security code: <strong>778899</strong></p>"), "778899")

@@ -17,7 +17,8 @@ _NEIGHBORHOOD = 80
 
 _STRONG_POSITIVE_RE = re.compile(
     r"(?:"
-    r"验证码|校验码|动态码|动态密码|一次性密码|安全码|认证码|登录码|确认码|"
+    r"验证码|验证代码|校验码|动态码|动态密码|一次性密码|安全码|认证码|登录码|确认码|"
+    r"验证(?:自己|您|你)?的?身份|"
     r"\botp\b|\bpasscode\b|\bverification(?:\s+code)?\b|"
     r"\bsecurity\s+code\b|\bauthentication\s+code\b|"
     r"\bauth(?:entication)?\s+code\b|\blogin\s+code\b|"

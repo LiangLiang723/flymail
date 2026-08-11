@@ -251,14 +251,14 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             2: {"body_text": "Your verification code is 654321.", "body_html": ""},
         })
         rows = [
-            {"id": "m1", "uid": 1, "subject": "83840212 是您的验证码"},
+            {"id": "m1", "uid": 1, "subject": "24681357 是您的验证码"},
             {"id": "m2", "uid": 2, "subject": "登录提醒"},
             {"id": "m3", "uid": 3, "subject": "订单 123456 已发货"},
         ]
 
         await decorator(rows, "user-1", "account-1", "INBOX")
 
-        self.assertEqual(rows[0]["verification_code"], "83840212")
+        self.assertEqual(rows[0]["verification_code"], "24681357")
         self.assertEqual(rows[1]["verification_code"], "654321")
         self.assertEqual(rows[2]["verification_code"], "")
         messages.get_cached_verification_sources.assert_awaited_once_with(

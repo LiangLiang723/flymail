@@ -18,7 +18,7 @@ FlyMail 采用第 2 类思路：后端 Python 标准库实现上下文感知解�
 
 - 输入优先级：主题 > 纯文本正文 > HTML 转文本。
 - 第一版验证码为 4–8 位数字；支持连续数字以及常见空格/短横线分组形式，返回时移除分隔符。
-- 正向上下文覆盖中文验证码、校验码、动态码、动态密码、一次性密码、安全码、认证码、登录码、确认码，以及英文 OTP、verification code、security code、authentication code、login code、confirmation code、passcode、PIN、one-time code/password 等。
+- 正向上下文覆盖中文验证码、验证代码、验证身份、校验码、动态码、动态密码、一次性密码、安全码、认证码、登录码、确认码，以及英文 OTP、verification code、security code、authentication code、login code、confirmation code、passcode、PIN、one-time code/password 等。
 - 候选码必须靠近正向上下文；越近优先级越高。
 - 订单、发票、物流、电话、金额、优惠券、邀请码、日期等负向上下文降低或取消候选优先级。
 - 明显日期片段和嵌在更长数字串中的片段不作为验证码。
@@ -54,7 +54,7 @@ FlyMail 采用第 2 类思路：后端 Python 标准库实现上下文感知解�
 
 ## 验收
 
-1. `83840212 是您的验证码` 能从主题识别为 `83840212`。
+1. `24681357 是您的验证码` 与 Atlassian 风格模板 `24681357 是您的验证代码` 都能从主题识别为 `24681357`；正文只有“需要验证自己的身份 / 请输入以下代码：24681357”时也能识别。
 2. `您的验证码是 123-456` 返回 `123456`。
 3. 只有正文出现 `Your verification code is 654321` 时可识别。
 4. HTML 正文中的验证码可识别。

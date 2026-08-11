@@ -1,6 +1,6 @@
 {
   "name": "flymail",
-  "version": "0.0.49",
+  "version": "0.0.50",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",

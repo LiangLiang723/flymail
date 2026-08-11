@@ -14,8 +14,28 @@ class VerificationCodeTests(unittest.TestCase):
 
     def test_extracts_code_before_chinese_keyword_in_subject(self):
         self.assertEqual(
-            self.extract(subject="83840212 是您的验证码【请注意，请勿泄露】"),
-            "83840212",
+            self.extract(subject="24681357 是您的验证码【请注意，请勿泄露】"),
+            "24681357",
+        )
+
+    def test_extracts_atlassian_chinese_verification_code_subject(self):
+        self.assertEqual(
+            self.extract(
+                subject="24681357 是您的验证代码【请注意，请勿泄露】"
+            ),
+            "24681357",
+        )
+
+    def test_extracts_atlassian_identity_verification_body(self):
+        self.assertEqual(
+            self.extract(
+                body_text=(
+                    "测试用户，您好。\n"
+                    "作为额外的安全防护层，您需要验证自己的身份。\n"
+                    "请输入以下代码：\n\n24681357"
+                )
+            ),
+            "24681357",
         )
 
     def test_extracts_and_normalizes_grouped_code_after_keyword(self):
