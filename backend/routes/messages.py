@@ -20,6 +20,7 @@ from db import (
     get_cached_is_read,
     get_cached_message_detail,
     get_cached_messages_by_folder,
+    get_cached_verification_sources,
     get_conversation_messages,
     get_folder_filter_counts,
     get_message_conversations,
@@ -89,6 +90,7 @@ from services.attachment_cache import (
     write_transient_download,
 )
 from services.message_search import parse_message_search
+from services.verification_code import extract_verification_code
 from services.sync import sync_service
 from services.sync_coordinator import sync_coordinator
 from services.token import ensure_token as ensure_account_token
@@ -228,6 +230,43 @@ async def _resolve_remote_folder(receiver, folder: str) -> str:
     return requested
 
 
+async def _decorate_verification_codes(
+    items: list[dict],
+    user_uid: str,
+    account_id: str,
+    folder: str,
+) -> None:
+    """Attach locally derived verification codes without exposing cached bodies."""
+    unresolved_uids: list[int] = []
+    by_uid: dict[int, dict] = {}
+    for item in items:
+        code = extract_verification_code(subject=str(item.get("subject") or ""))
+        item["verification_code"] = code
+        uid = int(item.get("uid") or 0)
+        if not code and uid > 0:
+            unresolved_uids.append(uid)
+            by_uid[uid] = item
+
+    if not unresolved_uids:
+        return
+
+    sources = await get_cached_verification_sources(
+        user_uid,
+        account_id,
+        folder,
+        unresolved_uids,
+    )
+    for uid, source in sources.items():
+        item = by_uid.get(int(uid))
+        if not item:
+            continue
+        item["verification_code"] = extract_verification_code(
+            subject=str(item.get("subject") or ""),
+            body_text=str(source.get("body_text") or ""),
+            body_html=str(source.get("body_html") or ""),
+        )
+
+
 def _message_to_item(message, account_id: str) -> dict:
     return {
         "id": f"{account_id}_{message.uid}",
@@ -257,6 +296,11 @@ def _message_to_item(message, account_id: str) -> dict:
         "in_reply_to": getattr(message, "in_reply_to", "") or "",
         "references_header": getattr(message, "references_header", "") or "",
         "thread_key": getattr(message, "thread_key", "") or "",
+        "verification_code": extract_verification_code(
+            subject=message.subject or "",
+            body_text=message.body_text or "",
+            body_html=message.body_html or "",
+        ),
         "account_id": account_id,
     }
 
@@ -708,6 +752,7 @@ async def _load_local_messages(
             read_filter=read_filter,
             attachment_filter=attachment_filter,
         )
+    await _decorate_verification_codes(data.get("messages", []), user_uid, account.id, folder)
     filter_counts = await get_folder_filter_counts(user_uid, account.id, folder)
     return _build_list_response(data, account.id, filter_counts)
 
@@ -1012,6 +1057,7 @@ async def list_message_conversations(
         before=before or parsed.before,
         starred_filter=starred_filter or parsed.starred,
     )
+    await _decorate_verification_codes(data.get("messages", []), user_uid, account.id, folder)
     data["account_id"] = account.id
     data["filter_counts"] = await get_folder_filter_counts(user_uid, account.id, folder)
     return data

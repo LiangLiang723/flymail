@@ -52,6 +52,7 @@ def _load_messages_route_module():
         "get_cached_is_read",
         "get_cached_message_detail",
         "get_cached_messages_by_folder",
+        "get_cached_verification_sources",
         "get_conversation_messages",
         "get_folder_filter_counts",
         "get_message_conversations",
@@ -242,6 +243,43 @@ def _load_messages_route_module():
 
 
 class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
+    async def test_verification_code_decoration_uses_subject_then_scoped_cached_body(self):
+        messages = _load_messages_route_module()
+        decorator = getattr(messages, "_decorate_verification_codes", None)
+        self.assertTrue(callable(decorator), "_decorate_verification_codes is not implemented")
+        messages.get_cached_verification_sources = AsyncMock(return_value={
+            2: {"body_text": "Your verification code is 654321.", "body_html": ""},
+        })
+        rows = [
+            {"id": "m1", "uid": 1, "subject": "83840212 是您的验证码"},
+            {"id": "m2", "uid": 2, "subject": "登录提醒"},
+            {"id": "m3", "uid": 3, "subject": "订单 123456 已发货"},
+        ]
+
+        await decorator(rows, "user-1", "account-1", "INBOX")
+
+        self.assertEqual(rows[0]["verification_code"], "83840212")
+        self.assertEqual(rows[1]["verification_code"], "654321")
+        self.assertEqual(rows[2]["verification_code"], "")
+        messages.get_cached_verification_sources.assert_awaited_once_with(
+            "user-1", "account-1", "INBOX", [2, 3]
+        )
+
+    async def test_remote_message_item_includes_subject_verification_code(self):
+        messages = _load_messages_route_module()
+        message = Message(
+            id="remote-1",
+            uid=9,
+            subject="验证码：445566",
+            from_addr="sender@example.com",
+            to_addr="me@example.com",
+            date="2026-08-11T00:00:00Z",
+        )
+
+        item = messages._message_to_item(message, "account-1")
+
+        self.assertEqual(item.get("verification_code"), "445566")
+
     async def test_cached_list_uses_stable_database_id(self):
         messages = _load_messages_route_module()
         payload = {

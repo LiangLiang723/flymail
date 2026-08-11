@@ -241,6 +241,7 @@ class MessageItem(BaseModel):
     thread_key: str = Field(default="", description="会话线程键")
     message_count: int = Field(default=1, description="会话内邮件数量")
     unread_count: int = Field(default=0, description="会话内未读邮件数量")
+    verification_code: str = Field(default="", description="识别到的验证码")
     account_id: str = Field(default="", description="账号ID")
     account_email: str = Field(default="", description="账号邮箱")
     account_provider: str = Field(default="", description="邮箱平台")

@@ -33,6 +33,7 @@ export interface Message {
   thread_key?: string
   message_count?: number
   unread_count?: number
+  verification_code?: string
   account_id?: string
   account_email?: string
   account_provider?: string

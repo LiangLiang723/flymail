@@ -146,12 +146,16 @@
 
       <!-- 邮件列表 -->
       <div v-else class="list-items">
-        <button
+        <div
           v-for="msg in messages"
           :key="msg.id"
           class="mail-item"
           :class="{ unread: !noReadStateFolder && (listMode === 'conversations' ? (msg.unread_count || 0) > 0 : !msg.is_read), selected: selectMode && selectedIds.has(msg.id) }"
-          @click="selectMode ? toggleSelect(msg.id) : (listMode === 'conversations' ? selectConversation(msg) : selectMessage(msg))"
+          role="button"
+          tabindex="0"
+          @click="openMessageRow(msg)"
+          @keydown.enter.self="openMessageRow(msg)"
+          @keydown.space.prevent.self="openMessageRow(msg)"
           @mouseenter="prefetchMessage(msg)"
           @contextmenu.prevent="listMode === 'messages' && enterSelectMode(msg.id)"
         >
@@ -178,13 +182,22 @@
               <svg v-if="msg.has_attachments" class="att-badge" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             </div>
           </div>
+          <button
+            v-if="msg.verification_code && !selectMode"
+            class="verification-code-copy"
+            type="button"
+            :aria-label="`复制验证码 ${msg.verification_code}`"
+            @click.stop="copyVerificationCode(msg.verification_code)"
+          >
+            复制验证码
+          </button>
           <!-- 已读/未读标签 -->
           <UiBadge v-if="!noReadStateFolder" :tone="listMode === 'conversations' ? ((msg.unread_count || 0) > 0 ? 'accent' : 'neutral') : (msg.is_read ? 'neutral' : 'accent')" class="mail-status-tag">
             {{ listMode === 'conversations' ? ((msg.unread_count || 0) > 0 ? `未读 ${msg.unread_count}` : '已读') : (msg.is_read ? '已读' : '未读') }}
           </UiBadge>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
-        </button>
+        </div>
       </div>
 
       <div v-if="!selectMode && mailStore.currentAccountId" class="pagination" :class="{ mobile: isMobile }">
@@ -1059,6 +1072,54 @@ async function loadMessages(preserveVisible = false) {
       if (!rebuilding.value) syncing.value = false;
       // 列表加载完成后，后台批量预取当前页邮件正文
       nextTick(() => { prefetchVisibleMessages(); });
+    }
+  }
+}
+
+function openMessageRow(msg: Message) {
+  if (selectMode.value) {
+    toggleSelect(msg.id);
+    return;
+  }
+  if (listMode.value === 'conversations') {
+    void selectConversation(msg);
+    return;
+  }
+  void selectMessage(msg);
+}
+
+function copyVerificationCodeLegacy(code: string): boolean {
+  const textarea = document.createElement('textarea');
+  textarea.value = code;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    return document.execCommand('copy');
+  } finally {
+    textarea.remove();
+  }
+}
+
+async function copyVerificationCode(code: string) {
+  const value = String(code || '').trim();
+  if (!value) return;
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(code);
+    } else if (!copyVerificationCodeLegacy(value)) {
+      throw new Error('clipboard unavailable');
+    }
+    uiStore.success('验证码已复制');
+  } catch (_error) {
+    try {
+      if (!copyVerificationCodeLegacy(value)) throw new Error('legacy clipboard failed');
+      uiStore.success('验证码已复制');
+    } catch (_fallbackError) {
+      uiStore.error('复制验证码失败');
     }
   }
 }
@@ -1994,6 +2055,11 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: var(--bg-hover);
 }
 
+.mail-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .mail-item.unread .mail-from {
   font-weight: var(--font-semibold);
   color: var(--text-primary);
@@ -2196,6 +2262,38 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   white-space: nowrap;
   width: 64px;
   text-align: right;
+}
+
+.verification-code-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 78px;
+  height: 28px;
+  margin: 0 10px;
+  padding: 0 9px;
+  border: 1px solid var(--border-color-strong);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--font-medium);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.verification-code-copy:hover {
+  border-color: var(--color-accent);
+  background: var(--bg-active);
+}
+
+.verification-code-copy:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* 已读/未读标签（日期前一列，固定宽度） */
@@ -3170,7 +3268,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "select sender date"
-      "select info info";
+      "select info code";
     column-gap: 8px;
     row-gap: 5px;
     padding: 10px 12px 10px 17px;
@@ -3222,6 +3320,16 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   .mail-status-icon,
   .mail-status-tag {
     display: none;
+  }
+
+  .verification-code-copy {
+    grid-area: code;
+    align-self: center;
+    min-width: 72px;
+    height: 26px;
+    margin: 0;
+    padding: 0 8px;
+    font-size: 11px;
   }
 
   .mail-date {

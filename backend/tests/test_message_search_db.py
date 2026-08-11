@@ -154,6 +154,37 @@ class MessageSearchDbTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(params[1], "acc-1")
         self.assertEqual([item["uid"] for item in result], [1, 2])
 
+    async def test_verification_source_lookup_is_scoped_and_bounded(self):
+        fake = _DB([
+            _Cursor(rows=[
+                (42, "Your verification code is 654321.", "<p>Security code: 778899</p>"),
+            ]),
+        ])
+        lookup = getattr(db, "get_cached_verification_sources", None)
+        self.assertTrue(callable(lookup), "get_cached_verification_sources is not implemented")
+        with patch.object(db, "get_db", new=AsyncMock(return_value=fake)):
+            result = await lookup("user-1", "acc-1", "INBOX", [42, 42, 0, -1])
+
+        sql, params = fake.calls[0]
+        normalized = " ".join(sql.split())
+        self.assertIn("user_uid = ?", normalized)
+        self.assertIn("account_id = ?", normalized)
+        self.assertIn("folder IN", normalized)
+        self.assertIn("uid IN", normalized)
+        self.assertIn("LEFT(COALESCE(body_text, ''),", normalized)
+        self.assertIn("LEFT(COALESCE(body_html, ''),", normalized)
+        self.assertEqual(params[0:2], ["user-1", "acc-1"])
+        self.assertEqual(params[-1], 42)
+        self.assertEqual(
+            result,
+            {
+                42: {
+                    "body_text": "Your verification code is 654321.",
+                    "body_html": "<p>Security code: 778899</p>",
+                }
+            },
+        )
+
     async def test_upsert_persists_thread_columns(self):
         fake = _DB([_Cursor(rowcount=1)])
         message = CachedMessage(

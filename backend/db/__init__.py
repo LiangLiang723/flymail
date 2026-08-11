@@ -24,6 +24,8 @@ DB_CONNECT_RETRY_COUNT = 15
 DB_CONNECT_RETRY_DELAY = 2
 DB_MESSAGE_BODY_MAX_BYTES = 1024 * 1024
 DB_EXECUTEMANY_MAX_BYTES = 2 * 1024 * 1024
+VERIFICATION_BODY_TEXT_MAX_CHARS = 12000
+VERIFICATION_BODY_HTML_MAX_CHARS = 24000
 
 
 def _parse_database_url(database_url: str) -> dict[str, Any]:
@@ -2280,6 +2282,41 @@ async def get_cached_is_read(account_id: str, uid: int, folder: str) -> Optional
     )
     row = await cursor.fetchone()
     return bool(row[0]) if row else None
+
+
+async def get_cached_verification_sources(
+    user_uid: str,
+    account_id: str,
+    folder: str,
+    uids: list[int],
+) -> dict[int, dict[str, str]]:
+    """Return bounded cached body snippets for verification-code detection."""
+    requested = list(dict.fromkeys(int(uid) for uid in uids if int(uid) > 0))
+    if not requested:
+        return {}
+    aliases = _expand_folder_aliases(folder)
+    folder_placeholders = ",".join("?" * len(aliases))
+    uid_placeholders = ",".join("?" * len(requested))
+    db = await get_db()
+    cursor = await db.execute(
+        f'''SELECT uid,
+                   LEFT(COALESCE(body_text, ''), {VERIFICATION_BODY_TEXT_MAX_CHARS}),
+                   LEFT(COALESCE(body_html, ''), {VERIFICATION_BODY_HTML_MAX_CHARS})
+            FROM cached_messages
+            WHERE user_uid = ? AND account_id = ?
+              AND folder IN ({folder_placeholders})
+              AND uid IN ({uid_placeholders})''',
+        [user_uid, account_id] + aliases + requested,
+    )
+    rows = await cursor.fetchall()
+    return {
+        int(row[0]): {
+            "body_text": row[1] or "",
+            "body_html": row[2] or "",
+        }
+        for row in rows
+        if row and row[0] is not None
+    }
 
 
 async def get_cached_message_detail(account_id: str, uid: int, folder: str):
