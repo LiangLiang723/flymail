@@ -23,10 +23,8 @@
             <span class="picker-label">{{ mailStore.currentFolderName }}</span>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <!-- 桌面端：文件夹名+数量 -->
-          <span v-else class="list-count">
-            {{ mailStore.currentFolderName }} · {{ noReadStateFolder ? `全部 ${filterCounts.all}` : `未读 ${currentFolderUnreadCount}` }}
-          </span>
+          <!-- 桌面端：当前文件夹上下文 -->
+          <span v-else class="list-count">{{ mailStore.currentFolderName }}</span>
           <!-- 列表模式 + 快速筛选 -->
           <span class="toolbar-divider"></span>
           <div class="list-mode-switch" aria-label="邮件显示方式">
@@ -175,7 +173,6 @@
             <div class="mail-main-row">
               <!-- 中列：已读/未读图标 + 主题 + 附件 -->
               <svg v-if="!noReadStateFolder && !msg.is_read" class="mail-status-icon unread-icon" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-              <svg v-else-if="!noReadStateFolder" class="mail-status-icon read-icon" width="16" height="16" viewBox="0 0 1024 1024" fill="currentColor"><path d="M461.816 79.279c30.333-20.364 69.97-20.373 100.311-0.021l384.19 257.69c9.256 6.208 13.947 16.672 13.216 27.044 0.108 1.548 0.096 3.1-0.034 4.64 0.33 1.778 0.501 3.61 0.501 5.483v495.903C960 919.714 919.706 960 870 960H154c-49.706 0-90-40.286-90-89.982V374.115c0-2.663 0.347-5.245 0.999-7.704-0.004-0.803 0.025-1.608 0.086-2.412-0.804-10.432 3.883-20.985 13.191-27.234z m70.259 519.057c-11.417-10.283-28.76-10.278-40.171 0.012L157.358 900.01h709.674zM124 425.237v424.071L381.796 616.85 124 425.237z m776 0.224L642.268 616.842 900 848.964V425.461zM528.7 129.074a30.005 30.005 0 0 0-33.437 0.007L143.678 365.114l283.558 210.762 24.483-22.075c33.891-30.56 85.223-30.88 119.48-0.952l1.034 0.916 24.56 22.121 283.833-210.763z"/></svg>
               <span class="mail-subject">{{ msg.subject || '(无主题)' }}</span>
               <span v-if="listMode === 'conversations' && (msg.message_count || 1) > 1" class="conversation-count">{{ msg.message_count }}</span>
               <!-- 附件图标 -->
@@ -191,9 +188,13 @@
           >
             复制验证码
           </button>
-          <!-- 已读/未读标签 -->
-          <UiBadge v-if="!noReadStateFolder" :tone="listMode === 'conversations' ? ((msg.unread_count || 0) > 0 ? 'accent' : 'neutral') : (msg.is_read ? 'neutral' : 'accent')" class="mail-status-tag">
-            {{ listMode === 'conversations' ? ((msg.unread_count || 0) > 0 ? `未读 ${msg.unread_count}` : '已读') : (msg.is_read ? '已读' : '未读') }}
+          <!-- 未读状态标签；已读是默认状态，不重复显示 -->
+          <UiBadge
+            v-if="!noReadStateFolder && (listMode === 'conversations' ? (msg.unread_count || 0) > 0 : !msg.is_read)"
+            tone="accent"
+            class="mail-status-tag"
+          >
+            {{ listMode === 'conversations' ? `未读 ${msg.unread_count}` : '未读' }}
           </UiBadge>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
@@ -3069,6 +3070,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   position: relative;
   min-height: 56px;
   padding: 9px 14px 9px 18px;
+  border-bottom-color: color-mix(in srgb, var(--border-color) 58%, transparent);
   background: transparent;
 }
 
@@ -3097,10 +3099,14 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   background: var(--bg-active);
 }
 
-.mail-item:not(.unread) .mail-from,
+.mail-item:not(.unread) .mail-from {
+  color: var(--text-secondary);
+  font-weight: var(--font-normal);
+}
+
 .mail-item:not(.unread) .mail-subject,
 .mail-item:not(.unread) .mail-date {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
 }
 
 .mail-item:not(.unread) .mail-avatar {
@@ -3122,23 +3128,16 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   color: var(--color-accent);
 }
 
-.mail-status-icon.read-icon {
-  display: none;
-}
-
 .mail-status-tag {
-  width: 40px;
+  width: auto;
+  min-width: 40px;
+  padding-inline: 6px;
   border-radius: 5px;
 }
 
 .mail-status-tag.unread {
   background: var(--color-accent-lighter);
   color: var(--color-accent);
-}
-
-.mail-status-tag.read {
-  background: transparent;
-  color: var(--text-tertiary);
 }
 
 .mail-date {

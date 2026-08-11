@@ -306,14 +306,12 @@ button.sidebar-compose-action:active:not(:disabled) {
 }
 
 .sidebar-mail-entry.active,
-.sidebar-account-item.active,
 .sidebar-folder-item.active {
   background: var(--ui-fill-selected);
   color: var(--ui-accent);
 }
 
 .sidebar-mail-entry.active .sidebar-row-icon::before,
-.sidebar-account-item.active .sidebar-row-icon::before,
 .sidebar-folder-item.active .sidebar-row-icon::before {
   content: "";
   position: absolute;
@@ -466,7 +464,7 @@ button.sidebar-compose-action:active:not(:disabled) {
   font-size: var(--ui-text-sm);
 }
 
-.sidebar-account-item.is-context:not(.active) {
+.sidebar-account-item.is-context {
   background: var(--ui-fill-muted);
   color: var(--ui-text-1);
 }

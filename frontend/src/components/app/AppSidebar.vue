@@ -104,7 +104,6 @@
             type="button"
             class="sidebar-row sidebar-account-item"
             :class="{
-              active: currentView === 'mail' && mailStore.currentAccountId === account.id,
               'is-context': mailStore.currentAccountId === account.id,
             }"
             :title="collapsed && !mobile ? accountDisplayName(account) : account.email"
