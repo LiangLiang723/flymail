@@ -184,9 +184,13 @@
             class="verification-code-copy"
             type="button"
             :aria-label="`复制验证码 ${msg.verification_code}`"
+            title="复制验证码"
             @click.stop="copyVerificationCode(msg.verification_code)"
           >
-            复制验证码
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
           </button>
           <!-- 未读状态标签；已读是默认状态，不重复显示 -->
           <UiBadge
@@ -1982,9 +1986,9 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .list-count {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  font-weight: var(--font-medium);
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: var(--font-semibold);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -2270,26 +2274,23 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  min-width: 78px;
+  width: 28px;
+  min-width: 28px;
   height: 28px;
-  margin: 0 10px;
-  padding: 0 9px;
-  border: 1px solid var(--border-color-strong);
+  margin: 0 8px;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 7px;
-  background: var(--bg-secondary);
-  color: var(--color-accent);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: var(--font-medium);
-  line-height: 1;
-  white-space: nowrap;
+  background: transparent;
+  color: var(--text-tertiary);
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .verification-code-copy:hover {
-  border-color: var(--color-accent);
-  background: var(--bg-active);
+  border-color: var(--border-color);
+  background: var(--bg-hover);
+  color: var(--color-accent);
 }
 
 .verification-code-copy:focus-visible {
@@ -3070,7 +3071,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   position: relative;
   min-height: 56px;
   padding: 9px 14px 9px 18px;
-  border-bottom-color: color-mix(in srgb, var(--border-color) 58%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--border-color) 36%, transparent);
   background: transparent;
 }
 
@@ -3114,9 +3115,9 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-sender {
-  width: 190px;
-  gap: 11px;
-  padding-right: 16px;
+  width: 165px;
+  gap: 9px;
+  padding-right: 12px;
 }
 
 .mail-avatar {
@@ -3324,11 +3325,11 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   .verification-code-copy {
     grid-area: code;
     align-self: center;
-    min-width: 72px;
-    height: 26px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
     margin: 0;
-    padding: 0 8px;
-    font-size: 11px;
+    padding: 0;
   }
 
   .mail-date {

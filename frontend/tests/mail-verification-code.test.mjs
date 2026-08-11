@@ -20,8 +20,9 @@ test('mail rows render a real copy button without nesting buttons', async () => 
   assert.doesNotMatch(source, /<button[\s\S]{0,240}class="mail-item"/s);
   assert.match(source, /v-if="msg\.verification_code && !selectMode"/);
   assert.match(source, /class="verification-code-copy"/);
-  assert.match(source, /@click\.stop="copyVerificationCode\(msg\.verification_code\)"/);
-  assert.match(source, />\s*复制验证码\s*<\/button>/s);
+  assert.match(source, /class="verification-code-copy"[\s\S]*title="复制验证码"[\s\S]*@click\.stop="copyVerificationCode\(msg\.verification_code\)"/s);
+  assert.match(source, /class="verification-code-copy"[\s\S]*<svg[^>]*aria-hidden="true"/s);
+  assert.doesNotMatch(source, /class="verification-code-copy"[\s\S]{0,500}>\s*复制验证码\s*<\/button>/s);
 });
 
 test('verification code copy action is keyboard safe and does not open the mail row', async () => {
@@ -39,8 +40,12 @@ test('copy button stays fixed while subject owns shrinking on desktop and mobile
   const source = await read('src/views/MailList.vue');
 
   assert.match(source, /\.verification-code-copy\s*\{[^}]*flex-shrink:\s*0;/s);
+  assert.match(source, /\.verification-code-copy\s*\{[^}]*width:\s*28px;[^}]*min-width:\s*28px;[^}]*height:\s*28px;/s);
+  assert.match(source, /\.verification-code-copy\s*\{[^}]*color:\s*var\(--text-tertiary\);/s);
+  assert.doesNotMatch(source, /\.verification-code-copy\s*\{[^}]*min-width:\s*78px;/s);
   assert.match(source, /\.mail-subject\s*\{[^}]*min-width:\s*0;/s);
-  assert.match(source, /@media \(max-width:\s*768px\)[\s\S]*\.verification-code-copy\s*\{[^}]*grid-area:\s*code;/s);
+  assert.match(source, /@media \(max-width:\s*768px\)[\s\S]*\.verification-code-copy\s*\{[^}]*grid-area:\s*code;[^}]*width:\s*28px;[^}]*min-width:\s*28px;[^}]*height:\s*28px;/s);
+  assert.doesNotMatch(source, /@media \(max-width:\s*768px\)[\s\S]*\.verification-code-copy\s*\{[^}]*min-width:\s*72px;/s);
   assert.match(source, /@media \(max-width:\s*768px\)[\s\S]*grid-template-areas:[\s\S]*"select info code"/s);
   assert.match(source, /@media \(max-width:\s*768px\)[\s\S]*\.list-items\s*\{[^}]*overflow-x:\s*hidden;/s);
 });

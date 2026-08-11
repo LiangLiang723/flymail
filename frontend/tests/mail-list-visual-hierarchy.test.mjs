@@ -13,6 +13,7 @@ test('mail list keeps search on the desktop toolbar and removes duplicate folder
   assert.match(mail, /<span v-else class="list-count">\s*\{\{ mailStore\.currentFolderName \}\}\s*<\/span>/s);
   assert.match(mail, /<div class="toolbar-right">[\s\S]*<MailSearchBar/s);
   assert.match(mail, /\.toolbar-right\s*\{[^}]*flex-wrap:\s*nowrap;[^}]*justify-content:\s*flex-end;/s);
+  assert.match(mail, /\.list-count\s*\{[^}]*font-size:\s*13px;[^}]*color:\s*var\(--text-primary\);[^}]*font-weight:\s*var\(--font-semibold\);/s);
 });
 
 test('read rows are quiet while unread rows keep explicit status text', async () => {
@@ -27,6 +28,9 @@ test('read rows are quiet while unread rows keep explicit status text', async ()
   assert.match(mail, /\.mail-item\.unread::before\s*\{[^}]*background:\s*var\(--color-accent\);/s);
   assert.match(mail, /\.mail-item\.unread \.mail-from\s*\{[^}]*font-weight:\s*var\(--font-semibold\);/s);
   assert.match(mail, /\.mail-date\s*\{[^}]*width:\s*58px;/s);
+  assert.match(mail, /\.mail-sender\s*\{[^}]*width:\s*165px;[^}]*gap:\s*9px;[^}]*padding-right:\s*12px;/s);
+  assert.match(mail, /@media \(max-width:\s*1180px\) and \(min-width:\s*769px\)[\s\S]*\.mail-sender\s*\{[^}]*width:\s*150px;/s);
+  assert.match(mail, /border-bottom-color:\s*color-mix\(in srgb, var\(--border-color\) 36%, transparent\);/);
 });
 
 test('account is context while folder remains the strong selected navigation item', async () => {
