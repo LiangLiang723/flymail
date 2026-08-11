@@ -168,30 +168,35 @@
             </div>
             <span class="mail-from">{{ extractName(msg.from_addr) }}</span>
           </div>
-          <!-- 中列：状态图标 + 主题 + 附件 + 日期 -->
+          <!-- 中列：状态图标 + 主题 -->
           <div class="mail-info">
             <div class="mail-main-row">
-              <!-- 中列：已读/未读图标 + 主题 + 附件 -->
+              <!-- 中列：已读/未读图标 + 主题 -->
               <svg v-if="!noReadStateFolder && !msg.is_read" class="mail-status-icon unread-icon" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
               <span class="mail-subject">{{ msg.subject || '(无主题)' }}</span>
               <span v-if="listMode === 'conversations' && (msg.message_count || 1) > 1" class="conversation-count">{{ msg.message_count }}</span>
-              <!-- 附件图标 -->
-              <svg v-if="msg.has_attachments" class="att-badge" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             </div>
           </div>
-          <button
-            v-if="msg.verification_code && !selectMode"
-            class="verification-code-copy"
-            type="button"
-            :aria-label="`复制验证码 ${msg.verification_code}`"
-            title="复制验证码"
-            @click.stop="copyVerificationCode(msg.verification_code)"
+          <!-- 右侧动态元信息区：复制 → 附件 -->
+          <div
+            v-if="msg.has_attachments || (msg.verification_code && !selectMode)"
+            class="mail-meta-actions"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-          </button>
+            <button
+              v-if="msg.verification_code && !selectMode"
+              class="verification-code-copy"
+              type="button"
+              :aria-label="`复制验证码 ${msg.verification_code}`"
+              title="复制验证码"
+              @click.stop="copyVerificationCode(msg.verification_code)"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
+            <svg v-if="msg.has_attachments" class="att-badge" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </div>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
         </div>
@@ -2084,11 +2089,22 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   color: var(--ui-text-3);
 }
 
+/* 右侧可选元信息：复制按钮在前，附件状态靠近日期 */
+.mail-meta-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  margin-left: 8px;
+}
+
 /* 附件图标（列表中的回形针标记） */
 .att-badge {
   flex-shrink: 0;
+  width: 15px;
+  height: 15px;
   color: var(--ui-text-3);
-  margin-left: 2px;
+  margin: 0;
 }
 
 /* 多选模式选中行高亮 */
@@ -2264,7 +2280,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   width: 28px;
   min-width: 28px;
   height: 28px;
-  margin: 0 8px;
+  margin: 0;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 7px;
@@ -3091,7 +3107,8 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
 .mail-date {
   width: 58px;
-  padding-left: 8px;
+  margin-left: 8px;
+  padding-left: 0;
 }
 
 .pagination {
@@ -3217,7 +3234,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "select sender date"
-      "select info code";
+      "select info meta";
     column-gap: 8px;
     row-gap: 5px;
     padding: 10px 12px 10px 17px;
@@ -3266,8 +3283,15 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     color: var(--text-secondary);
   }
 
+  .mail-meta-actions {
+    grid-area: meta;
+    align-self: center;
+    justify-self: end;
+    margin: 0;
+    gap: 6px;
+  }
+
   .verification-code-copy {
-    grid-area: code;
     align-self: center;
     width: 28px;
     min-width: 28px;
