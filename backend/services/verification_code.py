@@ -18,8 +18,7 @@ _NEIGHBORHOOD = 80
 _STRONG_POSITIVE_RE = re.compile(
     r"(?:"
     r"验证码|验证代码|校验码|动态码|动态密码|一次性密码|安全码|认证码|登录码|确认码|"
-    r"验证(?:自己|您|你)?的?身份|"
-    r"\botp\b|\bpasscode\b|\bverification(?:\s+code)?\b|"
+    r"\botp\b|\bpasscode\b|\bverification\s+code\b|"
     r"\bsecurity\s+code\b|\bauthentication\s+code\b|"
     r"\bauth(?:entication)?\s+code\b|\blogin\s+code\b|"
     r"\bsign[- ]?in\s+code\b|\bconfirmation\s+code\b|"
@@ -30,6 +29,16 @@ _STRONG_POSITIVE_RE = re.compile(
 
 _GENERIC_POSITIVE_RE = re.compile(
     r"(?:\b(?:your|the|access)\s+code\b|\bcode\s*(?:is|:|：)|\bpin\b)",
+    re.IGNORECASE,
+)
+
+_IDENTITY_VERIFICATION_RE = re.compile(
+    r"验证(?:自己|您|你)?的?身份",
+    re.IGNORECASE,
+)
+
+_CODE_PROMPT_RE = re.compile(
+    r"(?:请输入以下代码|输入以下代码|请输入代码|输入代码|代码如下)",
     re.IGNORECASE,
 )
 
@@ -116,6 +125,13 @@ def _extract_from_text(text: str) -> str:
         return ""
 
     strong_matches = list(_STRONG_POSITIVE_RE.finditer(text))
+    identity_matches = list(_IDENTITY_VERIFICATION_RE.finditer(text))
+    code_prompt_matches = list(_CODE_PROMPT_RE.finditer(text))
+    for prompt in code_prompt_matches:
+        identity_distance = _nearest_distance(prompt.span(), identity_matches)
+        if identity_distance is not None and identity_distance <= _NEIGHBORHOOD:
+            strong_matches.append(prompt)
+
     generic_matches = list(_GENERIC_POSITIVE_RE.finditer(text))
     if not strong_matches and not generic_matches:
         return ""

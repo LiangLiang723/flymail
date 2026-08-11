@@ -23,6 +23,10 @@ test('mail rows render a real copy button without nesting buttons', async () => 
   assert.match(source, /class="verification-code-copy"[\s\S]*title="复制验证码"[\s\S]*@click\.stop="copyVerificationCode\(msg\.verification_code\)"/s);
   assert.match(source, /class="verification-code-copy"[\s\S]*<svg[^>]*aria-hidden="true"/s);
   assert.doesNotMatch(source, /class="verification-code-copy"[\s\S]{0,500}>\s*复制验证码\s*<\/button>/s);
+  assert.doesNotMatch(source, /class="mail-status-tag"/);
+  const copyIndex = source.indexOf('class="verification-code-copy"');
+  const dateIndex = source.indexOf('<span class="mail-date">');
+  assert.ok(copyIndex >= 0 && dateIndex > copyIndex);
 });
 
 test('verification code copy action is keyboard safe and does not open the mail row', async () => {

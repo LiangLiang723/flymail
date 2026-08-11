@@ -16,20 +16,20 @@ test('mail list keeps search on the desktop toolbar and removes duplicate folder
   assert.match(mail, /\.list-count\s*\{[^}]*font-size:\s*13px;[^}]*color:\s*var\(--text-primary\);[^}]*font-weight:\s*var\(--font-semibold\);/s);
 });
 
-test('read rows are quiet while unread rows keep explicit status text', async () => {
+test('unread rows keep icon and weight without a text status badge', async () => {
   const mail = await read('src/views/MailList.vue');
 
-  assert.match(
-    mail,
-    /<UiBadge[\s\S]*v-if="!noReadStateFolder && \(listMode === 'conversations' \? \(msg\.unread_count \|\| 0\) > 0 : !msg\.is_read\)"[\s\S]*class="mail-status-tag"/s,
-  );
-  assert.doesNotMatch(mail, /msg\.is_read \? '已读' : '未读'/);
-  assert.doesNotMatch(mail, /\? `未读 \$\{msg\.unread_count\}` : '已读'/);
+  assert.doesNotMatch(mail, /class="mail-status-tag"/);
+  assert.doesNotMatch(mail, /`未读 \$\{msg\.unread_count\}`/);
+  assert.match(mail, /v-if="!noReadStateFolder && !msg\.is_read" class="mail-status-icon unread-icon"/);
   assert.match(mail, /\.mail-item\.unread::before\s*\{[^}]*background:\s*var\(--color-accent\);/s);
   assert.match(mail, /\.mail-item\.unread \.mail-from\s*\{[^}]*font-weight:\s*var\(--font-semibold\);/s);
+  assert.match(mail, /\.mail-item\.unread \.mail-subject\s*\{[^}]*font-weight:\s*var\(--font-medium\);/s);
   assert.match(mail, /\.mail-date\s*\{[^}]*width:\s*58px;/s);
-  assert.match(mail, /\.mail-sender\s*\{[^}]*width:\s*165px;[^}]*gap:\s*9px;[^}]*padding-right:\s*12px;/s);
-  assert.match(mail, /@media \(max-width:\s*1180px\) and \(min-width:\s*769px\)[\s\S]*\.mail-sender\s*\{[^}]*width:\s*150px;/s);
+  assert.match(mail, /\.mail-sender\s*\{[^}]*width:\s*165px;[^}]*gap:\s*9px;[^}]*padding-right:\s*24px;/s);
+  assert.match(mail, /@media \(max-width:\s*1180px\) and \(min-width:\s*769px\)[\s\S]*\.mail-sender\s*\{[^}]*width:\s*150px;[^}]*padding-right:\s*12px;/s);
+  assert.match(mail, /@media \(max-width:\s*768px\)[\s\S]*\.mail-sender\s*\{[^}]*width:\s*auto;[^}]*padding-right:\s*0;/s);
+  assert.doesNotMatch(mail, /@media \(max-width:\s*768px\)[\s\S]*\.mail-status-icon\s*\{[^}]*display:\s*none;/s);
   assert.match(mail, /border-bottom-color:\s*color-mix\(in srgb, var\(--border-color\) 36%, transparent\);/);
 });
 

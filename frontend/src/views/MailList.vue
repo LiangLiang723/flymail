@@ -192,14 +192,6 @@
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
           </button>
-          <!-- 未读状态标签；已读是默认状态，不重复显示 -->
-          <UiBadge
-            v-if="!noReadStateFolder && (listMode === 'conversations' ? (msg.unread_count || 0) > 0 : !msg.is_read)"
-            tone="accent"
-            class="mail-status-tag"
-          >
-            {{ listMode === 'conversations' ? `未读 ${msg.unread_count}` : '未读' }}
-          </UiBadge>
           <!-- 右列：日期（独立固定宽度列，保证最右侧对齐） -->
           <span class="mail-date">{{ formatDate(msg.date) }}</span>
         </div>
@@ -1534,11 +1526,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     min-width: 0;
   }
 
-  .mail-status-tag {
-    width: 40px;
-    margin-left: 0;
-  }
-
   .mail-date {
     width: 54px;
     margin-left: 0;
@@ -2298,27 +2285,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   outline-offset: 2px;
 }
 
-/* 已读/未读标签（日期前一列，固定宽度） */
-.mail-status-tag {
-  flex-shrink: 0;
-  width: 42px;
-  text-align: center;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 0;
-  border-radius: 4px;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-.mail-status-tag.unread {
-  background: var(--ui-warning-soft);
-  color: var(--ui-warning);
-}
-.mail-status-tag.read {
-  background: var(--ui-fill-muted);
-  color: var(--ui-text-3);
-}
-
 /* ==================== 邮件详情 ==================== */
 .mail-detail {
   flex: 1;
@@ -2805,12 +2771,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     font-size: 12px;
   }
 
-  .mail-status-tag {
-    width: 36px;
-    font-size: 9px;
-    margin-left: 6px;
-  }
-
   .mail-date {
     width: 54px;
     font-size: 10px;
@@ -3117,7 +3077,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 .mail-sender {
   width: 165px;
   gap: 9px;
-  padding-right: 12px;
+  padding-right: 24px;
 }
 
 .mail-avatar {
@@ -3126,18 +3086,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-status-icon.unread-icon {
-  color: var(--color-accent);
-}
-
-.mail-status-tag {
-  width: auto;
-  min-width: 40px;
-  padding-inline: 6px;
-  border-radius: 5px;
-}
-
-.mail-status-tag.unread {
-  background: var(--color-accent-lighter);
   color: var(--color-accent);
 }
 
@@ -3159,6 +3107,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
   .mail-sender {
     width: 150px;
+    padding-right: 12px;
   }
 
   .search-input {
@@ -3315,11 +3264,6 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     min-width: 0;
     font-size: 12px;
     color: var(--text-secondary);
-  }
-
-  .mail-status-icon,
-  .mail-status-tag {
-    display: none;
   }
 
   .verification-code-copy {
