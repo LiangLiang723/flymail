@@ -173,8 +173,10 @@
             <div class="mail-main-row">
               <!-- 中列：已读/未读图标 + 主题 -->
               <svg v-if="!noReadStateFolder && !msg.is_read" class="mail-status-icon unread-icon" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-              <span class="mail-subject">{{ msg.subject || '(无主题)' }}</span>
-              <span v-if="listMode === 'conversations' && (msg.message_count || 1) > 1" class="conversation-count">{{ msg.message_count }}</span>
+              <div class="mail-title-content">
+                <span class="mail-subject">{{ msg.subject || '(无主题)' }}</span>
+                <span v-if="listMode === 'conversations' && (msg.message_count || 1) > 1" class="conversation-count">{{ msg.message_count }}</span>
+              </div>
             </div>
           </div>
           <!-- 右侧动态元信息区：复制 → 附件 -->
@@ -2067,13 +2069,21 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   font-weight: var(--font-medium);
 }
 
-/* 中列：状态图标 + 主题 + 日期（弹性宽度，自动填充剩余空间） */
+/* 中列：状态图标 + 标题内容簇 */
 .mail-main-row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
+}
+
+.mail-title-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 /* 已读/未读邮件状态图标 */
@@ -2095,7 +2105,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   align-items: center;
   flex-shrink: 0;
   gap: 6px;
-  margin-left: 8px;
+  margin-left: 6px;
 }
 
 /* 附件图标（列表中的回形针标记） */
@@ -2236,7 +2246,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-info {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -2259,7 +2269,7 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
@@ -3106,9 +3116,9 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 }
 
 .mail-date {
-  width: 58px;
-  margin-left: 8px;
-  padding-left: 0;
+  width: 70px;
+  margin-left: auto;
+  padding-left: 12px;
 }
 
 .pagination {
@@ -3260,10 +3270,17 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
     width: 100%;
     min-width: 0;
     padding-left: 39px;
+    flex: 1 1 auto;
   }
 
   .mail-main-row {
     width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mail-title-content {
+    flex: 1 1 auto;
     min-width: 0;
   }
 

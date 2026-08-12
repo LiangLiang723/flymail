@@ -16,17 +16,20 @@ test('mail list keeps search on the desktop toolbar and removes duplicate folder
   assert.match(mail, /\.list-count\s*\{[^}]*font-size:\s*13px;[^}]*color:\s*var\(--text-primary\);[^}]*font-weight:\s*var\(--font-semibold\);/s);
 });
 
-test('mail row metadata rail owns optional icon spacing before the date', async () => {
+test('desktop metadata follows the title while the date owns the right edge', async () => {
   const mail = await read('src/views/MailList.vue');
 
+  assert.match(mail, /\.mail-info\s*\{[^}]*flex:\s*0 1 auto;[^}]*min-width:\s*0;/s);
   assert.match(
     mail,
-    /\.mail-meta-actions\s*\{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*flex-shrink:\s*0;[^}]*gap:\s*6px;[^}]*margin-left:\s*8px;/s,
+    /\.mail-title-content\s*\{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*gap:\s*6px;[^}]*min-width:\s*0;[^}]*flex:\s*0 1 auto;/s,
   );
-  assert.match(mail, /\.att-badge\s*\{[^}]*width:\s*15px;[^}]*height:\s*15px;[^}]*margin:\s*0;/s);
-  assert.match(mail, /\.verification-code-copy\s*\{[^}]*margin:\s*0;/s);
-  assert.match(mail, /\.mail-date\s*\{[^}]*width:\s*58px;[^}]*margin-left:\s*8px;[^}]*padding-left:\s*0;/s);
-  assert.doesNotMatch(mail, /\.verification-code-copy\s*\{[^}]*margin:\s*0 8px;/s);
+  assert.match(mail, /\.mail-main-row\s*\{[^}]*gap:\s*8px;/s);
+  assert.match(mail, /\.mail-meta-actions\s*\{[^}]*gap:\s*6px;[^}]*margin-left:\s*6px;/s);
+  assert.match(mail, /\.conversation-count\s*\{[^}]*flex-shrink:\s*0;/s);
+  assert.match(mail, /\.att-badge\s*\{[^}]*flex-shrink:\s*0;/s);
+  assert.match(mail, /\.verification-code-copy\s*\{[^}]*flex-shrink:\s*0;/s);
+  assert.match(mail, /\.mail-date\s*\{[^}]*width:\s*70px;[^}]*margin-left:\s*auto;[^}]*padding-left:\s*12px;/s);
 });
 
 test('unread rows keep icon and weight without a text status badge', async () => {
@@ -38,7 +41,7 @@ test('unread rows keep icon and weight without a text status badge', async () =>
   assert.match(mail, /\.mail-item\.unread::before\s*\{[^}]*background:\s*var\(--color-accent\);/s);
   assert.match(mail, /\.mail-item\.unread \.mail-from\s*\{[^}]*font-weight:\s*var\(--font-semibold\);/s);
   assert.match(mail, /\.mail-item\.unread \.mail-subject\s*\{[^}]*font-weight:\s*var\(--font-medium\);/s);
-  assert.match(mail, /\.mail-date\s*\{[^}]*width:\s*58px;/s);
+  assert.match(mail, /\.mail-date\s*\{[^}]*width:\s*70px;/s);
   assert.match(mail, /\.mail-sender\s*\{[^}]*width:\s*165px;[^}]*gap:\s*9px;[^}]*padding-right:\s*24px;/s);
   assert.match(mail, /@media \(max-width:\s*1180px\) and \(min-width:\s*769px\)[\s\S]*\.mail-sender\s*\{[^}]*width:\s*150px;[^}]*padding-right:\s*12px;/s);
   assert.match(mail, /@media \(max-width:\s*768px\)[\s\S]*\.mail-sender\s*\{[^}]*width:\s*auto;[^}]*padding-right:\s*0;/s);
