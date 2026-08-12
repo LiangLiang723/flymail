@@ -20,7 +20,7 @@ test('mail rows render a real copy button without nesting buttons', async () => 
   assert.doesNotMatch(source, /<button[\s\S]{0,240}class="mail-item"/s);
   assert.match(source, /v-if="msg\.verification_code && !selectMode"/);
   assert.match(source, /class="verification-code-copy"/);
-  assert.match(source, /class="verification-code-copy"[\s\S]*title="复制验证码"[\s\S]*@click\.stop="copyVerificationCode\(msg\.verification_code\)"/s);
+  assert.match(source, /class="verification-code-copy"[\s\S]*title="复制验证码"[\s\S]*@click\.stop="copyVerificationCode\(msg\)"/s);
   assert.match(source, /class="verification-code-copy"[\s\S]*<svg[^>]*aria-hidden="true"/s);
   assert.doesNotMatch(source, /class="verification-code-copy"[\s\S]{0,500}>\s*复制验证码\s*<\/button>/s);
   assert.doesNotMatch(source, /class="mail-status-tag"/);
@@ -62,15 +62,20 @@ test('desktop mail metadata follows the title while date remains the final row i
   );
 });
 
-test('verification code copy action is keyboard safe and does not open the mail row', async () => {
+test('verification code copy action is keyboard safe and marks the copied unread message as read', async () => {
   const source = await read('src/views/MailList.vue');
 
   assert.match(source, /@keydown\.enter\.self="openMessageRow\(msg\)"/);
   assert.match(source, /@keydown\.space\.prevent\.self="openMessageRow\(msg\)"/);
-  assert.match(source, /async function copyVerificationCode\(code: string\)/);
-  assert.match(source, /navigator\.clipboard\.writeText\(code\)/);
+  assert.match(source, /async function copyVerificationCode\(msg: Message\)/);
+  assert.match(source, /const value = String\(msg\.verification_code \|\| ''\)\.trim\(\)/);
+  assert.match(source, /navigator\.clipboard\.writeText\(value\)/);
   assert.match(source, /document\.execCommand\('copy'\)/);
-  assert.match(source, /uiStore\.success\('验证码已复制'\)/);
+  assert.match(source, /uiStore\.success\('验证码已复制'\);\s*markMessageRead\(msg\);/s);
+  assert.match(source, /function markMessageRead\(msg: Message\)/);
+  assert.match(source, /if \(noReadStateFolder\.value \|\| msg\.is_read\) return;/);
+  assert.match(source, /msg\.is_read = true;/);
+  assert.match(source, /api\.post\('\/mark-read', \{[\s\S]*message_id: msg\.id,[\s\S]*folder: mailStore\.currentFolder,[\s\S]*account_id: mailStore\.currentAccountId \|\| '',[\s\S]*\}\)\.catch/s);
 });
 
 test('copy button stays fixed while subject owns shrinking on desktop and mobile', async () => {

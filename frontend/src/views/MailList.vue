@@ -190,7 +190,7 @@
               type="button"
               :aria-label="`复制验证码 ${msg.verification_code}`"
               title="复制验证码"
-              @click.stop="copyVerificationCode(msg.verification_code)"
+              @click.stop="copyVerificationCode(msg)"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -1108,24 +1108,65 @@ function copyVerificationCodeLegacy(code: string): boolean {
   }
 }
 
-async function copyVerificationCode(code: string) {
-  const value = String(code || '').trim();
+function markMessageRead(msg: Message) {
+  if (noReadStateFolder.value || msg.is_read) return;
+
+  const wasRead = !!msg.is_read;
+  msg.is_read = true;
+
+  const idx = messages.value.findIndex((item: Message) => item.id === msg.id);
+  if (idx !== -1) {
+    messages.value[idx] = { ...messages.value[idx], is_read: true };
+  }
+  if (selectedMessage.value?.id === msg.id) {
+    selectedMessage.value = { ...selectedMessage.value, is_read: true };
+  }
+  if (listMode.value === 'conversations' && msg.thread_key) {
+    const threadIndex = messages.value.findIndex((item) => item.thread_key === msg.thread_key);
+    if (threadIndex !== -1) {
+      const unreadCount = Math.max(0, (messages.value[threadIndex].unread_count || 0) - 1);
+      messages.value[threadIndex] = {
+        ...messages.value[threadIndex],
+        unread_count: unreadCount,
+        is_read: unreadCount === 0,
+      };
+    }
+    conversationMessages.value = conversationMessages.value.map((item) =>
+      item.id === msg.id ? { ...item, is_read: true } : item,
+    );
+  }
+
+  updateFilterCountsForReadChange(wasRead, true);
+  api.post('/mark-read', {
+    message_id: msg.id,
+    folder: mailStore.currentFolder,
+    account_id: mailStore.currentAccountId || '',
+  }).catch((e: any) => console.error('[FlyMail] 标记已读失败:', e));
+
+  mailStore.decrementUnreadCount(mailStore.currentFolder);
+  refreshCurrentListCounts();
+}
+
+async function copyVerificationCode(msg: Message) {
+  const value = String(msg.verification_code || '').trim();
   if (!value) return;
   try {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(value);
     } else if (!copyVerificationCodeLegacy(value)) {
       throw new Error('clipboard unavailable');
     }
-    uiStore.success('验证码已复制');
   } catch (_error) {
     try {
       if (!copyVerificationCodeLegacy(value)) throw new Error('legacy clipboard failed');
-      uiStore.success('验证码已复制');
     } catch (_fallbackError) {
       uiStore.error('复制验证码失败');
+      return;
     }
   }
+
+  uiStore.success('验证码已复制');
+  markMessageRead(msg);
 }
 
 async function selectConversation(msg: Message) {
@@ -1208,42 +1249,7 @@ async function selectMessage(msg: Message, preserveConversation = false) {
     selectedMessage.value = data;
 
     // 未读邮件：调用 IMAP STORE +FLAGS \Seen 标记已读，同步到邮箱服务器
-    if (!msg.is_read) {
-      const wasRead = !!msg.is_read;
-      // 直接修改 messages 数组中对应项的 is_read，确保 Vue 响应式追踪
-      const idx = messages.value.findIndex((m: Message) => m.id === msg.id);
-      if (idx !== -1) {
-        messages.value[idx] = { ...messages.value[idx], is_read: true };
-      }
-      if (selectedMessage.value) {
-        selectedMessage.value = { ...selectedMessage.value, is_read: true };
-      }
-      if (listMode.value === 'conversations' && msg.thread_key) {
-        const threadIndex = messages.value.findIndex((item) => item.thread_key === msg.thread_key);
-        if (threadIndex !== -1) {
-          const unreadCount = Math.max(0, (messages.value[threadIndex].unread_count || 0) - 1);
-          messages.value[threadIndex] = {
-            ...messages.value[threadIndex],
-            unread_count: unreadCount,
-            is_read: unreadCount === 0,
-          };
-        }
-        conversationMessages.value = conversationMessages.value.map((item) =>
-          item.id === msg.id ? { ...item, is_read: true } : item,
-        );
-      }
-      updateFilterCountsForReadChange(wasRead, true);
-      // 异步调用标记已读API，不阻塞界面
-      api.post('/mark-read', {
-        message_id: msg.id,
-        folder: mailStore.currentFolder,
-        account_id: mailStore.currentAccountId || '',
-      }).catch((e: any) => console.error('[FlyMail] 标记已读失败:', e));
-
-      // 更新侧边栏未读数（收件箱减1）
-      mailStore.decrementUnreadCount(mailStore.currentFolder);
-      refreshCurrentListCounts();
-    }
+    markMessageRead(msg);
   } catch (e: any) {
     if (version !== loadVersion) return;
     console.error('加载邮件详情失败:', e);
