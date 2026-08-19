@@ -78,6 +78,26 @@ test('verification code copy action is keyboard safe and marks the copied unread
   assert.match(source, /api\.post\('\/mark-read', \{[\s\S]*message_id: msg\.id,[\s\S]*folder: mailStore\.currentFolder,[\s\S]*account_id: mailStore\.currentAccountId \|\| '',[\s\S]*\}\)\.catch/s);
 });
 
+test('marking a copied verification mail read does not blank and reload the visible list', async () => {
+  const source = await read('src/views/MailList.vue');
+  const markStart = source.indexOf('function markMessageRead(msg: Message)');
+  const copyStart = source.indexOf('async function copyVerificationCode(msg: Message)', markStart);
+  const markBlock = source.slice(markStart, copyStart);
+  const wsStart = source.indexOf("} else if (data.type === 'message_state_changed') {");
+  const markStateStart = source.indexOf("if (data.action === 'mark_read' || data.action === 'mark_unread') {", wsStart);
+  const deleteStateStart = source.indexOf("if (data.action === 'delete' || data.action === 'move') {", markStateStart);
+  const wsMarkBlock = source.slice(markStateStart, deleteStateStart);
+
+  assert.ok(markStart >= 0 && copyStart > markStart);
+  assert.doesNotMatch(markBlock, /refreshCurrentListCounts\(\)/);
+  assert.doesNotMatch(markBlock, /loadMessages\(/);
+  assert.ok(wsStart >= 0 && markStateStart > wsStart && deleteStateStart > markStateStart);
+  assert.match(wsMarkBlock, /mailStore\.loadFolderCounts\(\)/);
+  assert.match(wsMarkBlock, /loadMessages\(true\)/);
+  assert.doesNotMatch(wsMarkBlock, /refreshCurrentListCounts\(\)/);
+  assert.doesNotMatch(wsMarkBlock, /refreshCurrentListState\(\)/);
+});
+
 test('copy button stays fixed while subject owns shrinking on desktop and mobile', async () => {
   const source = await read('src/views/MailList.vue');
 

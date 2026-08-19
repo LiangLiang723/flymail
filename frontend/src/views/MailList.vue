@@ -779,11 +779,6 @@ function handleWsMessage(data: any) {
     }
   } else if (data.type === 'message_state_changed') {
     if (data.account_id === mailStore.currentAccountId) {
-      if (listMode.value === 'conversations') {
-        pageCache.clear();
-        refreshCurrentListCounts();
-        return;
-      }
       if (data.action === 'mark_read' || data.action === 'mark_unread') {
         const isRead = data.action === 'mark_read';
         for (const uid of data.uids) {
@@ -793,7 +788,14 @@ function handleWsMessage(data: any) {
             msg.is_read = isRead;
           }
         }
-      } else if (data.action === 'delete' || data.action === 'move') {
+        pageCache.clear();
+        mailStore.loadFolderCounts();
+        if (listMode.value === 'conversations' || hasActiveFilter.value) {
+          loadMessages(true);
+        }
+        return;
+      }
+      if (data.action === 'delete' || data.action === 'move') {
         messages.value = messages.value.filter(m => !data.uids.includes(String(m.uid)));
       }
       if (selectedMessage.value || hasActiveFilter.value || searchKeyword.value) {
@@ -1144,7 +1146,6 @@ function markMessageRead(msg: Message) {
   }).catch((e: any) => console.error('[FlyMail] 标记已读失败:', e));
 
   mailStore.decrementUnreadCount(mailStore.currentFolder);
-  refreshCurrentListCounts();
 }
 
 async function copyVerificationCode(msg: Message) {
