@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -24,6 +24,7 @@ class AttachmentCacheCleanupResponse(BaseModel):
 
 
 class SettingsResponse(BaseModel):
+    default_mail_view: Literal["messages", "conversations"] = Field(default="messages", description="邮件列表默认显示方式")
     uploads_cleanup_weekday: int = Field(default=0, ge=0, le=6, description="Upload cleanup weekday, 0=Monday")
     uploads_cleanup_time: str = Field(default="02:00", description="Upload cleanup time, HH:MM")
     attachment_cache_limit_mb: int = Field(default=2048, ge=0, description="当前用户普通附件缓存上限，0 表示不限制")
@@ -50,6 +51,7 @@ class SettingsUpdateResponse(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     """更新应用设置请求模型，所有字段可选。"""
 
+    default_mail_view: Optional[Literal["messages", "conversations"]] = Field(default=None, description="邮件列表默认显示方式")
     uploads_cleanup_weekday: Optional[int] = Field(default=None, ge=0, le=6, description="Upload cleanup weekday, 0=Monday")
     uploads_cleanup_time: Optional[str] = Field(default=None, pattern=r"^\d{2}:\d{2}$", description="Upload cleanup time, HH:MM")
     attachment_cache_limit_mb: Optional[int] = Field(default=None, ge=0, description="普通附件缓存上限 MB，0 表示不限制")

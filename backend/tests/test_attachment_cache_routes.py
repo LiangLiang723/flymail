@@ -178,6 +178,47 @@ class AttachmentCacheSettingsTest(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValidationError):
                 SettingsUpdateRequest(attachment_cache_limit_mb=value)
 
+    async def test_get_settings_returns_current_user_default_mail_view(self):
+        with (
+            patch("routes.settings.get_uid", new=AsyncMock(return_value="user-1")),
+            patch("routes.settings.async_load_settings", new=AsyncMock(return_value={})),
+            patch(
+                "routes.settings.get_user_settings",
+                new=AsyncMock(return_value={"default_mail_view": "conversations"}),
+            ),
+            patch("routes.settings.get_user_attachment_cache_usage", new=AsyncMock(return_value=0)),
+            patch("routes.settings.get_shared_attachment_cache_usage", new=AsyncMock(return_value=0)),
+        ):
+            result = await settings.get_settings(object())
+        self.assertEqual(result["default_mail_view"], "conversations")
+
+    async def test_get_settings_defaults_mail_view_to_messages(self):
+        with (
+            patch("routes.settings.get_uid", new=AsyncMock(return_value="user-1")),
+            patch("routes.settings.async_load_settings", new=AsyncMock(return_value={})),
+            patch("routes.settings.get_user_settings", new=AsyncMock(return_value={})),
+            patch("routes.settings.get_user_attachment_cache_usage", new=AsyncMock(return_value=0)),
+            patch("routes.settings.get_shared_attachment_cache_usage", new=AsyncMock(return_value=0)),
+        ):
+            result = await settings.get_settings(object())
+        self.assertEqual(result["default_mail_view"], "messages")
+
+    async def test_update_settings_saves_default_mail_view_for_current_user(self):
+        body = SettingsUpdateRequest(default_mail_view="conversations")
+        with (
+            patch("routes.settings.get_uid", new=AsyncMock(return_value="user-1")),
+            patch("routes.settings.set_user_settings", new=AsyncMock()) as save_user,
+            patch("routes.settings.async_save_settings", new=AsyncMock(return_value={})),
+        ):
+            await settings.update_settings(object(), body)
+        save_user.assert_awaited_once_with("user-1", {"default_mail_view": "conversations"})
+
+    def test_setting_schema_rejects_unknown_default_mail_view(self):
+        self.assertEqual(SettingsUpdateRequest(default_mail_view="messages").default_mail_view, "messages")
+        self.assertEqual(SettingsUpdateRequest(default_mail_view="conversations").default_mail_view, "conversations")
+        with self.assertRaises(ValidationError):
+            SettingsUpdateRequest(default_mail_view="threads")
+
 
 if __name__ == "__main__":
     unittest.main()

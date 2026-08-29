@@ -414,7 +414,7 @@ async def get_settings(request: Request):
     uid = await get_uid(request)
     user_settings = await get_user_settings(
         uid,
-        ["gmail_proxy_enabled", "gmail_proxy_url", "attachment_cache_limit_mb"],
+        ["gmail_proxy_enabled", "gmail_proxy_url", "attachment_cache_limit_mb", "default_mail_view"],
     )
     try:
         attachment_cache_limit_mb = validate_attachment_cache_limit_mb(
@@ -436,7 +436,11 @@ async def get_settings(request: Request):
         masked_outlook_secret = outlook_secret[:4] + "*" * (len(outlook_secret) - 8) + outlook_secret[-4:]
     else:
         masked_outlook_secret = outlook_secret
+    default_mail_view = str(user_settings.get("default_mail_view", "messages") or "messages")
+    if default_mail_view not in {"messages", "conversations"}:
+        default_mail_view = "messages"
     return {
+        "default_mail_view": default_mail_view,
         "gmail_client_id": settings.get("gmail_client_id", ""),
         "gmail_client_secret": masked_secret if secret else "",
         "gmail_redirect_uri": settings.get("gmail_redirect_uri", ""),
@@ -466,6 +470,7 @@ async def update_settings(request: Request, body: SettingsUpdateRequest):
     update_data = body.model_dump(exclude_none=True)
 
     uid = await get_uid(request)
+    default_mail_view_update = update_data.pop("default_mail_view", None)
     proxy_enabled_update = update_data.pop("gmail_proxy_enabled", None)
     proxy_url_update = update_data.pop("gmail_proxy_url", None)
     attachment_cache_limit_update = update_data.pop("attachment_cache_limit_mb", None)
@@ -482,6 +487,11 @@ async def update_settings(request: Request, body: SettingsUpdateRequest):
 
     if "uploads_cleanup_time" in update_data and not _valid_cleanup_time(update_data["uploads_cleanup_time"]):
         update_data["uploads_cleanup_time"] = "02:00"
+
+    if default_mail_view_update is not None:
+        await set_user_settings(uid, {
+            "default_mail_view": default_mail_view_update,
+        })
 
     if proxy_enabled_update is not None or proxy_url_update is not None:
         existing_proxy = await get_user_settings(uid, ["gmail_proxy_enabled", "gmail_proxy_url"])

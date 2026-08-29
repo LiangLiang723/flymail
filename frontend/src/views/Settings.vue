@@ -46,6 +46,40 @@
       </div>
     </UiCard>
 
+    <UiCard class="provider-card default-mail-view-card" padding="none">
+      <div class="storage-card-body">
+        <div class="storage-heading">
+          <div>
+            <h3 class="storage-title">邮件列表默认显示</h3>
+            <p class="storage-desc">选择进入邮件列表时默认按单封邮件还是按会话聚合。</p>
+            <p class="field-hint">草稿箱始终按单封邮件显示</p>
+          </div>
+        </div>
+        <div class="default-view-options" role="radiogroup" aria-label="邮件列表默认显示方式">
+          <button
+            v-for="option in defaultMailViewOptions"
+            :key="option.value"
+            class="default-view-option"
+            :class="{ active: form.default_mail_view === option.value }"
+            type="button"
+            role="radio"
+            :aria-checked="form.default_mail_view === option.value"
+            :disabled="defaultMailViewSaving"
+            @click="setDefaultMailView(option.value)"
+          >
+            <span class="default-view-option-copy">
+              <strong>{{ option.label }}</strong>
+              <small>{{ option.description }}</small>
+            </span>
+            <span class="default-view-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+        <p class="preference-toggle-feedback" :class="{ error: defaultMailViewError }" aria-live="polite">
+          {{ defaultMailViewSaving ? '正在保存…' : defaultMailViewError }}
+        </p>
+      </div>
+    </UiCard>
+
     <UiCard class="provider-card unified-inbox-card" padding="none">
       <div class="storage-card-body">
         <div class="preference-toggle-row">
@@ -685,6 +719,8 @@ const showAbout = ref(false);
 const unifiedInboxEnabled = ref(false);
 const unifiedInboxSaving = ref(false);
 const unifiedInboxError = ref('');
+const defaultMailViewSaving = ref(false);
+const defaultMailViewError = ref('');
 const signatureStore = useSignatureStore();
 
 // 图片基础路径：Vite 构建时 base 为 /app/flymail/，需要拼接前缀才能正确访问
@@ -815,7 +851,10 @@ function previewImage(src: string) {
 
 // ==================== 设置表单逻辑 ====================
 
+type DefaultMailView = 'messages' | 'conversations';
+
 interface SettingsForm {
+  default_mail_view: DefaultMailView;
   uploads_cleanup_weekday: number;
   uploads_cleanup_time: string;
   attachment_cache_limit_mb: number;
@@ -841,6 +880,11 @@ function setThemePreference(value: ThemePreference) {
   themeController.setPreference(value);
 }
 
+const defaultMailViewOptions: Array<{ value: DefaultMailView; label: string; description: string }> = [
+  { value: 'messages', label: '邮件', description: '每封邮件单独显示' },
+  { value: 'conversations', label: '会话', description: '同一会话聚合显示' },
+];
+
 const weekdayOptions = [
   { value: 0, label: '每周一' },
   { value: 1, label: '每周二' },
@@ -852,6 +896,7 @@ const weekdayOptions = [
 ];
 
 const form = ref<SettingsForm>({
+  default_mail_view: 'messages',
   uploads_cleanup_weekday: 0,
   uploads_cleanup_time: '02:00',
   attachment_cache_limit_mb: 2048,
@@ -891,6 +936,7 @@ async function loadSettingsData() {
   try {
     const data = await api.get('/settings') as any;
     form.value = {
+      default_mail_view: data.default_mail_view === 'conversations' ? 'conversations' : 'messages',
       uploads_cleanup_weekday: Number(data.uploads_cleanup_weekday ?? 0),
       uploads_cleanup_time: data.uploads_cleanup_time || '02:00',
       attachment_cache_limit_mb: Number(data.attachment_cache_limit_mb ?? 2048),
@@ -923,6 +969,23 @@ onMounted(() => {
 function openSignatureManagement() {
   signatureStore.setEntrySource('settings');
   window.dispatchEvent(new CustomEvent('flymail-navigate', { detail: 'signatures' }));
+}
+
+async function setDefaultMailView(value: DefaultMailView) {
+  if (defaultMailViewSaving.value || form.value.default_mail_view === value) return;
+  const previous = form.value.default_mail_view;
+  form.value.default_mail_view = value;
+  defaultMailViewSaving.value = true;
+  defaultMailViewError.value = '';
+  try {
+    await api.put('/settings', { default_mail_view: value });
+    window.dispatchEvent(new CustomEvent('flymail-default-mail-view-changed', { detail: value }));
+  } catch (error: any) {
+    form.value.default_mail_view = previous;
+    defaultMailViewError.value = error?.message || '默认显示方式保存失败，请稍后重试';
+  } finally {
+    defaultMailViewSaving.value = false;
+  }
 }
 
 async function toggleUnifiedInbox(nextEnabled: boolean) {
@@ -973,6 +1036,7 @@ async function saveSettings() {
   saveError.value = '';
   try {
     const payload: Record<string, string | number | boolean> = {
+      default_mail_view: form.value.default_mail_view,
       uploads_cleanup_weekday: form.value.uploads_cleanup_weekday,
       uploads_cleanup_time: form.value.uploads_cleanup_time || '02:00',
       attachment_cache_limit_mb: attachmentLimit,
@@ -1278,6 +1342,71 @@ async function saveSettings() {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+.default-view-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.default-view-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 68px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-color-strong);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.default-view-option:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--bg-hover);
+}
+
+.default-view-option.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-lighter);
+  box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+.default-view-option:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.default-view-option-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.default-view-option-copy strong {
+  font-size: var(--text-sm);
+}
+
+.default-view-option-copy small {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.default-view-check {
+  margin-left: auto;
+  color: transparent;
+  font-weight: 700;
+}
+
+.default-view-option.active .default-view-check {
+  color: var(--color-accent);
 }
 
 .appearance-option {
@@ -1810,7 +1939,8 @@ async function saveSettings() {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
-  .appearance-options {
+  .appearance-options,
+  .default-view-options {
     grid-template-columns: 1fr;
   }
 

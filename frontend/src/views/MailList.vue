@@ -307,22 +307,7 @@
           </div>
         </div>
 
-        <div v-if="selectedMessage.body_html || selectedMessage.body_text" class="detail-content-wrap">
-          <div v-html="renderMessageBody(selectedMessage)" class="detail-content" @click="handleMailBodyClick"></div>
-        </div>
-        <!-- 正文加载中：显示骨架屏 -->
-        <div v-else class="body-skeleton">
-          <div class="skeleton-line" style="width: 90%"></div>
-          <div class="skeleton-line" style="width: 100%"></div>
-          <div class="skeleton-line" style="width: 75%"></div>
-          <div class="skeleton-line" style="width: 95%"></div>
-          <div class="skeleton-line" style="width: 60%"></div>
-          <div class="skeleton-line" style="width: 85%"></div>
-          <div class="skeleton-line" style="width: 100%"></div>
-          <div class="skeleton-line" style="width: 40%"></div>
-        </div>
-
-        <!-- 附件列表（放在正文后面，随正文一起滚动） -->
+        <!-- 附件列表固定放在正文上方，便于先查看或下载附件 -->
         <div class="attachment-list" v-if="regularAttachments.length > 0">
           <div class="attachment-header">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
@@ -340,12 +325,38 @@
               </div>
             </div>
             <div class="attachment-actions-inline">
+              <button
+                v-if="getAttachmentPreviewKind(att)"
+                class="attachment-action attachment-preview-action"
+                type="button"
+                title="预览附件"
+                :aria-label="`预览附件 ${att.filename || '未命名附件'}`"
+                :disabled="attachmentPreviewLoadingPart === att.part_number"
+                @click="previewAttachment(att)"
+              >
+                {{ attachmentPreviewLoadingPart === att.part_number ? '加载中' : '预览' }}
+              </button>
               <button class="attachment-action" type="button" title="下载到本机" aria-label="下载附件到本机" @click="downloadAttachment(att)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
               <button class="attachment-action" type="button" title="保存到 NAS" aria-label="保存附件到 NAS" @click="chooseAttachmentNasTarget(att)">NAS</button>
             </div>
           </div>
+        </div>
+
+        <div v-if="selectedMessage.body_html || selectedMessage.body_text" class="detail-content-wrap">
+          <div v-html="renderMessageBody(selectedMessage)" class="detail-content" @click="handleMailBodyClick"></div>
+        </div>
+        <!-- 正文加载中：显示骨架屏 -->
+        <div v-else class="body-skeleton">
+          <div class="skeleton-line" style="width: 90%"></div>
+          <div class="skeleton-line" style="width: 100%"></div>
+          <div class="skeleton-line" style="width: 75%"></div>
+          <div class="skeleton-line" style="width: 95%"></div>
+          <div class="skeleton-line" style="width: 60%"></div>
+          <div class="skeleton-line" style="width: 85%"></div>
+          <div class="skeleton-line" style="width: 100%"></div>
+          <div class="skeleton-line" style="width: 40%"></div>
         </div>
       </div>
       <NasPathPicker v-model="showAttachmentNasPicker" mode="dir" title="选择 NAS 保存目录" @confirm="saveAttachmentToSelectedNas" />
@@ -354,6 +365,13 @@
         :images="viewerImages"
         :initial-index="viewerInitialIndex"
         @close="imageViewerOpen = false"
+      />
+      <AttachmentPreview
+        :open="attachmentPreviewOpen"
+        :title="attachmentPreviewTitle"
+        :kind="attachmentPreviewKind"
+        :url="attachmentPreviewUrl"
+        @close="closeAttachmentPreview"
       />
     </div>
     </div>
@@ -384,7 +402,9 @@ import UiIconButton from '../components/ui/UiIconButton.vue';
 import UiLoadingState from '../components/ui/UiLoadingState.vue';
 import NasPathPicker from '../components/NasPathPicker.vue';
 import ImageViewer, { type ViewerImage } from '../components/mail/ImageViewer.vue';
+import AttachmentPreview from '../components/mail/AttachmentPreview.vue';
 import MailSearchBar from '../components/mail/MailSearchBar.vue';
+import { getAttachmentPreviewKind, safePreviewMime, type AttachmentPreviewKind } from '../utils/attachment-preview';
 
 const mailStore = useMailStore();
 const uiStore = useUIStore();
@@ -395,6 +415,11 @@ const attachmentForNas = ref<Attachment | null>(null);
 const imageViewerOpen = ref(false);
 const viewerImages = ref<ViewerImage[]>([]);
 const viewerInitialIndex = ref(0);
+const attachmentPreviewOpen = ref(false);
+const attachmentPreviewUrl = ref('');
+const attachmentPreviewTitle = ref('');
+const attachmentPreviewKind = ref<AttachmentPreviewKind | null>(null);
+const attachmentPreviewLoadingPart = ref<number | null>(null);
 
 const messages = ref<Message[]>([]);
 const selectedMessage = ref<Message | null>(null);
@@ -422,6 +447,7 @@ const starredFilter = computed({
   set: (value: boolean) => { searchState.value = { ...searchState.value, starredOnly: value }; },
 });
 const listMode = ref<'messages' | 'conversations'>('messages');
+const preferredListMode = ref<'messages' | 'conversations'>('messages');
 const conversationMessages = ref<Message[]>([]);
 const selectedThreadKey = ref('');
 const filterCounts = ref({ all: 0, unread: 0, read: 0, attachments: 0 });
@@ -592,8 +618,35 @@ function clearQuickFilters() {
 }
 
 function setListMode(mode: 'messages' | 'conversations') {
+  preferredListMode.value = mode;
   if (listMode.value === mode) return;
   listMode.value = mode;
+  exitSelectMode();
+  reloadFromFirstPage();
+}
+
+function applyPreferredListMode(mode: 'messages' | 'conversations') {
+  preferredListMode.value = mode;
+  listMode.value = isDraftFolder.value ? 'messages' : preferredListMode.value;
+}
+
+async function loadDefaultMailViewPreference() {
+  try {
+    const data = await api.get('/settings') as any;
+    applyPreferredListMode(data?.default_mail_view === 'conversations' ? 'conversations' : 'messages');
+  } catch (error) {
+    console.error('加载邮件默认显示方式失败:', error);
+    applyPreferredListMode('messages');
+  }
+}
+
+function handleDefaultMailViewChanged(event: Event) {
+  const value = (event as CustomEvent).detail;
+  const nextMode: 'messages' | 'conversations' = value === 'conversations' ? 'conversations' : 'messages';
+  const nextListMode = isDraftFolder.value ? 'messages' : nextMode;
+  preferredListMode.value = nextMode;
+  if (listMode.value === nextListMode) return;
+  listMode.value = nextListMode;
   exitSelectMode();
   reloadFromFirstPage();
 }
@@ -904,7 +957,7 @@ watch(
     searchState.value = createEmptyMailSearch();
     conversationMessages.value = [];
     selectedThreadKey.value = '';
-    if (isDraftFolder.value) listMode.value = 'messages';
+    listMode.value = isDraftFolder.value ? 'messages' : preferredListMode.value;
     pageCache.clear();
     loadVersion++;
     loadMessages();
@@ -950,6 +1003,8 @@ function openMobileSidebar() {
 
 onMounted(async () => {
   connectWs();
+  window.addEventListener('flymail-default-mail-view-changed', handleDefaultMailViewChanged);
+  await loadDefaultMailViewPreference();
   if (!(await openPendingMessage())) await loadMessages();
 });
 
@@ -969,9 +1024,11 @@ onActivated(async () => {
 
 onUnmounted(() => {
   disconnectWs();
+  closeAttachmentPreview();
   // 清理 resize 事件监听，防止内存泄漏
   window.removeEventListener('resize', onResize);
   window.removeEventListener('flymail-sent-message', handleSentMessage);
+  window.removeEventListener('flymail-default-mail-view-changed', handleDefaultMailViewChanged);
   if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
 });
 
@@ -1376,6 +1433,48 @@ function prefetchVisibleMessages() {
     folder: mailStore.currentFolder,
     account_id: mailStore.currentAccountId || '',
   }).catch(() => {});
+}
+
+function closeAttachmentPreview() {
+  attachmentPreviewOpen.value = false;
+  if (attachmentPreviewUrl.value) {
+    URL.revokeObjectURL(attachmentPreviewUrl.value);
+  }
+  attachmentPreviewUrl.value = '';
+  attachmentPreviewTitle.value = '';
+  attachmentPreviewKind.value = null;
+}
+
+async function previewAttachment(att: Attachment) {
+  const msg = selectedMessage.value;
+  const kind = getAttachmentPreviewKind(att);
+  if (!msg || !kind || attachmentPreviewLoadingPart.value !== null) return;
+
+  attachmentPreviewLoadingPart.value = att.part_number;
+  try {
+    const data = await api.get(`/messages/${msg.id}/attachments/${att.part_number}`, {
+      params: {
+        account_id: msg.account_id || mailStore.currentAccountId || '',
+        folder: msg.folder || 'INBOX',
+      },
+      responseType: 'blob',
+    }) as Blob;
+    const sourceBlob = data instanceof Blob ? data : new Blob([data]);
+    const previewMime = safePreviewMime(kind, sourceBlob.type || att.content_type, att.filename || '');
+    const previewBlob = sourceBlob.type === previewMime
+      ? sourceBlob
+      : new Blob([sourceBlob], { type: previewMime });
+
+    closeAttachmentPreview();
+    attachmentPreviewUrl.value = URL.createObjectURL(previewBlob);
+    attachmentPreviewTitle.value = att.filename || '未命名附件';
+    attachmentPreviewKind.value = kind;
+    attachmentPreviewOpen.value = true;
+  } catch (error: any) {
+    uiStore.error(error?.error || error?.message || '附件预览加载失败');
+  } finally {
+    attachmentPreviewLoadingPart.value = null;
+  }
 }
 
 /** 下载附件（适配器：模板只传 Attachment，补全消息上下文后调用公共工具函数） */
