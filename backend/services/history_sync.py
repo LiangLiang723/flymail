@@ -756,6 +756,7 @@ async def _cache_message_detail(receiver, account, folder_name: str, message, un
             from_addr=detail.from_addr,
             to_addr=detail.to_addr,
             cc=getattr(detail, "cc", "") or "",
+            bcc=getattr(detail, "bcc", "") or "",
             date=normalize_message_date(detail.date, fallback=effective_message_date),
             is_read=detail.is_read,
             is_starred=detail.is_starred,

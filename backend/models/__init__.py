@@ -43,6 +43,7 @@ class CachedMessage(BaseModel):
     from_addr: str
     to_addr: str
     cc: str = ""
+    bcc: str = ""
     date: str
     is_read: bool = False
     is_starred: bool = False

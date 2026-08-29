@@ -135,11 +135,11 @@ class MessageSearchDbTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(" as conversation_rank", normalized)
         self.assertIn("where conversation_rank = 1", normalized)
 
-    async def test_conversation_detail_is_chronological_and_scoped(self):
+    async def test_conversation_detail_is_newest_first_and_scoped(self):
         fake = _DB([
             _Cursor(rows=[
-                ("m1", 1, "Project", "a@example.com", "me@example.com", "", "2026-08-07T01:00:00Z", 1, 0, "INBOX", 0, "acc-1", "rfc:abc"),
                 ("m2", 2, "Re: Project", "me@example.com", "a@example.com", "", "2026-08-07T02:00:00Z", 0, 0, "INBOX", 0, "acc-1", "rfc:abc"),
+                ("m1", 1, "Project", "a@example.com", "me@example.com", "", "2026-08-07T01:00:00Z", 1, 0, "INBOX", 0, "acc-1", "rfc:abc"),
             ]),
         ])
         with patch.object(db, "get_db", new=AsyncMock(return_value=fake)):
@@ -149,10 +149,10 @@ class MessageSearchDbTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("user_uid = ?", sql)
         self.assertIn("account_id = ?", sql)
         self.assertIn("thread_key = ?", sql)
-        self.assertIn("ORDER BY date ASC, uid ASC", sql)
+        self.assertIn("ORDER BY date DESC, uid DESC", sql)
         self.assertEqual(params[0], "user-1")
         self.assertEqual(params[1], "acc-1")
-        self.assertEqual([item["uid"] for item in result], [1, 2])
+        self.assertEqual([item["uid"] for item in result], [2, 1])
 
     async def test_verification_source_lookup_is_scoped_and_bounded(self):
         fake = _DB([

@@ -437,6 +437,7 @@ async def init_db():
                 from_addr VARCHAR(512) DEFAULT '',
                 to_addr LONGTEXT,
                 cc LONGTEXT,
+                bcc LONGTEXT,
                 date VARCHAR(128) DEFAULT '',
                 is_read INTEGER DEFAULT 0,
                 is_starred INTEGER DEFAULT 0,
@@ -644,6 +645,11 @@ async def init_db():
             logger.debug("migration add accounts.%s ignored: %s", column, e)
     await db.execute("UPDATE accounts SET icon_type = 'default' WHERE icon_type IS NULL OR icon_type = ''")
     await db.execute("UPDATE accounts SET icon_value = '' WHERE icon_value IS NULL")
+
+    try:
+        await db.execute("ALTER TABLE cached_messages ADD COLUMN bcc LONGTEXT")
+    except Exception as e:
+        logger.debug("migration add cached_messages.bcc ignored: %s", e)
 
     try:
         await db.execute("ALTER TABLE cached_messages ADD COLUMN has_attachments INTEGER DEFAULT 0")
@@ -2324,7 +2330,7 @@ async def get_cached_message_detail(account_id: str, uid: int, folder: str):
     placeholders = ','.join('?' * len(aliases))
     db = await get_db()
     cursor = await db.execute(
-        f'''SELECT id, uid, subject, from_addr, to_addr, cc, date, is_read, is_starred, folder,
+        f'''SELECT id, uid, subject, from_addr, to_addr, cc, bcc, date, is_read, is_starred, folder,
                    body_text, body_html, has_attachments, message_id, account_id, storage_path
             FROM cached_messages
             WHERE account_id = ? AND uid = ? AND folder IN ({placeholders})
@@ -2341,16 +2347,17 @@ async def get_cached_message_detail(account_id: str, uid: int, folder: str):
         'from_addr': row[3] or '',
         'to_addr': row[4] or '',
         'cc': row[5] or '',
-        'date': row[6] or '',
-        'is_read': bool(row[7]),
-        'is_starred': bool(row[8]),
-        'folder': row[9] or folder,
-        'body_text': row[10] or '',
-        'body_html': row[11] or '',
-        'has_attachments': bool(row[12]),
-        'message_id': row[13] or '',
-        'account_id': row[14] or account_id,
-        'storage_path': row[15] or '',
+        'bcc': row[6] or '',
+        'date': row[7] or '',
+        'is_read': bool(row[8]),
+        'is_starred': bool(row[9]),
+        'folder': row[10] or folder,
+        'body_text': row[11] or '',
+        'body_html': row[12] or '',
+        'has_attachments': bool(row[13]),
+        'message_id': row[14] or '',
+        'account_id': row[15] or account_id,
+        'storage_path': row[16] or '',
         'attachments': [],
     }
 
@@ -2618,15 +2625,16 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
         body_checked = bool(getattr(msg, "body_checked", False) or body_text or body_html)
         cursor = await db.execute(
             '''INSERT INTO cached_messages
-               (id, account_id, user_uid, uid, folder, subject, from_addr, to_addr, cc, date,
+               (id, account_id, user_uid, uid, folder, subject, from_addr, to_addr, cc, bcc, date,
                 is_read, is_starred, has_attachments, body_text, body_html, message_id,
                 in_reply_to, references_header, thread_key, body_checked, storage_path, cached_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE
                subject = VALUES(subject),
                from_addr = VALUES(from_addr),
                to_addr = VALUES(to_addr),
                cc = VALUES(cc),
+               bcc = VALUES(bcc),
                date = VALUES(date),
                is_read = VALUES(is_read),
                is_starred = VALUES(is_starred),
@@ -2642,7 +2650,7 @@ async def upsert_cached_messages(messages: list[CachedMessage]) -> int:
                cached_at = VALUES(cached_at)''',
             (
                 message_id, msg.account_id, msg.user_uid, msg.uid, msg.folder, msg.subject,
-                msg.from_addr, msg.to_addr, msg.cc or '', msg.date, 1 if msg.is_read else 0,
+                msg.from_addr, msg.to_addr, msg.cc or '', msg.bcc or '', msg.date, 1 if msg.is_read else 0,
                 1 if msg.is_starred else 0, 1 if msg.has_attachments else 0,
                 body_text, body_html, msg.message_id or '', msg.in_reply_to or '',
                 msg.references_header or '', msg.thread_key or '', 1 if body_checked else 0,
@@ -2999,7 +3007,7 @@ async def get_conversation_messages(
                    folder, has_attachments, account_id, thread_key
             FROM cached_messages
             WHERE user_uid = ? AND account_id = ? AND folder IN ({placeholders}) AND thread_key = ?
-            ORDER BY date ASC, uid ASC''',
+            ORDER BY date DESC, uid DESC''',
         [user_uid, account_id] + aliases + [thread_key],
     )
     rows = await cursor.fetchall()

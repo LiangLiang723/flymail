@@ -272,7 +272,7 @@
       <div v-if="conversationMessages.length > 1" class="conversation-navigator">
         <div class="conversation-navigator-head">
           <strong>会话 · {{ conversationMessages.length }} 封</strong>
-          <span>按时间从早到晚</span>
+          <span>按时间从晚到早</span>
         </div>
         <div class="conversation-navigator-list">
           <button
@@ -298,7 +298,10 @@
               {{ getInitial(selectedMessage.from_addr) }}
             </div>
             <div class="meta-info">
-              <div class="meta-from">{{ selectedMessage.from_addr }}</div>
+              <div class="meta-row meta-from"><span class="meta-label">发件人</span><span class="meta-value">{{ selectedMessage.from_addr }}</span></div>
+              <div v-if="selectedMessage.to_addr" class="meta-row"><span class="meta-label">收件人</span><span class="meta-value">{{ selectedMessage.to_addr }}</span></div>
+              <div v-if="selectedMessage.cc" class="meta-row"><span class="meta-label">抄送</span><span class="meta-value">{{ selectedMessage.cc }}</span></div>
+              <div v-if="selectedMessage.bcc" class="meta-row"><span class="meta-label">密送</span><span class="meta-value">{{ selectedMessage.bcc }}</span></div>
               <div class="meta-date">{{ formatDetailDate(selectedMessage.date) }}</div>
             </div>
           </div>
@@ -363,7 +366,7 @@ import { useMailStore } from '../stores/mail';
 import { useUIStore } from '../stores/ui';
 import api from '../utils/api';
 import { useAccountReauthorization } from '../composables/useAccountReauthorization';
-import { renderThemedMailBody } from '../utils/sanitize';
+import { renderConversationThemedMailBody, renderThemedMailBody } from '../utils/sanitize';
 import { extractName, extractEmails, getInitial, getAvatarColor, formatDate, formatDetailDate, formatFileSize, downloadAttachment as downloadAttachmentFile, saveAttachmentToNas, getFolderCount } from '../utils/mail-helpers';
 import { reconcileMessagePage } from '../utils/mail-list-reconcile';
 import type { Attachment, MailSearchState, Message } from '../types/mail';
@@ -460,6 +463,9 @@ function foldersMatchForRefresh(eventFolder: string, currentFolder: string): boo
 
 function renderMessageBody(message: Message | null) {
   if (!message) return '';
+  if (conversationMessages.value.length > 0) {
+    return renderConversationThemedMailBody(message.body_html, message.body_text);
+  }
   return renderThemedMailBody(message.body_html, message.body_text);
 }
 
@@ -1184,7 +1190,7 @@ async function selectConversation(msg: Message) {
     const data = await api.get('/messages/conversation', { params }) as any;
     conversationMessages.value = (data.messages || []) as Message[];
     selectedThreadKey.value = msg.thread_key;
-    const latest = conversationMessages.value[conversationMessages.value.length - 1] || msg;
+    const latest = conversationMessages.value[0] || msg;
     await selectMessage(latest, true);
   } catch (error) {
     console.error('加载邮件会话失败:', error);
@@ -2499,15 +2505,32 @@ async function saveAttachmentToSelectedNas(targetDir: string) {
 
 .meta-info {
   min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
-.meta-from {
+.meta-row {
+  display: flex;
+  min-width: 0;
+  gap: var(--space-2);
   font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.meta-label {
+  flex: 0 0 44px;
+  color: var(--text-tertiary);
+}
+
+.meta-value {
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.meta-from .meta-value {
   color: var(--text-primary);
   font-weight: var(--font-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .meta-date {

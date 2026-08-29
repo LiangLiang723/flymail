@@ -273,12 +273,16 @@ class MessageFolderResolutionTest(unittest.IsolatedAsyncioTestCase):
             subject="验证码：445566",
             from_addr="sender@example.com",
             to_addr="me@example.com",
+            cc="copy@example.com",
+            bcc="hidden@example.com",
             date="2026-08-11T00:00:00Z",
         )
 
         item = messages._message_to_item(message, "account-1")
 
         self.assertEqual(item.get("verification_code"), "445566")
+        self.assertEqual(item.get("cc"), "copy@example.com")
+        self.assertEqual(item.get("bcc"), "hidden@example.com")
 
     async def test_cached_list_uses_stable_database_id(self):
         messages = _load_messages_route_module()

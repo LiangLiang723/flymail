@@ -227,6 +227,7 @@ class MessageItem(BaseModel):
     from_addr: str = Field(default="", description="发件人")
     to_addr: str = Field(default="", description="收件人")
     cc: str = Field(default="", description="抄送人")
+    bcc: str = Field(default="", description="密送人")
     date: str = Field(default="", description="邮件日期")
     is_read: bool = Field(default=False, description="是否已读")
     is_starred: bool = Field(default=False, description="是否星标")

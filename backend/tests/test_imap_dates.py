@@ -140,6 +140,33 @@ class ImapDateParsingTest(unittest.TestCase):
         self.assertEqual(message.attachments[0].data, b"payload")
         self.assertNotIn("data", message.model_dump()["attachments"][0])
 
+    def test_detail_fetch_preserves_recipient_headers_when_present(self):
+        raw_email = (
+            b"Subject: Recipient headers\r\n"
+            b"From: sender@example.com\r\n"
+            b"To: to@example.com\r\n"
+            b"Cc: cc@example.com\r\n"
+            b"Bcc: bcc@example.com\r\n"
+            b"Date: Thu, 12 Jul 2018 19:35:00 +0800\r\n\r\n"
+            b"Body"
+        )
+
+        class FakeConn:
+            def select(self, folder, readonly=True):
+                return "OK", []
+
+            def uid(self, command, uid, query):
+                return "OK", [(b'1 (UID 42 BODY[] {256}', raw_email), b")"]
+
+        receiver = DummyReceiver()
+        receiver._conn = FakeConn()
+
+        message = receiver._fetch_detail_sync("42", "INBOX")
+
+        self.assertEqual(message.to_addr, "to@example.com")
+        self.assertEqual(message.cc, "cc@example.com")
+        self.assertEqual(message.bcc, "bcc@example.com")
+
     def test_detail_fetch_uses_internaldate_when_header_date_missing(self):
         class FakeConn:
             def select(self, folder, readonly=True):

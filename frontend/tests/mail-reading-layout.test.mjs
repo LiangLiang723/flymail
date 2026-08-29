@@ -47,3 +47,33 @@ test('signature panel toolbar paints above the recipient form stacking context',
   assert.match(toolbar, /z-index:\s*[1-9]\d*/);
   assert.match(toolbar, /overflow:\s*visible/);
 });
+
+test('mail detail shows recipient metadata only when each header exists', async () => {
+  const source = await readSource('src/views/MailList.vue');
+  const types = await readSource('src/types/mail.ts');
+
+  assert.match(source, /class="meta-row meta-from"[\s\S]*>发件人</);
+  assert.match(source, /v-if="selectedMessage\.to_addr"[^>]*class="meta-row"[\s\S]*>收件人</);
+  assert.match(source, /v-if="selectedMessage\.cc"[^>]*class="meta-row"[\s\S]*>抄送</);
+  assert.match(source, /v-if="selectedMessage\.bcc"[^>]*class="meta-row"[\s\S]*>密送</);
+  assert.match(types, /bcc\?:\s*string/);
+});
+
+test('mail list keeps the original numbered pagination', async () => {
+  const source = await readSource('src/views/MailList.vue');
+  assert.match(source, /v-if="!selectMode && mailStore\.currentAccountId" class="pagination"/);
+  assert.match(source, /v-for="p in pageNumbers"/);
+  assert.match(source, /const pageNumbers = computed\(/);
+  assert.match(source, /function goPage\(page: number\)/);
+  assert.doesNotMatch(source, /mailListScroller/);
+  assert.match(source, /\.pagination\s*\{[^}]*flex-wrap:\s*wrap/s);
+});
+
+test('conversation reading is newest first and uses quote-trimmed body rendering', async () => {
+  const source = await readSource('src/views/MailList.vue');
+
+  assert.match(source, />按时间从晚到早</);
+  assert.match(source, /const latest = conversationMessages\.value\[0\] \|\| msg/);
+  assert.match(source, /renderConversationThemedMailBody/);
+  assert.match(source, /conversationMessages\.value\.length > 0/);
+});

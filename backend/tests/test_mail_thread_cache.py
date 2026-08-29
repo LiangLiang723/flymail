@@ -20,6 +20,8 @@ class MailThreadCacheTests(unittest.TestCase):
             subject="Re: Project",
             from_addr="alice@example.com",
             to_addr="me@example.com",
+            cc="copy@example.com",
+            bcc="hidden@example.com",
             date="2026-08-07T01:00:00Z",
             folder="INBOX",
             message_id="<child@example.com>",
@@ -29,6 +31,8 @@ class MailThreadCacheTests(unittest.TestCase):
 
         cached = _messages_to_cached([message], account)[0]
 
+        self.assertEqual(cached.cc, "copy@example.com")
+        self.assertEqual(cached.bcc, "hidden@example.com")
         self.assertEqual(cached.message_id, "<child@example.com>")
         self.assertEqual(cached.in_reply_to, "<parent@example.com>")
         self.assertEqual(cached.references_header, "<root@example.com> <parent@example.com>")

@@ -1,6 +1,7 @@
 /** HTML 净化配置，防止 XSS 攻击 */
 import DOMPurify from 'dompurify'
 import { adaptMailBodyColors } from './mail-body-theme'
+import { stripConversationQuotedHtml, stripConversationQuotedText } from './conversation-body'
 
 // 允许的标签白名单
 const ALLOWED_TAGS = [
@@ -65,6 +66,16 @@ export function renderThemedMailBody(
   bodyText: string | undefined | null = '',
 ): string {
   return adaptMailBodyColors(renderMailBody(bodyHtml, bodyText))
+}
+
+export function renderConversationThemedMailBody(
+  bodyHtml: string | undefined | null,
+  bodyText: string | undefined | null = '',
+): string {
+  const trimmedHtml = stripConversationQuotedHtml(bodyHtml)
+  const cleaned = sanitizeHtml(trimmedHtml)
+  const body = cleaned || plainTextToSafeHtml(stripConversationQuotedText(bodyText))
+  return adaptMailBodyColors(body)
 }
 
 export function handleMailLinkClick(e: MouseEvent) {

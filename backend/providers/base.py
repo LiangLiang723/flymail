@@ -40,6 +40,7 @@ class Message(BaseModel):
     from_addr: str
     to_addr: str
     cc: str = ""  # 抄送人（逗号分隔的地址字符串，回复时用于填充抄送列表）
+    bcc: str = ""  # 密送人；仅当服务端保存的邮件头本身包含 Bcc 时可用
     reply_to: str = ""  # 回复地址（Reply-To 头，为空时前端回退到 from_addr）
     date: str
     is_read: bool = False

@@ -18,6 +18,7 @@ export interface Message {
   from_addr: string
   to_addr?: string
   cc?: string
+  bcc?: string
   reply_to?: string
   subject: string
   date: string

@@ -274,6 +274,8 @@ def _message_to_item(message, account_id: str) -> dict:
         "subject": message.subject or "",
         "from_addr": message.from_addr or "",
         "to_addr": message.to_addr or "",
+        "cc": getattr(message, "cc", "") or "",
+        "bcc": getattr(message, "bcc", "") or "",
         "date": message.date or "",
         "is_read": bool(message.is_read),
         "is_starred": bool(message.is_starred),

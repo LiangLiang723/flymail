@@ -39,6 +39,8 @@ def build_outgoing_message_bytes(
     msg["To"] = ", ".join(to or [])
     if cc:
         msg["Cc"] = ", ".join(cc)
+    if bcc:
+        msg["Bcc"] = ", ".join(bcc)
     msg["Subject"] = subject or ""
     msg["Date"] = formatdate(localtime=True)
     if in_reply_to:
@@ -85,7 +87,9 @@ async def _cache_outgoing_message_locally(
             folder=sent_folder,
             subject=subject or "",
             from_addr=account.email,
-            to_addr=", ".join((to or []) + (cc or []) + (bcc or [])),
+            to_addr=", ".join(to or []),
+            cc=", ".join(cc or []),
+            bcc=", ".join(bcc or []),
             date=formatdate(localtime=True),
             is_read=True,
             has_attachments=bool(attachments),

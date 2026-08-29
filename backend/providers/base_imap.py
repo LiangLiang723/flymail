@@ -36,7 +36,7 @@ class BaseIMAPReceiver(MailReceiver):
 
     _LIST_FETCH_ITEMS = (
         '(FLAGS INTERNALDATE BODYSTRUCTURE '
-        'BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO CC REPLY-TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES)])'
+        'BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO CC BCC REPLY-TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES)])'
     )
 
     # 子类可覆盖：iCloud/Outlook 的 IMAP 服务器要求 flags 用括号包裹
@@ -220,6 +220,7 @@ class BaseIMAPReceiver(MailReceiver):
                         from_addr=self._decode_header(msg.get("From", "")),
                         to_addr=self._decode_header(msg.get("To", "")),
                         cc=self._decode_header(msg.get("Cc", "")),
+                        bcc=self._decode_header(msg.get("Bcc", "")),
                         reply_to=self._decode_header(msg.get("Reply-To", "")),
                         date=self._parse_date(msg.get("Date", ""), fallback=internal_date),
                         is_read=is_read,
@@ -347,6 +348,7 @@ class BaseIMAPReceiver(MailReceiver):
         from_addr = self._decode_header(msg.get("From", ""))
         to_addr = self._decode_header(msg.get("To", ""))
         cc = self._decode_header(msg.get("Cc", ""))
+        bcc = self._decode_header(msg.get("Bcc", ""))
         reply_to = self._decode_header(msg.get("Reply-To", ""))
         date_str = msg.get("Date", "")
         raw_message_id = (msg.get("Message-ID") or msg.get("Message-Id") or "").strip()
@@ -413,6 +415,7 @@ class BaseIMAPReceiver(MailReceiver):
             from_addr=from_addr,
             to_addr=to_addr,
             cc=cc,
+            bcc=bcc,
             reply_to=reply_to,
             date=self._parse_date(date_str, fallback=internal_date),
             body_text=body_text,
